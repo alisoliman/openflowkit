@@ -63,13 +63,16 @@ const TOOL_GROUPS: ToolGroup[] = [
   },
 ];
 
-function buildConfig(): string {
+export function buildMcpConfig(appUrl: string): string {
   return JSON.stringify(
     {
       mcpServers: {
         openflowkit: {
           command: 'npx',
           args: ['-y', '@vrun-design/openflowkit-mcp'],
+          env: {
+            OPENFLOWKIT_APP_URL: appUrl.replace(/\/+$/, ''),
+          },
         },
       },
     },
@@ -180,7 +183,7 @@ export function MCPSettings({ variant = 'panel' }: MCPSettingsProps = {}): React
   const { t } = useTranslation();
   const [client, setClient] = useState<ClientId>('claude');
   const installCmd = 'npx -y @vrun-design/openflowkit-mcp';
-  const config = buildConfig();
+  const config = buildMcpConfig(window.location.origin);
   const activeClient = CLIENTS.find((c) => c.id === client) ?? CLIENTS[0];
 
   return (
