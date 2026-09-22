@@ -10,11 +10,12 @@
   ],
   "homepage": "https://openflowkit.com",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-sitemap.js && tsc -b && vite build",
+    "build": "node scripts/generate-sitemap.js && npm run typecheck && vite build",
+    "typecheck": "tsc -b && tsc -p tsconfig.server.json",
     "build:analyze": "npm run build && node scripts/analyze-bundle.mjs",
     "bundle:check": "node scripts/check-bundle-budget.mjs",
     "icons:tighten": "node scripts/tighten-svg-viewboxes.mjs",
@@ -50,6 +51,7 @@
     "prepare": "node -e \"if (process.env.CI) process.exit(0)\" && husky || true"
   },
   "dependencies": {
+    "@github/copilot-sdk": "1.0.14",
     "@google/genai": "^1.40.0",
     "@mermaid-js/layout-elk": "^0.2.1",
     "@xyflow/react": "^12.10.1",
@@ -122,6 +124,9 @@
     ]
   },
   "overrides": {
-    "zod": "3"
+    "zod": "3",
+    "@github/copilot-sdk": {
+      "zod": "^4.3.6"
+    }
   }
 }

@@ -6,6 +6,26 @@ description: Flowpilot’i Studio içindeki sohbet tabanlı yardımcı olarak ku
 
 Flowpilot, Studio içindeki sohbet tabanlı asistandır. Bir diyagramı doğal dille tarif etmek, mevcut bir taslağı yeniden kurmak veya farklı bir yapısal yaklaşım istemek için en hızlı yoldur.
 
+## GitHub Copilot'u bağlayın
+
+Varsayılan motor GitHub Copilot SDK'dır. `gh copilot login` ile oturum açın,
+`npm run dev` ile yerel uygulamayı başlatın ve **Settings → AI → GitHub Copilot →
+Check connection** yolunu izleyin. Ayrı API anahtarı gerekmez; Copilot kotanız
+kullanılır ve modeller hesabınızdan alınır.
+
+Statik barındırılan bir site yerel CLI oturumunuzu okuyamaz. Kurulum ve alternatif
+sağlayıcılar için [AI Generation](/tr/ai-generation/) sayfasına bakın.
+
+Üretilen diyagram önce önizleme olarak gösterilir. **Apply to canvas** ile
+onaylayın veya **Discard** ile vazgeçin. İptal işlemi SDK isteğini durdurur ve
+eksik bir taslağı tuvale uygulamaz.
+
+Flowpilot içindeki **Copilot modeli** seçicisiyle sonraki isteğin modelini
+değiştirebilirsiniz. **Düzenlemeleri otomatik uygula** seçeneği onay adımını
+kaldırır; **AI düzenlemesini geri al** son AI değişikliğini geri almanızı sağlar.
+İlk taslaktan sonra kısa takip istekleri mevcut diyagramı düzenler. Önizlemeler
+gerçek değişiklikleri özetler; atılan taslaklar sonraki yanıtları yanıltmaz.
+
 ## İyi kullanım senaryoları
 
 Flowpilot’i şu durumlarda kullanın:
@@ -42,6 +62,10 @@ Flowpilot en güçlü halini taslak üreticisi olarak gösterir, son editör ola
 - [Properties Panel](/tr/properties-panel/) ile etiket ve görsel ayarları düzeltin
 - gerekirse [Smart Layout](/tr/smart-layout/) ile yerleşimi toplayın
 - yeni büyük revizyonlardan önce snapshot alın
+
+Mesaj gönderilir gönderilmez yazı alanı temizlenir; Flowpilot çalışırken sonraki
+mesajınızı hazırlayabilirsiniz. Başarısız veya iptal edilen bir isteğin metni ve
+eki, yalnızca bu sırada yazı alanını değiştirmediyseniz geri yüklenir.
 
 ## İlgili sayfalar
 

@@ -174,6 +174,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <Tooltip text={t('toolbar.flowpilot', 'Flowpilot (Cmd+K)')}>
           <Button
+            data-testid="toolbar-flowpilot-toggle"
+            aria-label={t('toolbar.flowpilot', 'Flowpilot (Cmd+K)')}
             onClick={onToggleStudio}
             disabled={!isInteractive}
             variant="ghost"

@@ -14,6 +14,8 @@ import {
 } from '@/config/aiProviders';
 import { getAIReadinessState } from '@/hooks/ai-generation/readiness';
 import { buildDocsSiteUrl } from '@/docs/docsRoutes';
+import { useCopilotConnection } from '@/hooks/ai-generation/useCopilotConnection';
+import { CopilotSettings } from './ai/CopilotSettings';
 
 // Helper for logo with fallback
 function ProviderIcon({ p, isSelected }: { p: ProviderMeta; isSelected: boolean }): React.ReactElement {
@@ -25,8 +27,8 @@ function ProviderIcon({ p, isSelected }: { p: ProviderMeta; isSelected: boolean 
             className="h-8 w-8"
             style={{
                 backgroundColor: iconColor,
-                maskImage: `url(${p.logoPath})`,
-                WebkitMaskImage: `url(${p.logoPath})`,
+                maskImage: `url("${p.logoPath}")`,
+                WebkitMaskImage: `url("${p.logoPath}")`,
                 maskSize: 'contain',
                 WebkitMaskSize: 'contain',
                 maskRepeat: 'no-repeat',
@@ -92,11 +94,13 @@ export function AISettings(): React.ReactElement {
     const { aiSettings, setAISettings } = useFlowStore();
     const { t } = useTranslation();
 
-    const currentProvider = aiSettings.provider ?? 'gemini';
+    const currentProvider = aiSettings.provider ?? 'copilot';
+    const isCopilot = currentProvider === 'copilot';
+    const { connection, refresh } = useCopilotConnection(isCopilot);
     const providerMeta = PROVIDERS.find(p => p.id === currentProvider) ?? PROVIDERS[0];
     const models = PROVIDER_MODELS[currentProvider] ?? [];
     const currentModel = aiSettings.model ?? providerMeta.defaultModel;
-    const readiness = getAIReadinessState(aiSettings);
+    const readiness = getAIReadinessState(aiSettings, connection);
     const providerRisk = getProviderRiskPresentation(currentProvider);
     const providerRiskIcon = providerRisk.tone === 'warning' ? AlertCircle : Info;
     const providerRiskClassName = providerRisk.tone === 'warning'
@@ -132,7 +136,7 @@ export function AISettings(): React.ReactElement {
                         Prompting Guide <ExternalLink className="w-3 h-3" />
                     </a>
                 </div>
-                <p className="text-xs text-[var(--brand-secondary)]">{t('ai.settingsSubtitle')}</p>
+                <p className="text-xs text-[var(--brand-secondary)]">{isCopilot ? t('copilot.settingsSubtitle') : t('ai.settingsSubtitle')}</p>
             </div>
 
             {/* Provider Section - Logo Dock */}
@@ -161,6 +165,7 @@ export function AISettings(): React.ReactElement {
                                 onClick={() => selectProvider(p.id)}
                                 title={p.name}
                                 aria-label={`Select ${p.name} as AI provider`}
+                                aria-pressed={isSelected}
                                 className={`group relative flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center rounded-[var(--radius-xl)] border transition-all duration-200 ${buttonClass}`}
                             >
                                 <div className={`pointer-events-none transition-transform duration-200 ${iconWrapperClass}`}>
@@ -179,11 +184,11 @@ export function AISettings(): React.ReactElement {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-[var(--brand-text)]">{providerMeta.name}</p>
-                        <p className="text-[10px] text-[var(--brand-secondary)] truncate">{t(`settingsModal.ai.providers.${currentProvider}.hint`)}</p>
+                        <p className="text-[10px] text-[var(--brand-secondary)]">{isCopilot ? t('copilot.providerHint') : t(`settingsModal.ai.providers.${currentProvider}.hint`)}</p>
                     </div>
                     {providerMeta.id === 'custom' && <span className="rounded-[var(--radius-xs)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--brand-secondary)]">BYOK</span>}
                 </div>
-                <div className={`rounded-[var(--radius-lg)] border px-3 py-3 ${providerRiskClassName}`}>
+                {!isCopilot && <div className={`rounded-[var(--radius-lg)] border px-3 py-3 ${providerRiskClassName}`}>
                     <div className="flex items-start gap-2">
                         {React.createElement(providerRiskIcon, { className: `mt-0.5 h-4 w-4 shrink-0 ${providerRiskIconClassName}` })}
                         <div className="min-w-0">
@@ -197,12 +202,20 @@ export function AISettings(): React.ReactElement {
                             <p className="mt-1 text-[11px] leading-5 text-current/80">{providerRisk.detail}</p>
                         </div>
                     </div>
-                </div>
+                </div>}
             </div>
 
             <div className="h-px bg-[var(--brand-background)]" />
 
             {/* Config Section */}
+            {isCopilot ? (
+                <CopilotSettings
+                    connection={connection}
+                    onRefresh={refresh}
+                    model={currentModel}
+                    onModelChange={(model) => setAISettings({ model })}
+                />
+            ) : (
             <div className="space-y-6">
                 {/* Model Selector */}
                 <div className="space-y-3">
@@ -386,8 +399,10 @@ export function AISettings(): React.ReactElement {
                     </div>
                 )}
             </div>
+            )}
 
             {/* Privacy Section - Improved Visibility */}
+            {!isCopilot && (
             <div className="pt-2">
                 <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-4 shadow-sm">
                     <div className="flex items-center gap-2 mb-3 text-[var(--brand-text)]">
@@ -409,6 +424,7 @@ export function AISettings(): React.ReactElement {
                     </p>
                 </div>
             </div>
+            )}
         </div>
     );
 }

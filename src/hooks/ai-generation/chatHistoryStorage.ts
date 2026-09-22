@@ -3,8 +3,24 @@ import { localFirstRepository, type PersistedChatMessage } from '@/services/stor
 import { parseLegacyChatMessagesJson } from '@/services/storage/storageSchemas';
 import type { AssistantThreadItem } from '@/services/flowpilot/types';
 import { assistantThreadToChatMessages } from '@/services/flowpilot/thread';
+import { createLogger } from '@/lib/logger';
 
 const STORAGE_KEY_PREFIX = 'ofk_chat_history_';
+const logger = createLogger({ scope: 'AssistantThreadStorage' });
+const writes = new Map<string, Promise<void>>();
+
+function enqueueWrite(diagramId: string, write: () => Promise<void>): Promise<void> {
+  const previous = writes.get(diagramId) ?? Promise.resolve();
+  const next = previous.catch((error: unknown) => {
+    logger.warn('Previous conversation write failed; retrying with the latest thread.', { error });
+  }).then(write);
+  writes.set(diagramId, next);
+  const release = () => {
+    if (writes.get(diagramId) === next) writes.delete(diagramId);
+  };
+  void next.then(release, release);
+  return next;
+}
 
 function storageKey(diagramId: string): string {
   return `${STORAGE_KEY_PREFIX}${diagramId}`;
@@ -31,6 +47,8 @@ function toAssistantThreadItems(messages: PersistedChatMessage[]): AssistantThre
     previewDetail: message.previewDetail,
     previewStats: message.previewStats,
     applied: message.applied,
+    previewStatus: message.previewStatus,
+    changes: message.changes,
     plan: message.plan,
     assetMatches: message.assetMatches,
   }));
@@ -59,6 +77,7 @@ function toPersistedThreadItems(
     parts: [{ text: item.content }],
     createdAt: item.createdAt,
     threadType: item.type,
+    sequence: index,
     responseMode: item.responseMode,
     thinkingState: item.thinkingState,
     summary: item.summary,
@@ -66,6 +85,8 @@ function toPersistedThreadItems(
     previewDetail: item.previewDetail,
     previewStats: item.previewStats,
     applied: item.applied,
+    previewStatus: item.previewStatus,
+    changes: item.changes,
     plan: item.plan,
     assetMatches: item.assetMatches,
   }));
@@ -114,6 +135,7 @@ export async function saveChatHistory(diagramId: string, messages: ChatMessage[]
 }
 
 export async function loadAssistantThreadHistory(diagramId: string): Promise<AssistantThreadItem[]> {
+  await writes.get(diagramId);
   try {
     const messages = await localFirstRepository.loadChatThread(diagramId);
     return toAssistantThreadItems(messages);
@@ -128,15 +150,18 @@ export async function loadAssistantThreadHistory(diagramId: string): Promise<Ass
   }
 }
 
-export async function saveAssistantThreadHistory(
+export function saveAssistantThreadHistory(
   diagramId: string,
   items: AssistantThreadItem[]
 ): Promise<void> {
-  try {
-    await localFirstRepository.replaceChatThread(diagramId, toPersistedThreadItems(diagramId, items));
-  } catch {
-    saveLegacyChatHistory(diagramId, assistantThreadToChatMessages(items));
-  }
+  return enqueueWrite(diagramId, async () => {
+    try {
+      await localFirstRepository.replaceChatThread(diagramId, toPersistedThreadItems(diagramId, items));
+    } catch (error) {
+      logger.warn('Conversation storage failed; saving safe conversational context locally.', { error });
+      saveLegacyChatHistory(diagramId, assistantThreadToChatMessages(items));
+    }
+  });
 }
 
 export async function clearChatHistory(diagramId: string): Promise<void> {
@@ -148,5 +173,5 @@ export async function clearChatHistory(diagramId: string): Promise<void> {
 }
 
 export async function clearAssistantThreadHistory(diagramId: string): Promise<void> {
-  await clearChatHistory(diagramId);
+  await enqueueWrite(diagramId, () => clearChatHistory(diagramId));
 }

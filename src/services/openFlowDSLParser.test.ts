@@ -82,6 +82,41 @@ describe('openFlowDSLParser', () => {
         expect(result.diagnostics?.[0].snippet).toBe('this is not valid dsl');
     });
 
+    it.each(['provider .. auth_svc', 'provider ..|callback| auth_svc'])(
+        'explains how to repair a missing dashed arrowhead: %s',
+        (edge) => {
+            const result = parseOpenFlowDSL([
+                '[system] provider: OAuth Provider',
+                '[system] auth_svc: Authentication Service',
+                edge,
+            ].join('\n'));
+            expect(result.error).toContain('Unrecognized syntax');
+            expect(result.diagnostics?.[0]).toMatchObject({
+                line: 3,
+                snippet: edge,
+                hint: 'Dashed edges need a closing ">": use `source ..> target` or `source ..>|label| target`.',
+            });
+            expect(result.edges).toHaveLength(0);
+        }
+    );
+
+    it('preserves endpoints, labels, and dashed styling for the corrected OAuth callback edge', () => {
+        const result = parseOpenFlowDSL([
+            '[system] provider: OAuth Provider',
+            '[system] auth_svc: Authentication Service',
+            'provider ..>|callback| auth_svc',
+        ].join('\n'));
+        expect(result.error).toBeUndefined();
+        expect(result.nodes.map((node) => node.id)).toEqual(['provider', 'auth_svc']);
+        expect(result.edges).toEqual([expect.objectContaining({
+            source: 'provider',
+            target: 'auth_svc',
+            label: 'callback',
+            data: expect.objectContaining({ styleType: 'dashed' }),
+            style: { strokeDasharray: '5 5' },
+        })]);
+    });
+
     it('returns actionable diagnostics for unexpected closing brace', () => {
         const input = `
             [process] n1: Start

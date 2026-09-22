@@ -40,7 +40,7 @@ const VALID_NODE_TYPES = new Set([
 const NODE_TYPE_PATTERN = /^\s*\[([a-zA-Z_][a-zA-Z0-9_]*)\]\s+([a-zA-Z_][a-zA-Z0-9_]*)(?::|\s|$)/;
 const SIMPLE_NODE_PATTERN = /^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/;
 const SHORT_NODE_PATTERN = /^\s*([a-zA-Z_][a-zA-Z0-9_]*):/;
-const EDGE_PATTERN = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*(==>|-->|->|\.\.|---)\s*(?:\|([^|]*)\|\s*)?([a-zA-Z_][a-zA-Z0-9_]*)$/;
+const EDGE_PATTERN = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*(==>|-->|->|\.\.>|---)\s*(?:\|([^|]*)\|\s*)?([a-zA-Z_][a-zA-Z0-9_]*)$/;
 
 function isLikelyNodeDeclarationLine(line: string): boolean {
   const trimmed = line.trim();
@@ -139,12 +139,17 @@ export function lintOpenFlowDsl(source: string): DslLintResult {
 
     const match = trimmed.match(EDGE_PATTERN);
     if (!match) {
+      const incompleteDashedEdge = /^[a-zA-Z_][a-zA-Z0-9_]*\s*\.\.(?!>)/.test(trimmed);
       diagnostics.push({
-        severity: 'warning',
-        message: 'Edge line did not match expected pattern.',
+        severity: incompleteDashedEdge ? 'error' : 'warning',
+        message: incompleteDashedEdge
+          ? 'Dashed edge is missing its closing ">".'
+          : 'Edge line did not match expected pattern.',
         line: lineNumber,
         snippet: trimmed,
-        hint: 'Use `source -> target` or `source ->|label| target`.',
+        hint: incompleteDashedEdge
+          ? 'Use `source ..> target` or `source ..>|label| target`.'
+          : 'Use `source -> target` or `source ->|label| target`.',
       });
       return;
     }

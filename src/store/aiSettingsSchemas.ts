@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AIProvider, AISettingsStorageMode } from './types';
 
 export const aiProviderSchema = z.enum([
+  'copilot',
   'gemini',
   'openai',
   'claude',
@@ -26,6 +27,7 @@ export const persistedAISettingsSchema = z
     apiKey: z.string(),
     model: z.string(),
     customBaseUrl: z.string(),
+    autoApply: z.boolean(),
     customHeaders: z.array(
       z.object({
         key: z.string(),

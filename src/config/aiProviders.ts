@@ -1,6 +1,7 @@
 import { AIProvider } from '@/store';
+const copilotLogo = new URL('../../assets/third-party-icons/developer/processed/DevOps-AI-ML/github-copilot.svg', import.meta.url).href;
 
-export const PROVIDER_BASE_URLS: Record<Exclude<AIProvider, 'gemini' | 'claude' | 'custom'>, string> = {
+export const PROVIDER_BASE_URLS: Record<Exclude<AIProvider, 'copilot' | 'gemini' | 'claude' | 'custom'>, string> = {
     openai: 'https://api.openai.com/v1',
     groq: 'https://api.groq.com/openai/v1',
     nvidia: 'https://integrate.api.nvidia.com/v1',
@@ -12,6 +13,7 @@ export const PROVIDER_BASE_URLS: Record<Exclude<AIProvider, 'gemini' | 'claude' 
 };
 
 export const DEFAULT_MODELS: Record<AIProvider, string> = {
+    copilot: 'auto',
     gemini: 'gemini-2.5-flash-lite',
     openai: 'gpt-5-mini',
     claude: 'claude-sonnet-4-6',
@@ -42,6 +44,17 @@ function getDefaultModel(provider: AIProvider): string {
 }
 
 export const PROVIDERS: ProviderMeta[] = [
+    {
+        id: 'copilot',
+        name: 'GitHub Copilot',
+        icon: '⌘',
+        color: '#24292f',
+        logoPath: copilotLogo,
+        keyPlaceholder: '',
+        keyLink: '',
+        consoleName: 'GitHub Copilot CLI',
+        defaultModel: getDefaultModel('copilot'),
+    },
     {
         id: 'gemini',
         name: 'Gemini',
@@ -158,6 +171,7 @@ export const PROVIDERS: ProviderMeta[] = [
 ];
 
 export const PROVIDER_MODELS: Record<AIProvider, { id: string; translateKey: string }[]> = {
+    copilot: [],
     gemini: [
         { id: 'gemini-2.5-flash-lite', translateKey: 'gemini-2.5-flash-lite' },
         { id: 'gemini-2.5-flash', translateKey: 'gemini-2.5-flash' },
@@ -229,7 +243,7 @@ export const BYOK_KEYS = [
     'cuttingEdge',
 ] as const;
 
-export const DEFAULT_BASE_URLS: Record<Exclude<AIProvider, 'gemini' | 'claude'>, string> = {
+export const DEFAULT_BASE_URLS: Record<Exclude<AIProvider, 'copilot' | 'gemini' | 'claude'>, string> = {
     openai: PROVIDER_BASE_URLS.openai,
     groq: PROVIDER_BASE_URLS.groq,
     nvidia: PROVIDER_BASE_URLS.nvidia,
@@ -243,6 +257,7 @@ export const DEFAULT_BASE_URLS: Record<Exclude<AIProvider, 'gemini' | 'claude'>,
 export type ProviderRisk = 'browser_friendly' | 'mixed' | 'proxy_likely';
 
 export const PROVIDER_RISK: Record<AIProvider, ProviderRisk> = {
+    copilot: 'mixed',
     gemini: 'browser_friendly',
     openrouter: 'browser_friendly',
     openai: 'mixed',

@@ -101,9 +101,9 @@ direction: TB
 client ==> gateway
 gateway ==> service
 service ==> db
-db ..|row| service
-service ..|payload| gateway
-gateway ..|JSON| client
+db ..>|row| service
+service ..>|payload| gateway
+gateway ..>|JSON| client
 `,
   },
   {
@@ -124,8 +124,8 @@ direction: LR
 producer ==> queue
 queue --> worker1
 queue --> worker2
-worker1 ..|fail| dlq
-worker2 ..|fail| dlq
+worker1 ..>|fail| dlq
+worker2 ..>|fail| dlq
 worker1 ==> store
 worker2 ==> store
 `,

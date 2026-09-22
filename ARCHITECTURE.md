@@ -42,7 +42,7 @@ Route composition is currently centered in `src/App.tsx`, not in a dedicated `pa
 
 ## Runtime Surfaces
 
-The repository contains three main product/runtime surfaces:
+The repository contains four main product/runtime surfaces:
 
 ### 1. Main App
 
@@ -69,6 +69,58 @@ The public landing/marketing site.
 Key area:
 
 - `web/`
+
+### 4. Local Copilot Runtime
+
+Flowpilot uses `@github/copilot-sdk` by default. `server/copilotPlugin.ts` mounts
+`/api/copilot/status` and `/api/copilot/chat` in the local Vite dev and preview
+servers. The SDK and CLI credentials never enter the browser bundle.
+
+- `server/copilotRuntime.ts` owns SDK startup, CLI authentication, account model
+  discovery, bounded concurrent requests, streaming, cancellation, and temporary
+  session cleanup.
+- `server/copilotMiddleware.ts` enforces loopback socket/Host checks, same-origin
+  requests, a custom client header, JSON schema/body limits, and explicit terminal
+  stream events. It does not enable CORS.
+- `src/services/copilot/` owns the shared protocol and browser transport.
+- `src/services/aiService.ts` selects this engine for generation, conversations,
+  and documentation answers. Other providers retain their existing transports.
+- `src/hooks/ai-generation/` and `src/services/flowpilot/` retain intent routing,
+  local asset grounding, DSL parsing/repair, layout, history, and preview approval.
+
+SDK sessions use empty mode with no host tools, MCP servers, skills, ambient
+instructions, file hooks, or shared session store. The local CLI sign-in is
+reused; inherited automation-token variables are excluded. Each request replays
+the browser-owned history as context in one turn, then deletes only its own
+temporary session. Aborts and timeouts stop model work; a truncated stream cannot
+be applied as a successful diagram. Automatic DSL repair remains one additional
+request, but SDK transport failures are not replayed by the browser retry loop.
+
+Flowpilot conversation state is scoped to the active page. Preview records carry
+`pending`, `applied`, `discarded`, `superseded`, or `undone` state and a semantic
+change summary; their DSL is never replayed as an authoritative assistant answer.
+Both conversational and generation requests receive the live canvas. History
+writes are serialized per page and rapid turns retain an explicit sequence.
+Pending previews expire on reload instead of becoming implicit applied state.
+
+`src/services/flowpilot/changeSummary.ts` compares meaningful node data and
+matches edges by endpoints/content rather than regenerated IDs. Canvas
+fingerprints additionally include positions to prevent stale requests or
+previews from overwriting manual changes. Selection and measurement metadata
+do not invalidate a draft.
+
+The Flowpilot composer shares its Copilot model selector with Settings and
+persists an explicit `aiSettings.autoApply` opt-in (off when unset). Prepared AI
+graphs commit synchronously through store actions, with a single history entry;
+React Flow's queued setters are retained for the existing import path. The
+inline AI undo control is enabled only while that result and its undo snapshot
+are still current. Normal canvas Undo/Redo remains available for older or
+intervening edits. Cancellation and page switches prevent late application.
+
+New installations default to Copilot; persisted provider selections are not
+overwritten. Static deployments do not include this Node runtime and cannot read
+a user's local CLI login. They show setup guidance and still support alternative
+providers. This bridge is not a public or multi-user authentication service.
 
 ---
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FlowEdge, FlowNode } from '@/lib/types';
 import { parseOpenFlowDSL } from '@/lib/openFlowDSLParser';
+import { CopilotRequestError } from '@/services/copilot/protocol';
 import {
   buildIdMap,
   parseDslOrThrow,
@@ -82,6 +83,13 @@ describe('graphComposer', () => {
     expect(finalEdges[0].style?.strokeWidth).toBe(4);
     expect(finalEdges[0].style?.stroke).toBe('#123456');
     expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it('preserves Copilot login and quota guidance instead of asking for provider API keys', () => {
+    const message = 'Copilot returned 403: check your organization Copilot policy.';
+    expect(toErrorMessage(new CopilotRequestError('request_failed', message, 403))).toBe(message);
+    const quota = 'Your Copilot quota is exhausted for this billing period.';
+    expect(toErrorMessage(new CopilotRequestError('request_failed', quota))).toBe(quota);
   });
 
   it('maps unknown errors to a stable message', () => {

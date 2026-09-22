@@ -4,6 +4,7 @@ import { APP_DSL_CODE_FENCE_ALIASES } from '@/lib/legacyBranding';
 import { createLogger } from '@/lib/logger';
 import { parseOpenFlowDSL } from '@/lib/openFlowDSLParser';
 import type { FlowEdge, FlowNode } from '@/lib/types';
+import { CopilotRequestError } from '@/services/copilot/protocol';
 
 const logger = createLogger({ scope: 'graphComposer' });
 
@@ -120,6 +121,7 @@ export function toFinalEdges(
 }
 
 export function toErrorMessage(error: unknown): string {
+  if (error instanceof CopilotRequestError) return error.message;
   if (error instanceof Error) {
     const message = error.message;
 

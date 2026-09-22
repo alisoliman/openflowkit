@@ -10,6 +10,7 @@ import type { AssistantThreadItem } from '@/services/flowpilot/types';
 import type { ImportDiff } from '@/hooks/useAIGeneration';
 import type { AIReadinessState } from '@/hooks/ai-generation/readiness';
 import { useAIViewState } from './command-bar/useAIViewState';
+import { FlowpilotControls } from './FlowpilotControls';
 import {
   EMPTY_CANVAS_EXAMPLES,
   ITERATION_EXAMPLES,
@@ -41,6 +42,8 @@ interface StudioAIPanelProps {
   chatMessages: ChatMessage[];
   assistantThread: AssistantThreadItem[];
   onClearChat: () => void;
+  canUndoLastChange?: boolean;
+  undoLastChange?: () => void;
   nodeCount?: number;
   selectedNodeCount?: number;
   initialPrompt?: string;
@@ -128,6 +131,8 @@ export function StudioAIPanel({
   chatMessages,
   assistantThread,
   onClearChat,
+  canUndoLastChange,
+  undoLastChange,
   nodeCount = 0,
   selectedNodeCount = 0,
   initialPrompt,
@@ -135,9 +140,12 @@ export function StudioAIPanel({
 }: StudioAIPanelProps): ReactElement {
   const { t } = useTranslation();
   const isBeveled = IS_BEVELED;
-  const [generationMode, setGenerationMode] = useState<AIGenerationMode>(
-    nodeCount === 0 ? 'create' : 'edit'
-  );
+  const [generationMode, setGenerationMode] = useState<AIGenerationMode>('edit');
+  const effectiveGenerationMode: AIGenerationMode = nodeCount === 0 ? 'create' : generationMode;
+
+  function openAISettings(): void {
+    window.dispatchEvent(new CustomEvent('open-ai-settings'));
+  }
 
   const {
     prompt,
@@ -152,8 +160,14 @@ export function StudioAIPanel({
   } = useAIViewState({
     searchQuery: '',
     isGenerating,
-    onAIGenerate,
-    onClose: () => undefined,
+    onAIGenerate: (text, image) => {
+      if (!aiReadiness.canGenerate) {
+        openAISettings();
+        return Promise.resolve(false);
+      }
+      return onAIGenerate(buildGenerationPrompt(text, effectiveGenerationMode, nodeCount), image);
+    },
+    onClose: () => setGenerationMode('edit'),
     chatMessageCount: assistantThread.length,
   });
 
@@ -166,7 +180,6 @@ export function StudioAIPanel({
 
   const hasHistory = assistantThread.length > 0;
   const isCanvasEmpty = nodeCount === 0;
-  const effectiveGenerationMode: AIGenerationMode = nodeCount === 0 ? 'create' : generationMode;
   const examplePrompts = isCanvasEmpty ? EMPTY_CANVAS_EXAMPLES : ITERATION_EXAMPLES;
   const isEditMode = effectiveGenerationMode === 'edit' && !isCanvasEmpty;
   const sendButtonLabel = isEditMode
@@ -180,12 +193,7 @@ export function StudioAIPanel({
 
   async function submitPrompt(promptText?: string): Promise<void> {
     const resolvedPrompt = promptText ?? prompt;
-    const finalPrompt = buildGenerationPrompt(resolvedPrompt, effectiveGenerationMode, nodeCount);
-    await handleGenerate(finalPrompt);
-  }
-
-  function openAISettings(): void {
-    window.dispatchEvent(new CustomEvent('open-ai-settings'));
+    await handleGenerate(resolvedPrompt);
   }
 
   function handleSubmit(): void {
@@ -206,6 +214,7 @@ export function StudioAIPanel({
           pendingDiff={pendingDiff}
           onConfirmDiff={onConfirmDiff}
           onDiscardDiff={onDiscardDiff}
+          isGenerating={isGenerating}
           t={t}
         />
       ) : null}
@@ -229,6 +238,7 @@ export function StudioAIPanel({
         scrollRef={scrollRef}
         t={t}
       />
+      <FlowpilotControls isGenerating={isGenerating} canUndo={canUndoLastChange} onUndo={undoLastChange} />
       <ComposerSection
         nodeCount={nodeCount}
         selectedNodeCount={selectedNodeCount}

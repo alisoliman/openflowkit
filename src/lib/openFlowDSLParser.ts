@@ -36,6 +36,8 @@ function buildDiagnosticFromError(rawError: string, inputLines: string[]): Parse
         hint = 'Node format: [type] id: Label';
     } else if (message.startsWith('Unexpected')) {
         hint = 'Check block delimiters and remove extra closing braces.';
+    } else if (message.startsWith('Unrecognized syntax') && /\S\s+\.\.(?!>)(?:\|[^|]+\|)?\s+\S/.test(snippet ?? '')) {
+        hint = 'Dashed edges need a closing ">": use `source ..> target` or `source ..>|label| target`.';
     } else if (message.startsWith('Unrecognized syntax')) {
         hint = 'Use DSL forms like `[type] id: Label`, `A -> B`, or `group "Name" { ... }`.';
     }

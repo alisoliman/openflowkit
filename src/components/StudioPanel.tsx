@@ -55,6 +55,8 @@ interface StudioPanelProps {
     onClearAIError: () => void;
     chatMessages: ChatMessage[];
     assistantThread: AssistantThreadItem[];
+    canUndoLastChange?: boolean;
+    undoLastChange?: () => void;
     onClearChat: () => void;
     activeTab: StudioTab;
     onTabChange: (tab: StudioTab) => void;
@@ -99,6 +101,8 @@ export function StudioPanel({
     onClearAIError,
     chatMessages,
     assistantThread,
+    canUndoLastChange,
+    undoLastChange,
     onClearChat,
     activeTab,
     onTabChange,
@@ -161,6 +165,8 @@ export function StudioPanel({
                             onClearError={onClearAIError}
                             chatMessages={chatMessages}
                             assistantThread={assistantThread}
+                            canUndoLastChange={canUndoLastChange}
+                            undoLastChange={undoLastChange}
                             onClearChat={onClearChat}
                             nodeCount={nodes.length}
                             selectedNodeCount={selectedNodeCount}

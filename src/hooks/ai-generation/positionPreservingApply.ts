@@ -1,4 +1,5 @@
 import type { FlowEdge, FlowNode } from '@/lib/types';
+import { matchDiagramEdges } from '@/services/flowpilot/changeSummary';
 
 export interface PositionPreservingApplyResult {
     mergedNodes: FlowNode[];
@@ -18,7 +19,8 @@ export function applyAIResultToCanvas(
     aiNodes: FlowNode[],
     aiEdges: FlowEdge[],
     existingNodes: FlowNode[],
-    idMap: Map<string, string>
+    idMap: Map<string, string>,
+    existingEdges: FlowEdge[] = []
 ): PositionPreservingApplyResult {
     const existingById = new Map(existingNodes.map((n) => [n.id, n]));
     const newNodeIds = new Set<string>();
@@ -28,14 +30,32 @@ export function applyAIResultToCanvas(
         const existing = existingById.get(resolvedId);
 
         if (existing) {
-            return { ...aiNode, id: resolvedId, position: existing.position };
+            return {
+                ...existing,
+                ...aiNode,
+                id: resolvedId,
+                position: existing.position,
+                style: aiNode.style ?? existing.style,
+                data: existing.type === aiNode.type ? { ...existing.data, ...aiNode.data } : aiNode.data,
+            };
         }
 
         newNodeIds.add(resolvedId);
         return { ...aiNode, id: resolvedId };
     });
 
-    return { mergedNodes, mergedEdges: aiEdges, newNodeIds, existingById };
+    const mergedEdges = matchDiagramEdges(existingEdges, aiEdges)
+        .filter((pair): pair is { before?: FlowEdge; after: FlowEdge } => Boolean(pair.after))
+        .map(({ before, after }) => before ? {
+            ...before,
+            ...after,
+            id: before.id,
+            sourceHandle: before.sourceHandle ?? after.sourceHandle,
+            targetHandle: before.targetHandle ?? after.targetHandle,
+            data: { ...before.data, ...after.data },
+            style: { ...before.style, ...after.style },
+        } : after);
+    return { mergedNodes, mergedEdges, newNodeIds, existingById };
 }
 
 /**

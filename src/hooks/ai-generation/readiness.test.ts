@@ -4,6 +4,34 @@ import { getAIReadinessState } from './readiness';
 const DEFAULT_STORAGE_MODE = 'local' as const;
 
 describe('getAIReadinessState', () => {
+  const copilotSettings = { provider: 'copilot' as const, storageMode: DEFAULT_STORAGE_MODE };
+
+  it('allows an authenticated Copilot account without a provider API key', () => {
+    expect(getAIReadinessState(copilotSettings, {
+      state: 'ready', status: { runtime: 'github-copilot-sdk', authenticated: true, models: [] },
+    }).canGenerate).toBe(true);
+  });
+
+  it('waits for Copilot connection discovery and gives CLI-specific recovery guidance', () => {
+    expect(getAIReadinessState(copilotSettings).canGenerate).toBe(false);
+    const signedOut = getAIReadinessState(copilotSettings, {
+      state: 'ready', status: { runtime: 'github-copilot-sdk', authenticated: false, models: [] },
+    });
+    expect(signedOut.canGenerate).toBe(false);
+    expect(signedOut.blockingIssue?.detail).toContain('gh copilot login');
+    expect(getAIReadinessState(copilotSettings, {
+      state: 'unavailable', message: 'Run the local app',
+    }).blockingIssue?.detail).toBe('Run the local app');
+  });
+
+  it('blocks stale or disabled Copilot model selections instead of silently changing models', () => {
+    const state = getAIReadinessState({ ...copilotSettings, model: 'disabled-model' }, {
+      state: 'ready', status: { runtime: 'github-copilot-sdk', authenticated: true, models: [] },
+    });
+    expect(state.canGenerate).toBe(false);
+    expect(state.blockingIssue?.detail).toContain('Choose another model');
+  });
+
   it('blocks hosted providers when the API key is missing', () => {
     const readiness = getAIReadinessState({
       provider: 'openai',

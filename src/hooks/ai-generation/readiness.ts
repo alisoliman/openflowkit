@@ -1,5 +1,7 @@
 import { PROVIDERS, PROVIDER_RISK, type ProviderMeta } from '@/config/aiProviders';
 import type { AIProvider, AISettings } from '@/store';
+import type { CopilotConnectionState } from '@/services/copilot/client';
+import { COPILOT_LOGIN_MESSAGE, COPILOT_SETUP_MESSAGE } from '@/services/copilot/protocol';
 
 export interface AIReadinessMessage {
   tone: 'info' | 'warning' | 'error';
@@ -71,13 +73,35 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
-export function getAIReadinessState(aiSettings: AISettings): AIReadinessState {
-  const provider = aiSettings.provider ?? 'gemini';
+export function getAIReadinessState(aiSettings: AISettings, copilot?: CopilotConnectionState): AIReadinessState {
+  const provider = aiSettings.provider ?? 'copilot';
   const providerMeta = getProviderMeta(provider);
   const providerName = providerMeta.name;
   const apiKey = aiSettings.apiKey?.trim();
   const model = aiSettings.model?.trim();
   const customBaseUrl = aiSettings.customBaseUrl?.trim();
+
+  if (provider === 'copilot') {
+    let detail: string | undefined;
+    if (!copilot || copilot.state === 'checking') {
+      detail = 'Checking the local Copilot connection. Open Settings > AI to sign in or retry.';
+    } else if (copilot.state === 'unavailable') {
+      detail = copilot.message || COPILOT_SETUP_MESSAGE;
+    } else if (!copilot.status.authenticated) {
+      detail = COPILOT_LOGIN_MESSAGE;
+    } else if (model && model !== 'auto' && !copilot.status.models.some((candidate) => candidate.id === model)) {
+      detail = 'The selected model is not available to your Copilot account. Choose another model in Settings > AI.';
+    }
+    return {
+      canGenerate: !detail,
+      blockingIssue: detail ? buildBlockingIssue(providerName, detail) : null,
+      advisory: {
+        tone: 'info',
+        title: 'Powered by the GitHub Copilot SDK',
+        detail: 'Uses your Copilot CLI sign-in and quota. Model availability and usage depend on your plan and organization policy; no provider API key is needed.',
+      },
+    };
+  }
 
   if (provider === 'custom') {
     if (!customBaseUrl) {

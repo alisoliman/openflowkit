@@ -10,6 +10,7 @@ import {
   restoreExistingPositions,
 } from './positionPreservingApply';
 import { enrichNodesWithIcons } from '@/lib/nodeEnricher';
+import { CopilotRequestError } from '@/services/copilot/protocol';
 
 interface GenerateAIFlowResultParams {
   chatMessages: ChatMessage[];
@@ -30,6 +31,8 @@ const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 
 function isRetryableError(error: unknown): boolean {
+  // The SDK owns transport retries. Replaying a failed stream can spend quota twice.
+  if (error instanceof CopilotRequestError) return false;
   if (error instanceof DOMException && error.name === 'AbortError') return false;
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
@@ -139,7 +142,7 @@ export async function generateAIFlowResult({
           imageBase64,
           aiSettings.apiKey,
           aiSettings.model,
-          aiSettings.provider || 'gemini',
+          aiSettings.provider || 'copilot',
           aiSettings.customBaseUrl,
           isEditMode,
           onChunk,
@@ -202,7 +205,8 @@ export async function generateAIFlowResult({
     finalNodes,
     finalEdges,
     nodes,
-    idMap
+    idMap,
+    edges
   );
 
   if (newNodeIds.size === 0) {

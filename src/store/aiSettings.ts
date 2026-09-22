@@ -1,6 +1,7 @@
 import type { AIProvider, AISettings, AISettingsStorageMode, CustomHeaderConfig } from './types';
 
 export const AI_PROVIDERS = [
+  'copilot',
   'gemini',
   'openai',
   'claude',
@@ -60,5 +61,6 @@ export function sanitizeAISettings(
     temperature: typeof input?.temperature === 'number' && input.temperature >= 0.1 && input.temperature <= 1.0
       ? Math.round(input.temperature * 10) / 10
       : undefined,
+    autoApply: typeof input?.autoApply === 'boolean' ? input.autoApply : undefined,
   };
 }

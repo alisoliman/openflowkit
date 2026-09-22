@@ -10,6 +10,30 @@ describe('lintOpenFlowDsl', () => {
     expect(result.edgeCount).toBe(1);
   });
 
+  it.each(['provider ..> auth_svc', 'provider ..>|callback| auth_svc'])(
+    'accepts the browser parser dashed-edge syntax: %s',
+    (edge) => {
+      const result = lintOpenFlowDsl(`flow: OAuth\n[system] provider: Provider\n[system] auth_svc: Auth\n${edge}`);
+      expect(result.ok).toBe(true);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.edgeCount).toBe(1);
+    },
+  );
+
+  it.each(['provider .. auth_svc', 'provider ..|callback| auth_svc'])(
+    'rejects incomplete dashed edges instead of claiming they are valid: %s',
+    (edge) => {
+      const result = lintOpenFlowDsl(`flow: OAuth\n[system] provider: Provider\n[system] auth_svc: Auth\n${edge}`);
+      expect(result.ok).toBe(false);
+      expect(result.diagnostics).toContainEqual(expect.objectContaining({
+        severity: 'error',
+        snippet: edge,
+        hint: 'Use `source ..> target` or `source ..>|label| target`.',
+      }));
+      expect(result.edgeCount).toBe(0);
+    },
+  );
+
   it('flags missing header as a warning, not an error', () => {
     const result = lintOpenFlowDsl(`[start] s1\n[end] e1\ns1 -> e1`);
     expect(result.ok).toBe(true);

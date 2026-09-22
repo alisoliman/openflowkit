@@ -105,6 +105,37 @@ describe('chatHistoryStorage', () => {
     expect(item?.thinkingState).toBe('planning');
   });
 
+  it('round-trips preview disposition and semantic changes', async () => {
+    const { loadAssistantThreadHistory, saveAssistantThreadHistory } = await import('./chatHistoryStorage');
+    const item = {
+      id: 'preview', role: 'model' as const, type: 'assistant_canvas_preview' as const,
+      content: 'flow: Draft', createdAt: '2026-09-22T00:00:00Z', previewStatus: 'discarded' as const,
+      changes: { addedCount: 0, updatedCount: 1, removedCount: 0, addedEdgeCount: 0, updatedEdgeCount: 0, removedEdgeCount: 0, totalChanges: 1, details: [] },
+    };
+    await saveAssistantThreadHistory('doc-preview', [item]);
+    const saved = replaceChatThread.mock.calls[0][1];
+    expect(saved[0]).toMatchObject({ previewStatus: 'discarded', sequence: 0, changes: item.changes });
+    loadChatThread.mockResolvedValueOnce(saved);
+    expect((await loadAssistantThreadHistory('doc-preview'))[0]).toMatchObject(item);
+  });
+
+  it('serializes conversation writes so a slow old save cannot overwrite a discard', async () => {
+    let finish!: () => void;
+    replaceChatThread.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    replaceChatThread.mockResolvedValueOnce(undefined);
+    const { saveAssistantThreadHistory } = await import('./chatHistoryStorage');
+    const first = saveAssistantThreadHistory('ordered-doc', []);
+    const second = saveAssistantThreadHistory('ordered-doc', [{
+      id: 'discarded', role: 'model', type: 'assistant_canvas_preview', content: 'draft',
+      createdAt: 'now', previewStatus: 'discarded',
+    }]);
+    await vi.waitFor(() => expect(replaceChatThread).toHaveBeenCalledOnce());
+    finish();
+    await Promise.all([first, second]);
+    expect(replaceChatThread).toHaveBeenCalledTimes(2);
+    expect(replaceChatThread.mock.calls[1][1][0].previewStatus).toBe('discarded');
+  });
+
   it('clears the repository thread and falls back to localStorage cleanup on failure', async () => {
     clearChatThread.mockRejectedValueOnce(new Error('boom'));
     localStorage.setItem('ofk_chat_history_doc-4', JSON.stringify([

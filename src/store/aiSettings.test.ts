@@ -4,6 +4,16 @@ import { clearPersistedAISettings, loadPersistedAISettings, persistAISettings } 
 import { DEFAULT_AI_SETTINGS } from './defaults';
 
 describe('aiSettings', () => {
+  it('defaults new installations to Copilot while preserving saved provider choices', () => {
+    expect(DEFAULT_AI_SETTINGS.provider).toBe('copilot');
+    expect(DEFAULT_AI_SETTINGS.apiKey).toBeUndefined();
+    persistAISettings({ provider: 'copilot', model: 'account-model', storageMode: 'local' });
+    expect(loadPersistedAISettings()).toMatchObject({ provider: 'copilot', model: 'account-model' });
+    expect(localStorage.getItem('openflowkit-ai-settings-secret')).toBeNull();
+    persistAISettings({ provider: 'gemini', model: 'gemini-2.5-pro', storageMode: 'local', apiKey: 'existing-key' });
+    expect(loadPersistedAISettings()).toMatchObject({ provider: 'gemini', model: 'gemini-2.5-pro', apiKey: 'existing-key' });
+  });
+
   afterEach(() => {
     localStorage.removeItem('openflowkit-ai-settings');
     localStorage.removeItem('openflowkit-ai-settings-secret');

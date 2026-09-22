@@ -3,6 +3,7 @@ import type { ChatMessage } from '@/services/aiService';
 import { composeDiagramForDisplay } from '@/services/composeDiagramForDisplay';
 import { generateDiagramFromChat } from '@/services/aiService';
 import { serializeCanvasContextForAI } from '@/services/ai/contextSerializer';
+import { CopilotRequestError } from '@/services/copilot/protocol';
 import {
   appendChatExchange,
   buildUserChatMessage,
@@ -51,6 +52,21 @@ describe('requestLifecycle', () => {
       userMessage,
       { role: 'model', parts: [{ text: 'flow: "A"' }] },
     ]);
+  });
+
+  it('does not replay Copilot transport failures and spend quota on hidden retries', async () => {
+    vi.mocked(generateDiagramFromChat).mockRejectedValueOnce(
+      new CopilotRequestError('request_failed', 'Copilot rate limit: 429'),
+    );
+    const onRetry = vi.fn();
+    await expect(generateAIFlowResult({
+      chatMessages: [], prompt: 'Create a diagram', nodes: [], edges: [],
+      aiSettings: { provider: 'copilot', storageMode: 'local' },
+      globalEdgeOptions: BASE_EDGE_OPTIONS, onRetry,
+    })).rejects.toMatchObject({ code: 'request_failed' });
+    expect(generateDiagramFromChat).toHaveBeenCalledOnce();
+    expect(onRetry).not.toHaveBeenCalled();
+    expect(composeDiagramForDisplay).not.toHaveBeenCalled();
   });
 
   it('runs full layout on an empty canvas (fresh generation)', async () => {
