@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { createLogger } from '@/lib/logger';
+import { getAppUrl } from '@/lib/appUrl';
 import type { FlowEdge, FlowNode } from '@/lib/types';
 import { captureAnalyticsEvent } from '@/services/analytics/analytics';
 import type { FlowTemplate } from '@/services/templates';
@@ -184,7 +185,7 @@ export function useFlowEditorActions({
         }
         const dsl = toOpenFlowDSL(nodes, edges, { mode: exportSerializationMode });
         const encoded = encodeDslForViewer(dsl);
-        const url = `${window.location.origin}/#/view?flow=${encoded}`;
+        const url = `${getAppUrl()}/#/view?flow=${encoded}`;
         setShareViewerUrl(url);
         recordOnboardingEvent('first_share_opened', { surface: 'editor' });
         captureAnalyticsEvent('share_opened', { surface: 'editor' });

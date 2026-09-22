@@ -1,4 +1,5 @@
 import type { DomainLibraryCategory, DomainLibraryItem } from '@/services/domainLibrary';
+import azureCatalog from '../../../assets/third-party-icons/azure/processed/catalog.json';
 
 export interface ProviderShapePreview {
   packId: string;
@@ -24,8 +25,11 @@ const svgModules = import.meta.glob('../../../assets/third-party-icons/*/process
 const providerCatalogPromiseCache = new Map<string, Promise<DomainLibraryItem[]>>();
 const shapePreviewCache = new Map<string, ProviderShapePreview>();
 const shapePreviewPromiseCache = new Map<string, Promise<ProviderShapePreview | null>>();
+const azureLabels: Record<string, string> = azureCatalog.labels;
+const azureCategories: Record<string, string> = azureCatalog.categories;
 export const KNOWN_PROVIDER_PACK_IDS: Record<string, string> = {
   aws: 'aws-official-starter-v1',
+  // A persisted identifier, not the bundled release version (currently V24).
   azure: 'azure-official-icons-v20',
   gcp: 'gcp-official-icons-v1',
   cncf: 'cncf-artwork-icons-v1',
@@ -90,14 +94,20 @@ function parseSvgSource(
   const provider = normalizeProviderPathSegment(match[1]);
   const relativePath = match[2];
   const pathParts = relativePath.split('/');
-  const category = pathParts.length > 1 ? inferLabelFromId(slugify(pathParts[0])) : 'Misc';
+  const category = provider === 'azure'
+    ? azureCategories[pathParts[0]]
+    : pathParts.length > 1 ? inferLabelFromId(slugify(pathParts[0])) : 'Misc';
   const shapeId = slugify(relativePath.replaceAll('/', '-'));
+  const label = provider === 'azure' ? azureLabels[shapeId] : inferLabelFromId(shapeId);
+  if (!label || !category) {
+    throw new Error(`Missing provider icon label or category: ${modulePath}`);
+  }
 
   return {
     provider,
     packId: getPackIdForProvider(provider),
     shapeId,
-    label: inferLabelFromId(shapeId),
+    label,
     category,
     previewLoader,
   };

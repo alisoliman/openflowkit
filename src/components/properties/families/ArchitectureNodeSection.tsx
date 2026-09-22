@@ -38,6 +38,7 @@ export function ArchitectureNodeSection({
 }: ArchitectureNodeSectionProps): React.ReactElement {
   const provider = (data.archProvider || 'custom') as DomainLibraryCategory | 'custom';
   const providerLabel = provider.toUpperCase();
+  const showProviderLabels = provider === 'azure';
   const customProviderLabel =
     typeof data.archProviderLabel === 'string' ? data.archProviderLabel : '';
   const customIconUrl = typeof data.customIconUrl === 'string' ? data.customIconUrl : undefined;
@@ -270,7 +271,7 @@ export function ArchitectureNodeSection({
             ) : null}
 
             {!isLoading && filteredResults.length > 0 ? (
-              <IconTileScrollGrid>
+              <IconTileScrollGrid showLabels={showProviderLabels}>
                 {filteredResults.map((item) => {
                   const isSelected = data.archIconShapeId === item.archIconShapeId;
                   const previewUrl = previewUrls[item.id];
@@ -278,12 +279,12 @@ export function ArchitectureNodeSection({
                     <Tooltip
                       key={item.id}
                       text={getItemTooltipText(item)}
-                      className="block w-full aspect-square"
+                      className={`block w-full ${showProviderLabels ? 'min-w-0' : 'aspect-square'}`}
                     >
                       <button
                         type="button"
                         aria-label={item.label}
-                        className={`group flex h-full w-full items-center justify-center rounded-[var(--radius-md)] border p-2 transition-all ${
+                        className={`group flex h-full w-full items-center justify-center rounded-[var(--radius-md)] border p-2 transition-all ${showProviderLabels ? 'min-w-0 flex-col gap-2' : ''} ${
                           isSelected
                             ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)]'
                             : 'border-transparent bg-transparent hover:border-[var(--color-brand-border)] hover:bg-[var(--brand-surface)]'
@@ -295,6 +296,11 @@ export function ArchitectureNodeSection({
                         ) : (
                           <ImageIcon className="h-5 w-5 text-[var(--brand-secondary-light)]" />
                         )}
+                        {showProviderLabels ? (
+                          <span className="w-full break-words text-center text-xs font-medium leading-4 text-[var(--brand-text)]">
+                            {item.label}
+                          </span>
+                        ) : null}
                       </button>
                     </Tooltip>
                   );

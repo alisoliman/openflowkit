@@ -11,7 +11,7 @@
 
 <h3>The open-source diagramming studio for builders.</h3>
 
-<p>Create flows from templates, code, structured imports, or AI. Refine them visually, keep them local-first, and export as <b>Cinematic MP4 walkthroughs</b> — or drive everything from Claude / Cursor / Windsurf via our first-party <b>MCP server</b>.</p>
+<p>Create flows from templates, code, structured imports, or AI. Refine them visually, keep them local-first, and export as <b>Cinematic MP4 walkthroughs</b> — or use <b>GitHub Copilot App and CLI</b> with our first-party <b>MCP server</b>. Claude, Cursor, and Windsurf work too.</p>
 
 <br/>
 
@@ -63,7 +63,7 @@
 </tr>
 <tr>
 <td align="center"><b>🧷 Anchored Layout</b><br/><sub>Pin nodes — auto-layout<br/>rearranges around them</sub></td>
-<td align="center"><b>🪄 MCP Server</b><br/><sub>Drive from Claude Desktop,<br/>Cursor, Windsurf</sub></td>
+<td align="center"><b>🪄 MCP Server</b><br/><sub>GitHub Copilot App + CLI,<br/>and other MCP clients</sub></td>
 <td align="center"><b>⚡ Worker Layout</b><br/><sub>ELK runs off main thread<br/>UI stays responsive</sub></td>
 <td align="center"><b>🦙 Local AI</b><br/><sub>Ollama localhost preset<br/>fully offline diagramming</sub></td>
 <td align="center"><b>♻️ Self-Correcting AI</b><br/><sub>Bad DSL → AI sees its own<br/>output and repairs it</sub></td>
@@ -108,7 +108,7 @@ Every diagramming tool makes a compromise. OpenFlowKit doesn't.
 | **Lucidchart / Miro**   | Cloud lock-in — expensive, account required, your data lives on their servers |
 | **PlantUML**            | Server-dependent rendering — no visual editor, no local-first model           |
 
-OpenFlowKit combines a real workspace home, a professional visual canvas, bidirectional diagram-as-code, AI generation using your GitHub Copilot quota or 10 alternative providers (including fully-local Ollama), **automatic icon assignment from 1,600+ tech icons**, anchored auto-layout, hardware-encoded cinematic MP4 export, and a Model Context Protocol server so Claude / Cursor / Windsurf can drive it directly. Documents stay local-first.
+OpenFlowKit combines a real workspace home, a professional visual canvas, bidirectional diagram-as-code, AI generation using your GitHub Copilot quota or 10 alternative providers (including fully-local Ollama), **automatic icon assignment from 1,600+ tech icons**, anchored auto-layout, hardware-encoded cinematic MP4 export, and a Model Context Protocol server so GitHub Copilot App, Copilot CLI, and other MCP clients can drive it directly. Documents stay local-first.
 
 ---
 
@@ -291,22 +291,23 @@ On modern browsers (Chrome / Edge / Safari 16.4+ / Firefox 130+) OpenFlowKit enc
 
 ---
 
-## 🪄 MCP Server — drive OpenFlowKit from Claude Desktop, Cursor, Windsurf
+## 🪄 MCP Server — diagram with GitHub Copilot App and CLI
 
-Point any MCP client at the [`@vrun-design/openflowkit-mcp`](mcp-server/) package and your AI assistant gains local-first diagramming tools — no API key, no cloud round-trip. Your client already has an LLM, so OpenFlowKit MCP supplies deterministic local validation, codebase analysis, templates, icon lookup, and viewer links.
+Connect GitHub Copilot App or CLI to [`@vrun-design/openflowkit-mcp`](mcp-server/) for local validation, codebase analysis, templates, icon lookup, and viewer links. No OpenFlowKit API key is needed; your AI client handles model access and its data policies still apply.
 
-```json
-{
-  "mcpServers": {
-    "openflowkit": {
-      "command": "npx",
-      "args": ["-y", "@vrun-design/openflowkit-mcp"]
-    }
-  }
-}
+In **Copilot App**, open **Customize → MCP**, add a custom local/stdio server named `openflowkit`, and set its command to `npx -y @vrun-design/openflowkit-mcp`.
+
+In **Copilot CLI**, register it from your terminal:
+
+```bash
+copilot mcp add openflowkit --env "OPENFLOWKIT_APP_URL=https://openflowkit.com" -- npx -y @vrun-design/openflowkit-mcp
 ```
 
-Then ask Claude: *"Read the OpenFlowKit DSL cheatsheet, create a checkout flow with a promo-code branch and a Stripe webhook step, validate it, and create a viewer URL."* The DSL comes back in seconds and stays editable in OpenFlowKit.
+Requires Node.js 18+. Both clients share `~/.copilot/mcp-config.json`, so you only need to configure the server once. The app's MCP page automatically populates `OPENFLOWKIT_APP_URL` from your hosting origin, or from the optional `VITE_APP_URL` deployment override.
+
+Then ask Copilot: *"Use the OpenFlowKit MCP tools to find a starter template, create a checkout flow with a promo-code branch, validate the DSL, and return a viewer link."* The result stays editable in OpenFlowKit.
+
+**Other clients remain supported:** Claude Code, Claude Desktop, Cursor, Windsurf, and any client with local stdio MCP support. Their setup instructions are included in the full guide below.
 
 - **8 local-first tools** — validate DSL, create viewer URLs, analyze codebases, find icon slugs, fetch starter templates, and inspect capabilities (no API key, runs on your machine)
 - **5 resources** — DSL cheatsheet, template catalog, template bodies, full icon catalog, and per-provider icon catalogs
@@ -360,7 +361,7 @@ Plus: smart alignment guides, snap-to-grid, multi-select, pages, layers, section
 Recently shipped (latest milestone):
 
 - ✅ **WebCodecs H.264 MP4 export** — faster-than-realtime, hardware-accelerated, deterministic
-- ✅ **MCP server** — `@vrun-design/openflowkit-mcp` for Claude Desktop, Cursor, Windsurf, any MCP client
+- ✅ **MCP server** — `@vrun-design/openflowkit-mcp` for GitHub Copilot App and CLI, Claude, Cursor, Windsurf, and other MCP clients
 - ✅ **Anchored layout** — pin nodes so auto-layout arranges around them
 - ✅ **Ollama provider** — fully offline diagramming, no API key, no cost
 - ✅ **AI self-correction loop** — bad DSL → AI sees its own output + parser error → returns corrected DSL
@@ -412,6 +413,20 @@ npm run build
 # upload dist/ to your provider
 ```
 
+### Public app URL
+
+Share links and the MCP page automatically use the hosting origin, including local development, Azure's generated hostname, and custom domains. No URL setting is required.
+
+To point generated links at a different deployment, set the optional **build-time** variable `VITE_APP_URL` in your hosting provider's build environment or `.env.local`:
+
+```dotenv
+VITE_APP_URL=https://diagrams.example.com
+```
+
+The MCP page passes the resolved URL to the MCP server as `OPENFLOWKIT_APP_URL` in every client's configuration and setup command. Changing `VITE_APP_URL` requires rebuilding the static app (or restarting Vite during development). It is a public URL, not a secret.
+
+The Azure and Docker publishing workflows accept the optional GitHub Actions repository variable `VITE_APP_URL`. Leave it unset to detect the hosting origin automatically.
+
 **Docker:**
 
 ```bash
@@ -420,6 +435,8 @@ docker run --rm -p 3045:3045 openflowkit
 ```
 
 Open [http://localhost:3045](http://localhost:3045). The container serves the production build with nginx, SPA route fallback, long-lived caching for hashed assets, and the same security headers used by the static hosting path.
+
+For a fixed URL override, build with `docker build --build-arg VITE_APP_URL=https://diagrams.example.com -t openflowkit .`. A runtime `docker run -e VITE_APP_URL=...` cannot change an already-built static app; omit the build argument to use the hosting origin at runtime.
 
 The static editor needs no database or server-side provider credentials.
 

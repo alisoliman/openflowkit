@@ -20,6 +20,8 @@ RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
 
 COPY . .
 
+ARG VITE_APP_URL=""
+
 RUN npm run build
 
 # ---------- Runtime stage ----------
