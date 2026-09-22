@@ -16,9 +16,12 @@ const mocks = vi.hoisted(() => ({
   on: vi.fn(),
   unsubscribe: vi.fn(),
   abort: vi.fn(),
+  sessionModels: vi.fn(),
+  getStatus: vi.fn(),
 }));
 
 vi.mock('@github/copilot-sdk', () => ({
+  RuntimeConnection: { forStdio: () => ({ kind: 'stdio' }) },
   CopilotClient: class {
     constructor(options: unknown) { mocks.construct(options); }
     start = mocks.start;
@@ -28,6 +31,7 @@ vi.mock('@github/copilot-sdk', () => ({
     listModels = mocks.listModels;
     createSession = mocks.createSession;
     deleteSession = mocks.deleteSession;
+    getStatus = mocks.getStatus;
   },
 }));
 
@@ -51,12 +55,15 @@ beforeEach(() => {
   mocks.on.mockReturnValue(mocks.unsubscribe);
   mocks.sendAndWait.mockResolvedValue({ data: { content: 'flow: "Queue"' } });
   mocks.abort.mockResolvedValue(undefined);
+  mocks.getStatus.mockResolvedValue({ version: 'test' });
+  mocks.sessionModels.mockResolvedValue({ list: [{ id: 'user-model', name: 'User model', multiplier: 1 }] });
   mocks.deleteSession.mockResolvedValue(undefined);
   mocks.createSession.mockResolvedValue({
     sessionId: 'flowpilot-temporary',
     on: mocks.on,
     sendAndWait: mocks.sendAndWait,
     abort: mocks.abort,
+    rpc: { model: { list: mocks.sessionModels } },
   });
 });
 
@@ -67,6 +74,80 @@ afterEach(() => {
 });
 
 describe('Copilot SDK runtime', () => {
+  it('starts hosted runtimes without operator credentials, shared caches, or runtime content logs', async () => {
+    vi.stubEnv('COPILOT_GITHUB_TOKEN', 'operator-token');
+    vi.stubEnv('HOSTED_GITHUB_CLIENT_SECRET', 'web-app-secret');
+    vi.stubEnv('IDENTITY_HEADER', 'azure-identity-secret');
+    const options = createCopilotClientOptions({ hosted: true, baseDirectory: '/tmp/test-flowpilot' });
+    expect(options.useLoggedInUser).toBe(false);
+    expect(options.logLevel).toBe('none');
+    expect(options.env).not.toHaveProperty('COPILOT_GITHUB_TOKEN');
+    expect(options.env).not.toHaveProperty('HOSTED_GITHUB_CLIENT_SECRET');
+    expect(options.env).not.toHaveProperty('IDENTITY_HEADER');
+    await createCopilotRuntime({ hosted: true, baseDirectory: '/tmp/test-flowpilot' }).ready?.();
+    expect(mocks.getAuthStatus).not.toHaveBeenCalled();
+  });
+
+  it('discovers models through the requesting user session, never the global CLI catalog', async () => {
+    const runtime = createCopilotRuntime({ hosted: true, baseDirectory: '/tmp/test-flowpilot' });
+    const identity = { userId: '1', login: 'one', token: 'ghu_user_one', sessionKey: 'one' };
+    expect(await runtime.status()).toMatchObject({ mode: 'hosted', authenticated: false, signedIn: false });
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(await runtime.status(identity)).toMatchObject({
+      authenticated: true, signedIn: true, login: 'one', models: [{ id: 'user-model', name: 'User model', multiplier: 1 }],
+    });
+    expect(mocks.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      gitHubToken: identity.token, availableTools: [], enableSessionStore: false,
+      skipEmbeddingRetrieval: true, embeddingCacheStorage: 'in-memory', memory: { enabled: false },
+      enableSessionTelemetry: false, enableHostGitOperations: false,
+    }));
+    expect(mocks.sessionModels).toHaveBeenCalledOnce();
+    expect(mocks.getAuthStatus).not.toHaveBeenCalled();
+    expect(mocks.listModels).not.toHaveBeenCalled();
+    expect(mocks.sendAndWait).not.toHaveBeenCalled();
+    expect(mocks.deleteSession).toHaveBeenCalledOnce();
+  });
+
+  it('keeps simultaneous hosted users on distinct sessions and their own tokens', async () => {
+    const runtime = createCopilotRuntime({ hosted: true, baseDirectory: '/tmp/test-flowpilot' });
+    const identities = [
+      { userId: '1', login: 'one', token: 'ghu_one', sessionKey: 'one' },
+      { userId: '2', login: 'two', token: 'ghu_two', sessionKey: 'two' },
+    ];
+    await Promise.all(identities.map((identity) => runtime.generate(INPUT, vi.fn(), new AbortController().signal, identity)));
+    expect(mocks.createSession.mock.calls.map(([options]) => options.gitHubToken)).toEqual(['ghu_one', 'ghu_two']);
+    expect(new Set(mocks.createSession.mock.calls.map(([options]) => options.sessionId)).size).toBe(2);
+    expect(mocks.getAuthStatus).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to operator authentication for a missing hosted identity', async () => {
+    const runtime = createCopilotRuntime({ hosted: true, baseDirectory: '/tmp/test-flowpilot' });
+    await expect(runtime.generate(INPUT, vi.fn(), new AbortController().signal)).rejects.toMatchObject({ code: 'not_authenticated' });
+    expect(mocks.start).not.toHaveBeenCalled();
+  });
+
+  it('reports unavailable Copilot entitlement separately from successful GitHub sign-in', async () => {
+    mocks.createSession.mockRejectedValue(new Error('403 entitlement missing: ghu_do-not-expose'));
+    const status = await createCopilotRuntime({ hosted: true, baseDirectory: '/tmp/test-flowpilot' }).status({
+      userId: '1', login: 'one', token: 'ghu_one', sessionKey: 'one',
+    });
+    expect(status).toMatchObject({ signedIn: true, authenticated: false, models: [] });
+    expect(status.issue).toContain('Copilot access was denied');
+    expect(status.issue).not.toContain('ghu_');
+  });
+
+  it('fails closed and stops the hosted runtime if session deletion fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.deleteSession.mockRejectedValue(new Error('cleanup containing sensitive prompt'));
+    const runtime = createCopilotRuntime({ hosted: true, baseDirectory: '/tmp/test-flowpilot' });
+    await expect(runtime.generate(INPUT, vi.fn(), new AbortController().signal, {
+      userId: '1', login: 'one', token: 'ghu_one', sessionKey: 'one',
+    })).rejects.toMatchObject({ code: 'runtime_unavailable' });
+    expect(mocks.forceStop).toHaveBeenCalledOnce();
+    await expect(runtime.ready?.()).rejects.toMatchObject({ code: 'runtime_unavailable' });
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain('sensitive prompt');
+  });
+
   it('shares CLI credentials without inheriting automation tokens', () => {
     for (const key of ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN', 'GITHUB_COPILOT_API_TOKEN']) {
       vi.stubEnv(key, 'test-token');
@@ -264,5 +345,15 @@ describe('Copilot SDK runtime', () => {
     await runtime.stop();
     expect(mocks.stop).toHaveBeenCalledOnce();
     await expect(runtime.status()).rejects.toMatchObject({ code: 'runtime_unavailable' });
+  });
+
+  it('can shut down a hosted runtime even when startup has not finished', async () => {
+    mocks.start.mockReturnValue(new Promise(() => undefined));
+    const runtime = createCopilotRuntime({ hosted: true, baseDirectory: '/tmp/test-flowpilot' });
+    const readiness = runtime.ready?.();
+    const rejected = expect(readiness).rejects.toMatchObject({ code: 'runtime_unavailable' });
+    await runtime.stop();
+    await rejected;
+    expect(mocks.stop).toHaveBeenCalledOnce();
   });
 });

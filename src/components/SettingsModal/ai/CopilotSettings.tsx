@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CopilotConnectionState } from '@/services/copilot/client';
+import { isHostedCopilot, type CopilotConnectionState } from '@/services/copilot/client';
 import { CopilotModelSelect } from './CopilotModelSelect';
+import { HostedCopilotConnection } from './HostedCopilotConnection';
 
 interface CopilotSettingsProps {
   connection: CopilotConnectionState;
@@ -13,11 +14,20 @@ interface CopilotSettingsProps {
 export function CopilotSettings({ connection, onRefresh, model, onModelChange }: CopilotSettingsProps): ReactElement {
   const { t } = useTranslation();
   const status = connection.state === 'ready' ? connection.status : undefined;
+  const hosted = status?.mode === 'hosted' || isHostedCopilot();
 
   return (
     <div className="space-y-6">
       <div className="space-y-3">
         <h4 className="text-sm font-semibold text-[var(--brand-text)]">{t('copilot.connectionTitle')}</h4>
+        {hosted ? (
+          <>
+            <p className="text-sm leading-6 text-[var(--brand-secondary)]">{t('copilot.hostedHelp')}</p>
+            <HostedCopilotConnection connection={connection} onRefresh={onRefresh} />
+            <p className="text-sm leading-6 text-[var(--brand-secondary)]">{t('copilot.hostedSessionHint')}</p>
+          </>
+        ) : (
+          <>
         <p className="text-sm leading-6 text-[var(--brand-secondary)]">{t('copilot.loginHelp')}</p>
         <code className="block overflow-x-auto rounded-[var(--radius-md)] bg-[var(--brand-background)] px-3 py-2.5 text-sm text-[var(--brand-text)]">
           gh copilot login
@@ -41,6 +51,8 @@ export function CopilotSettings({ connection, onRefresh, model, onModelChange }:
         >
           {t('copilot.checkConnection')}
         </button>
+          </>
+        )}
       </div>
       <div className="space-y-2">
         <label htmlFor="copilot-model" className="text-sm font-medium text-[var(--brand-text)]">
@@ -56,7 +68,7 @@ export function CopilotSettings({ connection, onRefresh, model, onModelChange }:
         <p id="copilot-model-hint" className="text-sm leading-6 text-[var(--brand-secondary)]">{t('copilot.modelHint')}</p>
       </div>
       <p className="text-sm leading-6 text-[var(--brand-secondary)]">{t('copilot.usageHint')}</p>
-      <p className="text-sm leading-6 text-[var(--brand-secondary)]">{t('copilot.privacy')}</p>
+      <p className="text-sm leading-6 text-[var(--brand-secondary)]">{t(hosted ? 'copilot.hostedPrivacy' : 'copilot.privacy')}</p>
     </div>
   );
 }

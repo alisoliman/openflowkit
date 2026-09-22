@@ -26,6 +26,16 @@
     "viewCode": "查看图表代码"
   },
   "copilot": {
+    "hostedHelp": "在浏览器中连接 GitHub 账户。你需要拥有自己的 Copilot 使用权限，无需安装 CLI。",
+    "hostedPrivacy": "提交的提示词、对话上下文和图片会通过此服务器发送到 GitHub Copilot。图表和聊天记录保留在此设备上。GitHub 令牌在服务器上加密保存，不存储在浏览器存储中。文件、Shell 和 MCP 工具均已禁用。",
+    "hostedSessionHint": "连接最多保持七天。断开连接将移除此浏览器在服务器上的连接。",
+    "hostedProviderHint": "使用 GitHub 登录，消耗你自己的 Copilot 权限和配额。",
+    "hostedSignedIn": "已以 {{login}} 身份连接 GitHub",
+    "connectGitHub": "连接 GitHub",
+    "connectingGitHub": "正在打开 GitHub...",
+    "disconnectGitHub": "断开 GitHub",
+    "disconnectingGitHub": "正在断开连接...",
+    "hostedActionFailed": "无法更新 GitHub 连接，请重试。",
     "settingsSubtitle": "使用你的 GitHub Copilot 登录和配额，或选择其他提供商。",
     "providerHint": "通过 Copilot CLI 进行身份验证，无需提供商 API 密钥。",
     "connectionTitle": "连接你的 Copilot 账户",

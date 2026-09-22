@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getCopilotStatus, requestCopilot } from './client';
+import { disconnectHostedCopilot, getCopilotStatus, requestCopilot, startHostedCopilotConnection } from './client';
 import {
   COPILOT_LOGIN_MESSAGE, COPILOT_SETUP_MESSAGE, COPILOT_MAX_BODY_BYTES,
   COPILOT_MAX_HISTORY_MESSAGES, copilotRequestSchema, type CopilotRequest,
@@ -33,6 +33,30 @@ afterEach(() => {
 });
 
 describe('Copilot browser transport', () => {
+  it('starts browser OAuth with same-origin cookies without exposing tokens', async () => {
+    vi.stubGlobal('window', { location: { pathname: '/editor', search: '?id=one', hash: '#two' } });
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ url: 'https://github.com/login/oauth/authorize?client_id=test' }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await startHostedCopilotConnection()).toBe('https://github.com/login/oauth/authorize?client_id=test');
+    expect(fetchMock).toHaveBeenCalledWith('/api/copilot/auth/start', expect.objectContaining({
+      method: 'POST', credentials: 'same-origin', body: JSON.stringify({ returnTo: '/editor?id=one#two' }),
+    }));
+  });
+
+  it('rejects unexpected authorization destinations', async () => {
+    vi.stubGlobal('window', { location: { pathname: '/', search: '', hash: '' } });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ url: 'https://evil.example/authorize' })));
+    await expect(startHostedCopilotConnection()).rejects.toMatchObject({ code: 'bad_response' });
+  });
+
+  it('notifies all connection controls only after confirmed logout', async () => {
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { dispatchEvent });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ disconnected: true })));
+    await disconnectHostedCopilot();
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'copilot-connection-changed' }));
+  });
+
   it.each([201, 450])('sends a bounded suffix of a %s-message conversation without changing local history', async (count) => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const history: CopilotRequest['history'] = Array.from({ length: count }, (_, index) => ({
@@ -91,7 +115,7 @@ describe('Copilot browser transport', () => {
     expect(await requestCopilot(INPUT, onChunk)).toBe(text);
     expect(onChunk.mock.calls.map(([chunk]) => chunk).join('')).toBe(text);
     expect(fetchMock).toHaveBeenCalledWith('/api/copilot/chat', expect.objectContaining({
-      credentials: 'omit',
+      credentials: 'same-origin',
       headers: { 'x-flowpilot-client': '1', 'Content-Type': 'application/json' },
       body: JSON.stringify(INPUT),
     }));

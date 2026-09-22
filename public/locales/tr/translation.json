@@ -26,6 +26,16 @@
     "viewCode": "Diyagram kodunu göster"
   },
   "copilot": {
+    "hostedHelp": "GitHub hesabınızı tarayıcıda bağlayın. Kendi Copilot erişiminiz gereklidir; CLI kurulumu gerekmez.",
+    "hostedPrivacy": "Gönderilen istemler, konuşma bağlamı ve görseller bu sunucu üzerinden GitHub Copilot'a iletilir. Diyagramlar ve sohbetler bu cihazda kalır. GitHub belirteçleri tarayıcı depolamasında değil, sunucuda şifrelenerek saklanır. Dosya, kabuk ve MCP araçları devre dışıdır.",
+    "hostedSessionHint": "Bağlantı yedi güne kadar açık kalır. Bu tarayıcının sunucu tarafındaki bağlantısını kaldırmak için bağlantıyı kesin.",
+    "hostedProviderHint": "GitHub ile giriş. Kendi Copilot erişiminizi ve kotanızı kullanır.",
+    "hostedSignedIn": "GitHub hesabı bağlandı: {{login}}",
+    "connectGitHub": "GitHub'ı bağla",
+    "connectingGitHub": "GitHub açılıyor...",
+    "disconnectGitHub": "GitHub bağlantısını kes",
+    "disconnectingGitHub": "Bağlantı kesiliyor...",
+    "hostedActionFailed": "GitHub bağlantısı güncellenemedi. Lütfen tekrar deneyin.",
     "settingsSubtitle": "GitHub Copilot oturumunuzu ve kotanızı kullanın veya başka bir sağlayıcı seçin.",
     "providerHint": "Copilot CLI ile kimlik doğrulama. Sağlayıcı API anahtarı gerekmez.",
     "connectionTitle": "Copilot hesabınızı bağlayın",

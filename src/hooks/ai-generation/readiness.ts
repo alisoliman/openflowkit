@@ -1,7 +1,7 @@
 import { PROVIDERS, PROVIDER_RISK, type ProviderMeta } from '@/config/aiProviders';
 import type { AIProvider, AISettings } from '@/store';
 import type { CopilotConnectionState } from '@/services/copilot/client';
-import { COPILOT_LOGIN_MESSAGE, COPILOT_SETUP_MESSAGE } from '@/services/copilot/protocol';
+import { COPILOT_HOSTED_LOGIN_MESSAGE, COPILOT_LOGIN_MESSAGE, COPILOT_SETUP_MESSAGE } from '@/services/copilot/protocol';
 
 export interface AIReadinessMessage {
   tone: 'info' | 'warning' | 'error';
@@ -84,11 +84,11 @@ export function getAIReadinessState(aiSettings: AISettings, copilot?: CopilotCon
   if (provider === 'copilot') {
     let detail: string | undefined;
     if (!copilot || copilot.state === 'checking') {
-      detail = 'Checking the local Copilot connection. Open Settings > AI to sign in or retry.';
+      detail = 'Checking the Copilot connection. Open Settings > AI to sign in or retry.';
     } else if (copilot.state === 'unavailable') {
       detail = copilot.message || COPILOT_SETUP_MESSAGE;
     } else if (!copilot.status.authenticated) {
-      detail = COPILOT_LOGIN_MESSAGE;
+      detail = copilot.status.issue ?? (copilot.status.mode === 'hosted' ? COPILOT_HOSTED_LOGIN_MESSAGE : COPILOT_LOGIN_MESSAGE);
     } else if (model && model !== 'auto' && !copilot.status.models.some((candidate) => candidate.id === model)) {
       detail = 'The selected model is not available to your Copilot account. Choose another model in Settings > AI.';
     }
@@ -98,7 +98,7 @@ export function getAIReadinessState(aiSettings: AISettings, copilot?: CopilotCon
       advisory: {
         tone: 'info',
         title: 'Powered by the GitHub Copilot SDK',
-        detail: 'Uses your Copilot CLI sign-in and quota. Model availability and usage depend on your plan and organization policy; no provider API key is needed.',
+        detail: 'Uses your own Copilot sign-in and quota. Model availability and usage depend on your plan and organization policy; no provider API key is needed.',
       },
     };
   }

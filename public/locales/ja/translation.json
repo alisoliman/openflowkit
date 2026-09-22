@@ -26,6 +26,16 @@
     "viewCode": "図のコードを表示"
   },
   "copilot": {
+    "hostedHelp": "ブラウザーで GitHub アカウントを接続します。ご自身の Copilot 利用権限が必要です。CLI のインストールは不要です。",
+    "hostedPrivacy": "送信したプロンプト、会話のコンテキスト、画像は、このサーバーを経由して GitHub Copilot に送信されます。図とチャットはこのデバイスに保存されます。GitHub トークンはサーバー上で暗号化され、ブラウザーのストレージには保存されません。ファイル、シェル、MCP ツールは無効です。",
+    "hostedSessionHint": "接続は最大 7 日間保持されます。切断すると、このブラウザーのサーバー側接続が削除されます。",
+    "hostedProviderHint": "GitHub でサインインします。ご自身の Copilot 利用権限とクォータを使用します。",
+    "hostedSignedIn": "{{login}} として GitHub に接続済み",
+    "connectGitHub": "GitHub を接続",
+    "connectingGitHub": "GitHub を開いています...",
+    "disconnectGitHub": "GitHub を切断",
+    "disconnectingGitHub": "切断中...",
+    "hostedActionFailed": "GitHub の接続を更新できませんでした。もう一度お試しください。",
     "settingsSubtitle": "GitHub Copilot のログインと利用枠を使用するか、別のプロバイダーを選択します。",
     "providerHint": "Copilot CLI で認証します。プロバイダーの API キーは不要です。",
     "connectionTitle": "Copilot アカウントを接続",

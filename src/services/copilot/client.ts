@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logger';
+import { z } from 'zod';
 import {
   COPILOT_API_PATH,
   COPILOT_CLIENT_HEADER,
@@ -6,6 +7,7 @@ import {
   COPILOT_MAX_HISTORY_MESSAGES,
   COPILOT_MAX_RESPONSE_CHARS,
   COPILOT_SETUP_MESSAGE,
+  COPILOT_HOSTED_SETUP_MESSAGE,
   CopilotRequestError,
   copilotErrorSchema,
   copilotStatusSchema,
@@ -20,6 +22,15 @@ export type CopilotConnectionState =
   | { state: 'checking' }
   | { state: 'ready'; status: CopilotStatus }
   | { state: 'unavailable'; message: string };
+
+export function isHostedCopilot(): boolean {
+  return typeof document !== 'undefined'
+    && document.querySelector('meta[name="flowpilot-runtime"]')?.getAttribute('content') === 'hosted';
+}
+
+function setupMessage(): string {
+  return isHostedCopilot() ? COPILOT_HOSTED_SETUP_MESSAGE : COPILOT_SETUP_MESSAGE;
+}
 
 function serializeCopilotRequest(input: CopilotRequest): string {
   const history = input.history.slice(-COPILOT_MAX_HISTORY_MESSAGES);
@@ -57,7 +68,7 @@ async function request(path: string, options: RequestInit): Promise<Response> {
   try {
     response = await fetch(`${COPILOT_API_PATH}/${path}`, {
       ...options,
-      credentials: 'omit',
+      credentials: 'same-origin',
       headers: {
         [COPILOT_CLIENT_HEADER]: '1',
         ...options.headers,
@@ -65,32 +76,64 @@ async function request(path: string, options: RequestInit): Promise<Response> {
     });
   } catch {
     if (options.signal?.aborted) throw options.signal.reason;
-    throw new CopilotRequestError('runtime_unavailable', COPILOT_SETUP_MESSAGE);
+    throw new CopilotRequestError('runtime_unavailable', setupMessage());
   }
 
   const contentType = response.headers.get('content-type') ?? '';
   if (!response.ok) {
     if (contentType.includes('application/json')) {
-      const error = copilotErrorSchema.safeParse(await response.json());
+      const error = copilotErrorSchema.safeParse(await readJson(response));
       if (error.success) {
         throw new CopilotRequestError(error.data.code, error.data.message, response.status);
       }
     }
-    throw new CopilotRequestError('runtime_unavailable', COPILOT_SETUP_MESSAGE, response.status);
+    throw new CopilotRequestError('runtime_unavailable', setupMessage(), response.status);
   }
-  if (!contentType.includes(path === 'status' ? 'application/json' : 'application/x-ndjson')) {
-    throw new CopilotRequestError('runtime_unavailable', COPILOT_SETUP_MESSAGE);
+  if (!contentType.includes(path === 'chat' ? 'application/x-ndjson' : 'application/json')) {
+    throw new CopilotRequestError('runtime_unavailable', setupMessage());
   }
   return response;
 }
 
+async function readJson(response: Response): Promise<unknown> {
+  try { return await response.json(); }
+  catch { throw new CopilotRequestError('bad_response', 'The Copilot service returned invalid JSON. Please retry.', 502); }
+}
+
 export async function getCopilotStatus(signal?: AbortSignal): Promise<CopilotStatus> {
   const response = await request('status', { signal });
-  const status = copilotStatusSchema.safeParse(await response.json());
+  const status = copilotStatusSchema.safeParse(await readJson(response));
   if (!status.success) {
-    throw new CopilotRequestError('bad_response', 'The local Copilot runtime returned an invalid status. Restart the local app.', 502);
+    throw new CopilotRequestError('bad_response', 'The Copilot service returned an invalid status. Retry the connection.', 502);
   }
   return status.data;
+}
+
+export async function startHostedCopilotConnection(): Promise<string> {
+  const response = await request('auth/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ returnTo: `${window.location.pathname}${window.location.search}${window.location.hash}` }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const data = z.object({ url: z.string().url() }).safeParse(await readJson(response));
+  if (!data.success) throw new CopilotRequestError('bad_response', 'GitHub sign-in returned an invalid redirect. Please retry.', 502);
+  const url = new URL(data.data.url);
+  if (url.origin !== 'https://github.com' || url.pathname !== '/login/oauth/authorize' || url.username || url.password) {
+    throw new CopilotRequestError('bad_response', 'GitHub sign-in returned an unexpected redirect. Please retry.', 502);
+  }
+  return url.href;
+}
+
+export async function disconnectHostedCopilot(): Promise<void> {
+  const response = await request('auth/logout', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!z.object({ disconnected: z.literal(true) }).safeParse(await readJson(response)).success) {
+    throw new CopilotRequestError('bad_response', 'Disconnection was not confirmed. Please retry.', 502);
+  }
+  window.dispatchEvent(new Event('copilot-connection-changed'));
 }
 
 export async function requestCopilot(

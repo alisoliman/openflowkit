@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useFlowStore } from '@/store';
 import { useCopilotConnection } from '@/hooks/ai-generation/useCopilotConnection';
 import { CopilotModelSelect } from './SettingsModal/ai/CopilotModelSelect';
+import { HostedCopilotConnection } from './SettingsModal/ai/HostedCopilotConnection';
+import { isHostedCopilot } from '@/services/copilot/client';
 
 interface FlowpilotControlsProps {
   isGenerating: boolean;
@@ -16,10 +18,12 @@ export function FlowpilotControls({ isGenerating, canUndo, onUndo }: FlowpilotCo
   const settings = useFlowStore((state) => state.aiSettings);
   const setSettings = useFlowStore((state) => state.setAISettings);
   const isCopilot = settings.provider === 'copilot';
-  const { connection } = useCopilotConnection(isCopilot);
+  const { connection, refresh } = useCopilotConnection(isCopilot);
+  const hosted = isHostedCopilot() || (connection.state === 'ready' && connection.status.mode === 'hosted');
 
   return (
     <div className="space-y-2 border-t border-[var(--color-brand-border)] px-1 py-3">
+      {isCopilot && hosted && <HostedCopilotConnection connection={connection} onRefresh={refresh} />}
       {isCopilot && (
         <div className="space-y-1.5">
           <label htmlFor="flowpilot-model" className="text-xs font-medium text-[var(--brand-secondary)]">

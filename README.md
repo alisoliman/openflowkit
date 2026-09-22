@@ -188,7 +188,7 @@ That means the app does not create a fake default flow just to get you onto the 
 
 Flowpilot sits directly in the editor. Describe a system, paste source code, upload a screenshot, or refine the current canvas. Its existing intent routing, asset grounding, DSL repair, layout, history, and preview approval run on top of the official [`@github/copilot-sdk`](https://github.com/github/copilot-sdk) inference engine.
 
-With Node **20.19+ or 22.12+**, a current GitHub CLI, and Copilot access:
+For local development, use Node **20.19+ or 22.12+**, a current GitHub CLI, and Copilot access:
 
 ```bash
 npm install
@@ -206,7 +206,9 @@ Flowpilot defaults to **Edit current** after your first draft and accepts short 
 
 The SDK handles transport retries; Flowpilot does not silently replay failed streams or fall back to another provider. Cancellation stops the SDK request. If you change the canvas while a request is running, or after a preview was prepared, regenerate against the latest canvas rather than applying a stale result.
 
-**Copilot runs locally, not inside a static website.** Both `npm run dev` and `npm run build && npm run preview` include a same-origin, loopback-only Node bridge. Credentials stay with the CLI; prompts, conversation context, and attached images go to GitHub Copilot. Host file/shell tools, MCP servers, skills, and ambient instructions are disabled. Each request uses a temporary SDK session that is removed afterward. Inherited automation tokens are excluded so they cannot replace your CLI identity; `COPILOT_HOME` and the SDK's `COPILOT_CLI_PATH` override are honored.
+**The local bridge is not a public backend.** Both `npm run dev` and `npm run build && npm run preview` include a same-origin, loopback-only Node bridge. Credentials stay with the CLI; prompts, conversation context, and attached images go to GitHub Copilot. Host file/shell tools, MCP servers, skills, and ambient instructions are disabled. Each request uses a temporary SDK session that is removed afterward. Inherited automation tokens are excluded so they cannot replace your CLI identity; `COPILOT_HOME` and the SDK's `COPILOT_CLI_PATH` override are honored.
+
+On a [configured hosted deployment](docs/hosted-copilot.md), choose **Connect GitHub** instead. The backend uses your own GitHub App authorization and Copilot access; you do not need a local CLI installation. Static hosting alone still cannot provide this runtime.
 
 ### Alternative providers
 
@@ -404,7 +406,25 @@ npm run build
 npm run preview    # http://127.0.0.1:4173, with the local Copilot bridge
 ```
 
-Do not expose the authenticated bridge publicly or share a server's personal Copilot session with other users. A multi-user hosted integration would require a separate per-user OAuth service; it is not provided by this local runtime.
+Do not expose the authenticated bridge publicly or share a server's personal Copilot session with other users. For public Copilot access, use the separately configured per-user server below, not this local bridge.
+
+### Hosted Copilot with per-user GitHub sign-in
+
+`Dockerfile.hosted` provides a separate production Node server for this scenario.
+It serves the editor and the Copilot API on the same origin. Users connect a
+GitHub App in the browser and use their own Copilot access and quota; the editor
+and alternative providers remain available without GitHub sign-in.
+
+The hosted runtime disables CLI-login fallback and host tools, uses per-session
+user tokens, and stores seven-day sign-in sessions encrypted in Azure Table
+Storage. Diagrams and chat history remain browser-local. It does not add cloud
+sync or migrate data from another hostname.
+
+See [Hosted Copilot deployment](docs/hosted-copilot.md) for GitHub App registration,
+configuration, Azure infrastructure, and rollout instructions. The deployment
+workflow is **disabled by default**. A domain purchase, paid resources, and live
+OAuth verification are separate setup steps, not consequences of building or
+merging this code.
 
 **Cloudflare Pages / Netlify / Vercel:**
 

@@ -6,6 +6,34 @@ import { CopilotSettings } from './CopilotSettings';
 beforeEach(async () => { await i18n.changeLanguage('en'); });
 
 describe('Copilot settings', () => {
+  it('offers browser GitHub sign-in instead of CLI instructions on hosted deployments', () => {
+    render(<CopilotSettings
+      connection={{ state: 'ready', status: {
+        runtime: 'github-copilot-sdk', mode: 'hosted', authenticated: false, signedIn: false, models: [],
+      } }}
+      onRefresh={vi.fn()} model="auto" onModelChange={vi.fn()}
+    />);
+    expect(screen.getByRole('button', { name: 'Connect GitHub' })).toBeEnabled();
+    expect(screen.queryByText('gh copilot login')).not.toBeInTheDocument();
+    expect(screen.getByText(/seven days/)).toBeInTheDocument();
+    expect(screen.getByText(/encrypted on the server/)).toBeInTheDocument();
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+  });
+
+  it('lets users disconnect a GitHub account even when Copilot access is denied', () => {
+    render(<CopilotSettings
+      connection={{ state: 'ready', status: {
+        runtime: 'github-copilot-sdk', mode: 'hosted', authenticated: false, signedIn: true,
+        login: 'test-user', models: [], issue: 'Copilot is disabled by your organization.',
+      } }}
+      onRefresh={vi.fn()} model="auto" onModelChange={vi.fn()}
+    />);
+    expect(screen.getByRole('status')).toHaveTextContent('GitHub connected as test-user');
+    expect(screen.getByRole('status')).toHaveTextContent('Copilot is disabled');
+    expect(screen.getByRole('button', { name: 'Disconnect GitHub' })).toBeEnabled();
+    expect(screen.getByRole('combobox')).toBeDisabled();
+  });
+
   it('shows CLI setup rather than a browser credential field when signed out', () => {
     const refresh = vi.fn();
     render(<CopilotSettings

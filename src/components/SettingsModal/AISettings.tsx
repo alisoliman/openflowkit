@@ -16,6 +16,7 @@ import { getAIReadinessState } from '@/hooks/ai-generation/readiness';
 import { buildDocsSiteUrl } from '@/docs/docsRoutes';
 import { useCopilotConnection } from '@/hooks/ai-generation/useCopilotConnection';
 import { CopilotSettings } from './ai/CopilotSettings';
+import { isHostedCopilot } from '@/services/copilot/client';
 
 // Helper for logo with fallback
 function ProviderIcon({ p, isSelected }: { p: ProviderMeta; isSelected: boolean }): React.ReactElement {
@@ -97,6 +98,7 @@ export function AISettings(): React.ReactElement {
     const currentProvider = aiSettings.provider ?? 'copilot';
     const isCopilot = currentProvider === 'copilot';
     const { connection, refresh } = useCopilotConnection(isCopilot);
+    const hostedCopilot = isHostedCopilot() || (connection.state === 'ready' && connection.status.mode === 'hosted');
     const providerMeta = PROVIDERS.find(p => p.id === currentProvider) ?? PROVIDERS[0];
     const models = PROVIDER_MODELS[currentProvider] ?? [];
     const currentModel = aiSettings.model ?? providerMeta.defaultModel;
@@ -184,7 +186,7 @@ export function AISettings(): React.ReactElement {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-[var(--brand-text)]">{providerMeta.name}</p>
-                        <p className="text-[10px] text-[var(--brand-secondary)]">{isCopilot ? t('copilot.providerHint') : t(`settingsModal.ai.providers.${currentProvider}.hint`)}</p>
+                        <p className="text-[10px] text-[var(--brand-secondary)]">{isCopilot ? t(hostedCopilot ? 'copilot.hostedProviderHint' : 'copilot.providerHint') : t(`settingsModal.ai.providers.${currentProvider}.hint`)}</p>
                     </div>
                     {providerMeta.id === 'custom' && <span className="rounded-[var(--radius-xs)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--brand-secondary)]">BYOK</span>}
                 </div>
