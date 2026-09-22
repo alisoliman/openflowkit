@@ -1,11 +1,16 @@
 import type { FlowEdge, FlowNode } from '@/lib/types';
 import { matchDiagramEdges } from '@/services/flowpilot/changeSummary';
+import { EDGE_ATTRIBUTE_KEYS, NODE_ATTRIBUTE_KEYS } from '@/services/openFlowDSLExporter';
 
 export interface PositionPreservingApplyResult {
     mergedNodes: FlowNode[];
     mergedEdges: FlowEdge[];
     newNodeIds: Set<string>;
     existingById: Map<string, FlowNode>;
+}
+
+function retainEditorData(data: Record<string, unknown>, dslKeys: readonly string[]): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(data).filter(([key]) => !dslKeys.includes(key)));
 }
 
 /**
@@ -36,7 +41,11 @@ export function applyAIResultToCanvas(
                 id: resolvedId,
                 position: existing.position,
                 style: aiNode.style ?? existing.style,
-                data: existing.type === aiNode.type ? { ...existing.data, ...aiNode.data } : aiNode.data,
+                // The response is a complete DSL document. Omitted DSL fields
+                // are removals; only metadata unavailable to the model is kept.
+                data: existing.type === aiNode.type
+                    ? { ...retainEditorData(existing.data, NODE_ATTRIBUTE_KEYS), ...aiNode.data }
+                    : aiNode.data,
             };
         }
 
@@ -52,8 +61,11 @@ export function applyAIResultToCanvas(
             id: before.id,
             sourceHandle: before.sourceHandle ?? after.sourceHandle,
             targetHandle: before.targetHandle ?? after.targetHandle,
-            data: { ...before.data, ...after.data },
-            style: { ...before.style, ...after.style },
+            data: {
+                ...retainEditorData(before.data ?? {}, [...EDGE_ATTRIBUTE_KEYS, 'style', 'styleType']),
+                ...after.data,
+            },
+            style: { ...before.style, strokeDasharray: undefined, ...after.style },
         } : after);
     return { mergedNodes, mergedEdges, newNodeIds, existingById };
 }

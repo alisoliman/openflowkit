@@ -95,19 +95,30 @@ the browser-owned history as context in one turn, then deletes only its own
 temporary session. Aborts and timeouts stop model work; a truncated stream cannot
 be applied as a successful diagram. Automatic DSL repair remains one additional
 request, but SDK transport failures are not replayed by the browser retry loop.
+The request deadline also covers startup, authentication, and session creation.
+Sessions returned after cancellation are cleaned up without sending a prompt,
+and cleanup RPCs have bounded waits so they cannot block a response indefinitely.
 
 Flowpilot conversation state is scoped to the active page. Preview records carry
 `pending`, `applied`, `discarded`, `superseded`, or `undone` state and a semantic
 change summary; their DSL is never replayed as an authoritative assistant answer.
 Both conversational and generation requests receive the live canvas. History
 writes are serialized per page and rapid turns retain an explicit sequence.
-Pending previews expire on reload instead of becoming implicit applied state.
+Pending previews expire when a conversation is reopened instead of becoming
+implicit applied state. A conversational confirmation refers only to the latest
+assistant response, never an older proposal hidden behind a newer plan or answer.
+A newer unanswered or cancelled user turn also invalidates older confirmations.
+The browser sends at most 200 history entries within the bridge's 8 MiB request
+limit, dropping the oldest context and inserting an explicit omission note when
+needed. Stored conversation history and the live prompt/canvas are not truncated.
 
 `src/services/flowpilot/changeSummary.ts` compares meaningful node data and
-matches edges by endpoints/content rather than regenerated IDs. Canvas
-fingerprints additionally include positions to prevent stale requests or
-previews from overwriting manual changes. Selection and measurement metadata
-do not invalidate a draft.
+matches edges by endpoints/content rather than regenerated IDs, reserving exact
+matches before pairing changed parallel connections. Canvas fingerprints also
+include positions, handles, markers, and visibility to prevent stale requests
+or previews from overwriting manual changes. Selection and measurement metadata
+do not invalidate a draft. When merging a complete DSL response, omitted
+DSL-supported attributes are removed; editor-only metadata remains intact.
 
 The Flowpilot composer shares its Copilot model selector with Settings and
 persists an explicit `aiSettings.autoApply` opt-in (off when unset). Prepared AI

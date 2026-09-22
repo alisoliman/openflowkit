@@ -49,7 +49,7 @@ function commitGraph(nodes: FlowNode[], edges: GenerateAIFlowResult['layoutedEdg
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   useFlowStore.setState({ documents: [], tabs: [], nodes: [], edges: [] });
   useFlowStore.getState().createDocument();
   useFlowStore.getState().setNodes(INITIAL);
@@ -120,6 +120,76 @@ describe('multi-turn Flowpilot harness', () => {
     expect(generateAIFlowResult).toHaveBeenCalledOnce();
     expect(apply).toHaveBeenCalledOnce();
     expect(result.current.pendingDiff).toBeNull();
+  });
+
+  it('confirms the latest plan instead of applying an older outstanding preview', async () => {
+    const { result, apply } = await setup();
+    await act(async () => { await result.current.handleAIRequest('Rename Redis to Orders Cache.'); });
+    vi.mocked(chatWithFlowpilot).mockResolvedValueOnce('Rename Redis to Session Cache instead.');
+    await act(async () => { await result.current.handleAIRequest('Plan a different cache label instead.'); });
+    vi.mocked(generateAIFlowResult).mockResolvedValueOnce(resultWith('Session Cache'));
+    await act(async () => { await result.current.handleAIRequest('Yes, do that.'); });
+
+    expect(apply).not.toHaveBeenCalled();
+    expect(generateAIFlowResult).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(generateAIFlowResult).mock.calls[1][0].prompt).toContain('Rename Redis to Session Cache instead.');
+    expect(result.current.pendingDiff?.result.layoutedNodes[1].data.label).toBe('Session Cache');
+    expect(useFlowStore.getState().nodes[1].data.label).toBe('Redis');
+  });
+
+  it('does not interpret confirmation of an intervening answer as approval of an older preview', async () => {
+    const { result, apply } = await setup();
+    await act(async () => { await result.current.handleAIRequest('Rename Redis to Orders Cache.'); });
+    await act(async () => { await result.current.handleAIRequest('What is the cache currently called?'); });
+    await act(async () => { await result.current.handleAIRequest('Yes.'); });
+
+    expect(apply).not.toHaveBeenCalled();
+    expect(chatWithFlowpilot).toHaveBeenCalledTimes(2);
+    expect(result.current.pendingDiff).not.toBeNull();
+  });
+
+  it.each(['plan', 'preview'] as const)(
+    'does not approve an older %s after a newer request was cancelled without a response',
+    async (previous) => {
+      const { result, apply } = await setup();
+      if (previous === 'plan') {
+        vi.mocked(chatWithFlowpilot).mockResolvedValueOnce('Rename Redis to Orders Cache.');
+        await act(async () => { await result.current.handleAIRequest('Plan a clearer cache label.'); });
+      } else {
+        await act(async () => { await result.current.handleAIRequest('Rename Redis to Orders Cache.'); });
+      }
+      const diagramCalls = vi.mocked(generateAIFlowResult).mock.calls.length;
+      let finish!: (text: string) => void;
+      vi.mocked(chatWithFlowpilot).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+      let cancelled!: Promise<boolean>;
+      act(() => { cancelled = result.current.handleAIRequest('Explain the API instead.'); });
+      await waitFor(() => expect(result.current.isGenerating).toBe(true));
+      act(() => result.current.cancelGeneration());
+      await act(async () => { finish('This cancelled answer must not be saved.'); await cancelled; });
+
+      vi.mocked(chatWithFlowpilot).mockResolvedValueOnce('Which change should I make?');
+      await act(async () => { await result.current.handleAIRequest('Yes, do that.'); });
+      expect(generateAIFlowResult).toHaveBeenCalledTimes(diagramCalls);
+      expect(apply).not.toHaveBeenCalled();
+      expect(result.current.assistantThread.at(-1)?.content).toBe('Which change should I make?');
+    },
+  );
+
+  it('does not resurrect an expired preview when returning to its page', async () => {
+    const { result, apply } = await setup();
+    const originalDocument = useFlowStore.getState().activeDocumentId;
+    await act(async () => { await result.current.handleAIRequest('Rename Redis to Orders Cache.'); });
+    const savedThread = result.current.assistantThread;
+
+    act(() => { useFlowStore.getState().createDocument(); });
+    await waitFor(() => expect(result.current.readiness.canGenerate).toBe(true));
+    vi.mocked(loadAssistantThreadHistory).mockResolvedValueOnce(savedThread);
+    act(() => { useFlowStore.getState().setActiveDocumentId(originalDocument); });
+    await waitFor(() => expect(result.current.assistantThread.some((item) => item.previewStatus === 'superseded')).toBe(true));
+
+    expect(result.current.pendingDiff).toBeNull();
+    act(() => { result.current.confirmPendingDiff(); });
+    expect(apply).not.toHaveBeenCalled();
   });
 
   it('automatically applies only when opted in, with one undo operation', async () => {

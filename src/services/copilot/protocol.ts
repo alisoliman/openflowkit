@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const COPILOT_API_PATH = '/api/copilot';
 export const COPILOT_CLIENT_HEADER = 'x-flowpilot-client';
 export const COPILOT_MAX_BODY_BYTES = 8 * 1024 * 1024;
+export const COPILOT_MAX_HISTORY_MESSAGES = 200;
 export const COPILOT_MAX_RESPONSE_CHARS = 2 * 1024 * 1024;
 export const COPILOT_SETUP_MESSAGE =
   'The local Copilot runtime is unavailable. Run npm run dev (or npm run build && npm run preview) on this computer, then open the local app. Static hosted sites cannot access your Copilot CLI sign-in.';
@@ -16,7 +17,7 @@ export const copilotRequestSchema = z.object({
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().max(1_000_000),
-  }).strict()).max(200).default([]),
+  }).strict()).max(COPILOT_MAX_HISTORY_MESSAGES).default([]),
   image: z.string().max(7_000_000)
     .regex(/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/)
     .optional(),

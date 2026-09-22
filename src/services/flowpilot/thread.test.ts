@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  assistantThreadToChatMessages, createAnswerThreadItem, createPreviewThreadItem,
-  expirePendingPreviews, getPendingConversationPlan, setPreviewStatus,
+  assistantThreadToChatMessages, createAnswerThreadItem, createPreviewThreadItem, createUserThreadItem,
+  expirePendingPreviews, getLatestAssistantResponse, getPendingConversationPlan, setPreviewStatus,
 } from './thread';
 
 describe('Flowpilot conversation state', () => {
@@ -33,5 +33,23 @@ describe('Flowpilot conversation state', () => {
     expect(getPendingConversationPlan([plan])).toBe(plan.content);
     expect(getPendingConversationPlan([plan, createAnswerThreadItem('Redis is the current cache.', 'answer')])).toBeUndefined();
     expect(getPendingConversationPlan([plan, createPreviewThreadItem('flow: New', 'Draft')])).toBeUndefined();
+  });
+
+  it('invalidates older plans and previews when a newer user turn has no response', () => {
+    const request = createUserThreadItem('Instead, rename the API.');
+    const plan = createAnswerThreadItem('Rename Redis to Orders Cache.', 'plan');
+    const preview = createPreviewThreadItem('flow: Old\n[process] cache: Orders Cache', 'Previous draft');
+    expect(getPendingConversationPlan([plan, request])).toBeUndefined();
+    expect(getLatestAssistantResponse([preview, request])).toBeUndefined();
+  });
+
+  it('does not mistake internal planning metadata for a response to the newer user turn', () => {
+    const plan = createAnswerThreadItem('Rename Redis to Orders Cache.', 'plan');
+    const request = createUserThreadItem('Explain the existing API instead.');
+    expect(getPendingConversationPlan([plan, request, {
+      ...plan, id: 'internal-plan', type: 'assistant_plan',
+    }])).toBeUndefined();
+    const latest = createAnswerThreadItem('Rename the API to Gateway.', 'plan');
+    expect(getPendingConversationPlan([plan, request, latest])).toBe(latest.content);
   });
 });

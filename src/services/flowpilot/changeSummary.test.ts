@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FlowEdge, FlowNode } from '@/lib/types';
-import { getCanvasFingerprint, summarizeDiagramChanges } from './changeSummary';
+import { MarkerType } from '@/lib/reactflowCompat';
+import { getCanvasFingerprint, matchDiagramEdges, summarizeDiagramChanges } from './changeSummary';
 
 const node = (id: string, label = id): FlowNode => ({
   id, type: 'process', position: { x: 100, y: 200 }, data: { label },
@@ -49,6 +50,28 @@ describe('semantic Flowpilot change summaries', () => {
     const after = [edge('x', 'api', 'cache', 'write'), edge('y', 'api', 'cache', 'read')];
     expect(summarizeDiagramChanges({ nodes: [], edges: before }, { nodes: [], edges: after }).totalChanges).toBe(0);
     expect(summarizeDiagramChanges({ nodes: [], edges: before }, { nodes: [], edges: after.slice(0, 1) }).removedEdgeCount).toBe(1);
+  });
+
+  it('reserves unchanged parallel edges before matching an earlier changed edge', () => {
+    const before = [edge('read', 'api', 'cache', 'read'), edge('write', 'api', 'cache', 'write')];
+    const after = [edge('new-write', 'api', 'cache', 'update'), edge('new-read', 'api', 'cache', 'read')];
+    const pairs = matchDiagramEdges(before, after);
+
+    expect(pairs.map((pair) => [pair.before?.id, pair.after?.id])).toEqual([
+      ['write', 'new-write'], ['read', 'new-read'],
+    ]);
+    expect(summarizeDiagramChanges({ nodes: [], edges: before }, { nodes: [], edges: after }).updatedEdgeCount).toBe(1);
+  });
+
+  it.each([
+    { sourceHandle: 'right-source', targetHandle: 'left-target' },
+    { markerEnd: { type: MarkerType.ArrowClosed } },
+    { hidden: true },
+  ])('invalidates previews after manual connection changes: %j', (change) => {
+    const original = edge('connection');
+    const before = getCanvasFingerprint({ nodes: [], edges: [original] });
+    const after = getCanvasFingerprint({ nodes: [], edges: [{ ...original, ...change }] });
+    expect(after).not.toBe(before);
   });
 
   it('detects position changes for stale-result safety while ignoring transient canvas metadata', () => {

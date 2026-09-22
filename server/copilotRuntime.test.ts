@@ -61,6 +61,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   vi.useRealTimers();
 });
@@ -178,6 +179,53 @@ describe('Copilot SDK runtime', () => {
     expect(mocks.sendAndWait).not.toHaveBeenCalled();
     expect(mocks.abort).toHaveBeenCalledOnce();
     expect(mocks.deleteSession).toHaveBeenCalledOnce();
+  });
+
+  it('cancels authentication waits and frees request slots before the RPC completes', async () => {
+    mocks.getAuthStatus.mockReturnValue(new Promise(() => undefined));
+    const runtime = createCopilotRuntime();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const controller = new AbortController();
+      const request = runtime.generate(INPUT, vi.fn(), controller.signal);
+      const rejected = expect(request).rejects.toMatchObject({ name: 'AbortError' });
+      await vi.waitFor(() => expect(mocks.getAuthStatus).toHaveBeenCalledTimes(attempt + 1));
+      controller.abort();
+      await rejected;
+    }
+    expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it('times out session creation and disposes a session that arrives after cancellation', async () => {
+    vi.useFakeTimers();
+    let complete!: (value: { sessionId: string; abort: typeof mocks.abort }) => void;
+    mocks.createSession.mockReturnValueOnce(new Promise((resolve) => { complete = resolve; }));
+    const request = createCopilotRuntime().generate(INPUT, vi.fn(), new AbortController().signal);
+    const rejected = expect(request).rejects.toMatchObject({ code: 'timeout' });
+    await vi.advanceTimersByTimeAsync(180_000);
+    await rejected;
+    expect(mocks.sendAndWait).not.toHaveBeenCalled();
+
+    complete({ sessionId: 'late-session', abort: mocks.abort });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.abort).toHaveBeenCalledOnce();
+    expect(mocks.deleteSession).toHaveBeenCalledExactlyOnceWith('late-session');
+  });
+
+  it('does not hang a completed response when session cleanup stops responding', async () => {
+    vi.useFakeTimers();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.deleteSession.mockReturnValueOnce(new Promise(() => undefined));
+    const request = createCopilotRuntime().generate(INPUT, vi.fn(), new AbortController().signal);
+    const result = expect(request).resolves.toBe('flow: "Queue"');
+    // AbortSignal.timeout uses native timers, independently of mocked setTimeout.
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new Error('Cleanup timed out')), milliseconds);
+      return controller.signal;
+    });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await result;
+    expect(error).toHaveBeenCalledWith('[Flowpilot] Could not remove the temporary Copilot session.', expect.any(Error));
   });
 
   it('cancels timed-out requests rather than merely stopping the wait', async () => {

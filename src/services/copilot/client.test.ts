@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getCopilotStatus, requestCopilot } from './client';
-import { COPILOT_LOGIN_MESSAGE, COPILOT_SETUP_MESSAGE, type CopilotRequest } from './protocol';
+import {
+  COPILOT_LOGIN_MESSAGE, COPILOT_SETUP_MESSAGE, COPILOT_MAX_BODY_BYTES,
+  COPILOT_MAX_HISTORY_MESSAGES, copilotRequestSchema, type CopilotRequest,
+} from './protocol';
 
 const INPUT: CopilotRequest = {
   prompt: 'Draw a client and an API',
@@ -24,9 +27,56 @@ function streamResponse(text: string, splitEveryByte = false): Response {
   }), { headers: { 'Content-Type': 'application/x-ndjson' } });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('Copilot browser transport', () => {
+  it.each([201, 450])('sends a bounded suffix of a %s-message conversation without changing local history', async (count) => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const history: CopilotRequest['history'] = Array.from({ length: count }, (_, index) => ({
+      role: index % 2 === 0 ? 'user' : 'assistant', content: `Message ${index}`,
+    }));
+    const input = { ...INPUT, history };
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse('{"type":"done","text":"answer"}\n'));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await requestCopilot(input)).toBe('answer');
+    const sent = copilotRequestSchema.parse(JSON.parse(fetchMock.mock.calls[0][1].body));
+
+    expect(sent.history).toHaveLength(COPILOT_MAX_HISTORY_MESSAGES);
+    expect(sent.history[0].content).toContain('older conversation messages were omitted');
+    expect(sent.history.slice(1)).toEqual(history.slice(-(COPILOT_MAX_HISTORY_MESSAGES - 1)));
+    expect(sent.prompt).toBe(INPUT.prompt);
+    expect(input.history).toHaveLength(count);
+    expect(input.history[0].content).toBe('Message 0');
+  });
+
+  it('also bounds UTF-8 request bytes while preserving the current prompt and newest messages', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const history: CopilotRequest['history'] = Array.from({ length: 6 }, (_, index) => ({
+      role: 'user', content: `${index}: ${'図'.repeat(600_000)}`,
+    }));
+    const fetchMock = vi.fn().mockResolvedValue(streamResponse('{"type":"done","text":"answer"}\n'));
+    vi.stubGlobal('fetch', fetchMock);
+    await requestCopilot({ ...INPUT, history });
+    const body: string = fetchMock.mock.calls[0][1].body;
+    const sent = copilotRequestSchema.parse(JSON.parse(body));
+    expect(new TextEncoder().encode(body).byteLength).toBeLessThanOrEqual(COPILOT_MAX_BODY_BYTES);
+    expect(sent.history.length).toBeLessThan(history.length);
+    expect(sent.history.at(-1)).toEqual(history.at(-1));
+    expect(sent.prompt).toBe(INPUT.prompt);
+    expect(history).toHaveLength(6);
+  });
+
+  it('rejects an oversized current request rather than silently truncating the prompt', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(requestCopilot({ ...INPUT, prompt: 'x'.repeat(COPILOT_MAX_BODY_BYTES) }))
+      .rejects.toMatchObject({ code: 'invalid_request', status: 413 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('decodes fragmented UTF-8, streams deltas, and requires a terminal result', async () => {
     const text = 'flow: "日本語"\n[process] api: API';
     const response = streamResponse([

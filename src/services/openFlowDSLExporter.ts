@@ -17,7 +17,7 @@ const TYPE_TO_DSL: Record<string, string> = {
     container: 'container',
 };
 
-const NODE_ATTRIBUTE_KEYS = [
+export const NODE_ATTRIBUTE_KEYS = [
     'subLabel',
     'shape',
     'colorMode',
@@ -51,7 +51,7 @@ const NODE_ATTRIBUTE_KEYS = [
     'archIconShapeId',
 ] as const;
 
-const EDGE_ATTRIBUTE_KEYS = [
+export const EDGE_ATTRIBUTE_KEYS = [
     'condition',
     'strokeWidth',
     'dashPattern',

@@ -1,6 +1,9 @@
+import { createLogger } from '@/lib/logger';
 import {
   COPILOT_API_PATH,
   COPILOT_CLIENT_HEADER,
+  COPILOT_MAX_BODY_BYTES,
+  COPILOT_MAX_HISTORY_MESSAGES,
   COPILOT_MAX_RESPONSE_CHARS,
   COPILOT_SETUP_MESSAGE,
   CopilotRequestError,
@@ -17,6 +20,37 @@ export type CopilotConnectionState =
   | { state: 'checking' }
   | { state: 'ready'; status: CopilotStatus }
   | { state: 'unavailable'; message: string };
+
+function serializeCopilotRequest(input: CopilotRequest): string {
+  const history = input.history.slice(-COPILOT_MAX_HISTORY_MESSAGES);
+  let omitted = input.history.length - history.length;
+  const notice: CopilotRequest['history'][number] = {
+    role: 'user',
+    content: '[Flowpilot context note: older conversation messages were omitted to fit the request limits. Use the current request and CURRENT CANVAS as the source of truth.]',
+  };
+  const encode = new TextEncoder();
+  const serialize = () => JSON.stringify({
+    ...input,
+    history: omitted > 0 ? [notice, ...history] : history,
+  });
+  if (omitted > 0 && history.length === COPILOT_MAX_HISTORY_MESSAGES) {
+    history.shift();
+    omitted++;
+  }
+  let body = serialize();
+  while (encode.encode(body).byteLength > COPILOT_MAX_BODY_BYTES && history.length > 0) {
+    history.shift();
+    omitted++;
+    body = serialize();
+  }
+  if (encode.encode(body).byteLength > COPILOT_MAX_BODY_BYTES) {
+    throw new CopilotRequestError('invalid_request', 'The current request is too large. Use a smaller image or shorter prompt.', 413);
+  }
+  if (omitted > 0) {
+    logger.info('Older Copilot history was omitted to fit the request limits.', { omittedMessages: omitted });
+  }
+  return body;
+}
 
 async function request(path: string, options: RequestInit): Promise<Response> {
   let response: Response;
@@ -67,7 +101,7 @@ export async function requestCopilot(
   const response = await request('chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    body: serializeCopilotRequest(input),
     signal,
   });
   if (!response.body) {
@@ -137,4 +171,3 @@ export async function requestCopilot(
     reader.releaseLock();
   }
 }
-import { createLogger } from '@/lib/logger';

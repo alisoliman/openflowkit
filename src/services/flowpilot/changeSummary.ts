@@ -59,17 +59,26 @@ function edgeContent(edge: FlowEdge) {
 // Model-generated edges do not retain IDs. Match content first, then endpoints,
 // so a changed label is one update rather than a removal plus an addition.
 export function matchDiagramEdges(before: FlowEdge[], after: FlowEdge[]) {
-  const remaining = [...before];
-  const pairs: Array<{ before?: FlowEdge; after?: FlowEdge }> = [];
-  for (const edge of after) {
-    const candidates = remaining.filter((candidate) => candidate.source === edge.source && candidate.target === edge.target);
-    const matched = candidates.find((candidate) => fingerprint(edgeContent(candidate)) === fingerprint(edgeContent(edge)))
-      ?? candidates.find((candidate) => (candidate.label || candidate.data?.label || '') === (edge.label || edge.data?.label || ''))
-      ?? candidates[0];
-    if (matched) remaining.splice(remaining.indexOf(matched), 1);
-    pairs.push({ before: matched, after: edge });
+  const remaining = new Set(before);
+  const pairs: Array<{ before?: FlowEdge; after: FlowEdge }> = after.map((edge) => ({ after: edge }));
+  const strategies: Array<(candidate: FlowEdge, edge: FlowEdge) => boolean> = [
+    (candidate, edge) => fingerprint(edgeContent(candidate)) === fingerprint(edgeContent(edge)),
+    (candidate, edge) => (candidate.label || candidate.data?.label || '') === (edge.label || edge.data?.label || ''),
+    () => true,
+  ];
+  for (const matches of strategies) {
+    for (const pair of pairs) {
+      if (pair.before) continue;
+      const matched = [...remaining].find((candidate) =>
+        candidate.source === pair.after.source && candidate.target === pair.after.target
+        && matches(candidate, pair.after));
+      if (matched) {
+        remaining.delete(matched);
+        pair.before = matched;
+      }
+    }
   }
-  return [...pairs, ...remaining.map((edge) => ({ before: edge, after: undefined }))];
+  return [...pairs, ...[...remaining].map((edge) => ({ before: edge, after: undefined }))];
 }
 
 export function summarizeDiagramChanges(before: DiagramGraph, after: DiagramGraph): DiagramChangeSummary {
@@ -126,6 +135,11 @@ export function getCanvasFingerprint(graph: DiagramGraph): string {
     })).sort((a, b) => a.id.localeCompare(b.id)),
     edges: graph.edges.map((edge) => ({
       source: edge.source, target: edge.target, ...edgeContent(edge),
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+      markerStart: edge.markerStart,
+      markerEnd: edge.markerEnd,
+      hidden: edge.hidden || undefined,
     })).sort((a, b) => fingerprint(a).localeCompare(fingerprint(b))),
   });
 }

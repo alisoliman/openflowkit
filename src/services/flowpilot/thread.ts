@@ -125,8 +125,13 @@ export function expirePendingPreviews(items: AssistantThreadItem[]): AssistantTh
     : item);
 }
 
+export function getLatestAssistantResponse(items: AssistantThreadItem[]): AssistantThreadItem | undefined {
+  const latest = [...items].reverse().find((item) =>
+    item.type !== 'assistant_plan' && item.type !== 'assistant_thinking');
+  return latest?.role === 'model' ? latest : undefined;
+}
+
 export function getPendingConversationPlan(items: AssistantThreadItem[]): string | undefined {
-  const lastAnswer = [...items].reverse().find((item) =>
-    item.role === 'model' && item.type !== 'assistant_plan' && item.type !== 'assistant_thinking');
+  const lastAnswer = getLatestAssistantResponse(items);
   return lastAnswer?.responseMode === 'plan' ? lastAnswer.content : undefined;
 }

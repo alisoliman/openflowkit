@@ -16,6 +16,7 @@ import {
   createErrorThreadItem,
   createPreviewThreadItem,
   createUserThreadItem,
+  getLatestAssistantResponse,
   getPendingConversationPlan,
   setPreviewStatus,
 } from '@/services/flowpilot/thread';
@@ -219,7 +220,9 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
     },
   } : providerReadiness, [providerReadiness, threadReady]);
   const canvasFingerprint = useMemo(() => getCanvasFingerprint({ nodes, edges }), [nodes, edges]);
-  const currentPreview = pendingDiff?.documentId === activeTabId ? pendingDiff : null;
+  const currentPreview = threadReady && pendingDiff?.documentId === activeTabId
+    && assistantThread.some((item) => item.id === pendingDiff.threadItemId && item.previewStatus === 'pending')
+    ? pendingDiff : null;
   const activeHistory = useFlowStore((state) => state.tabs.find((tab) => tab.id === state.activeTabId)?.history);
   const canUndoLastChange = Boolean(
     lastAppliedChange
@@ -567,7 +570,8 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
       }
       const userThreadItem = createUserThreadItem(prompt, imageBase64);
       appendThreadItem(userThreadItem);
-      if (currentPreview && isFlowpilotConfirmation(prompt)) return confirmPendingDiff();
+      if (currentPreview && getLatestAssistantResponse(assistantThread)?.id === currentPreview.threadItemId
+        && isFlowpilotConfirmation(prompt)) return confirmPendingDiff();
 
       const previousPlan = getPendingConversationPlan(assistantThread);
       const plan = buildFlowpilotPlan({

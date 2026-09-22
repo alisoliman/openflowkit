@@ -11,6 +11,36 @@ import {
 
 const REQUEST_TIMEOUT_MS = 180_000;
 const MAX_CONCURRENT_REQUESTS = 2;
+const CLEANUP_TIMEOUT_MS = 5_000;
+
+async function waitWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+  try {
+    return await Promise.race([operation, aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
+async function disposeSession(client: CopilotClient, session: CopilotSession, abort: boolean): Promise<void> {
+  if (abort) {
+    try {
+      await waitWithSignal(session.abort(), AbortSignal.timeout(CLEANUP_TIMEOUT_MS));
+    } catch (error) {
+      console.error('[Flowpilot] Could not abort the Copilot request.', error);
+    }
+  }
+  try {
+    await waitWithSignal(client.deleteSession(session.sessionId), AbortSignal.timeout(CLEANUP_TIMEOUT_MS));
+  } catch (error) {
+    console.error('[Flowpilot] Could not remove the temporary Copilot session.', error);
+  }
+}
 
 export function createCopilotClientOptions() {
   const env = { ...process.env };
@@ -100,18 +130,17 @@ export function createCopilotRuntime(): CopilotRuntime {
       let session: CopilotSession | undefined;
       let client: CopilotClient | undefined;
       let unsubscribe: (() => void) | undefined;
-      let abortListener: (() => void) | undefined;
       let completed = false;
 
       try {
-        client = await getClient();
+        client = await waitWithSignal(getClient(), requestSignal);
         requestSignal.throwIfAborted();
-        const auth = await client.getAuthStatus();
+        const auth = await waitWithSignal(client.getAuthStatus(), requestSignal);
         requestSignal.throwIfAborted();
         if (!auth.isAuthenticated) {
           throw new CopilotRequestError('not_authenticated', COPILOT_LOGIN_MESSAGE, 401);
         }
-        session = await client.createSession({
+        const sessionCreation = client.createSession({
           model: request.model === 'auto' ? undefined : request.model,
           systemMessage: { mode: 'replace', content: request.systemInstruction },
           streaming: true,
@@ -126,6 +155,20 @@ export function createCopilotRuntime(): CopilotRuntime {
           infiniteSessions: { enabled: false },
           onPermissionRequest: () => ({ kind: 'reject', feedback: 'Flowpilot only generates diagram text; host tools are disabled.' }),
         });
+        try {
+          session = await waitWithSignal(sessionCreation, requestSignal);
+        } catch (error) {
+          if (requestSignal.aborted) {
+            const sessionClient = client;
+            // Session creation is not cancellable in the SDK. Dispose its late
+            // result without holding the HTTP request or a concurrency slot.
+            void sessionCreation.then((lateSession) => disposeSession(sessionClient, lateSession, true))
+              .catch((creationError: unknown) => {
+                console.error('[Flowpilot] Cancelled session creation failed.', creationError);
+              });
+          }
+          throw error;
+        }
         requestSignal.throwIfAborted();
 
         let streamedLength = 0;
@@ -143,21 +186,16 @@ export function createCopilotRuntime(): CopilotRuntime {
           }
         });
 
-        const aborted = new Promise<never>((_resolve, reject) => {
-          abortListener = () => reject(requestSignal.reason);
-          requestSignal.addEventListener('abort', abortListener, { once: true });
-          if (requestSignal.aborted) abortListener();
-        });
         const image = request.image?.match(/^data:(image\/[^;]+);base64,(.+)$/);
-        const response = await Promise.race([
+        const response = await waitWithSignal(
           session.sendAndWait({
             prompt: buildPrompt(request),
             attachments: image
               ? [{ type: 'blob', mimeType: image[1], data: image[2], displayName: 'Diagram reference' }]
               : undefined,
           }, REQUEST_TIMEOUT_MS),
-          aborted,
-        ]);
+          requestSignal,
+        );
         requestSignal.throwIfAborted();
         const text = response?.data.content;
         if (!text?.trim() || text.length > COPILOT_MAX_RESPONSE_CHARS) {
@@ -167,19 +205,9 @@ export function createCopilotRuntime(): CopilotRuntime {
         return text;
       } finally {
         clearTimeout(deadline);
-        if (abortListener) requestSignal.removeEventListener('abort', abortListener);
         unsubscribe?.();
         if (session && client) {
-          try {
-            if (!completed) await session.abort();
-          } catch (error) {
-            console.error('[Flowpilot] Could not abort the Copilot request.', error);
-          }
-          try {
-            await client.deleteSession(session.sessionId);
-          } catch (error) {
-            console.error('[Flowpilot] Could not remove the temporary Copilot session.', error);
-          }
+          await disposeSession(client, session, !completed);
         }
         activeRequests--;
       }
