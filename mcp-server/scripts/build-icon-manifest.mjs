@@ -7,7 +7,7 @@
  *
  * Run automatically before `npm run build` in mcp-server.
  */
-import { mkdir, readdir, writeFile, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -68,16 +68,25 @@ async function main() {
   const manifest = [];
   for (const provider of providers) {
     const processedDir = join(ICONS_ROOT, provider, 'processed');
+    const azureCatalog = provider === 'azure'
+      ? JSON.parse(await readFile(join(processedDir, 'catalog.json'), 'utf8'))
+      : null;
     const svgs = await walkSvgs(processedDir);
     for (const filePath of svgs) {
       const rel = relative(processedDir, filePath).replace(/\\/g, '/').replace(/\.svg$/i, '');
       const parts = rel.split('/');
-      const category = parts.length > 1 ? humanize(slugify(parts[0])) : 'Misc';
       const slug = slugify(rel.replace(/\//g, '-'));
+      const category = azureCatalog
+        ? azureCatalog.categories[parts[0]]
+        : parts.length > 1 ? humanize(slugify(parts[0])) : 'Misc';
+      const label = azureCatalog ? azureCatalog.labels[slug] : humanize(slug);
+      if (!label || !category) {
+        throw new Error(`Missing provider icon label or category: ${filePath}`);
+      }
       manifest.push({
         provider: provider.toLowerCase(),
         slug,
-        label: humanize(slug),
+        label,
         category,
       });
     }

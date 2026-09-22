@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetsView } from './AssetsView';
 
@@ -7,8 +7,35 @@ vi.mock('@/services/shapeLibrary/providerCatalog', async (importOriginal) => {
 
   return {
     ...actual,
-    getProviderCatalogCount: vi.fn((provider: string) => (provider === 'aws' ? 2 : 0)),
-    loadProviderCatalog: vi.fn(async () => [
+    getProviderCatalogCount: vi.fn((provider: string) => (provider === 'aws' || provider === 'azure' ? 2 : 0)),
+    loadProviderCatalog: vi.fn(async (provider: string) => provider === 'azure' ? [
+      {
+        id: 'azure-official-icons-v20:ai-plus-machine-learning-foundry-agent-service',
+        category: 'azure',
+        label: 'Foundry Agent Service',
+        description: 'AZURE AI + Machine Learning',
+        icon: 'Box',
+        color: 'blue',
+        nodeType: 'custom',
+        assetPresentation: 'icon',
+        providerShapeCategory: 'AI + Machine Learning',
+        archIconPackId: 'azure-official-icons-v20',
+        archIconShapeId: 'ai-plus-machine-learning-foundry-agent-service',
+      },
+      {
+        id: 'azure-official-icons-v20:databases-azure-documentdb',
+        category: 'azure',
+        label: 'Azure DocumentDB',
+        description: 'AZURE Databases',
+        icon: 'Box',
+        color: 'blue',
+        nodeType: 'custom',
+        assetPresentation: 'icon',
+        providerShapeCategory: 'Databases',
+        archIconPackId: 'azure-official-icons-v20',
+        archIconShapeId: 'databases-azure-documentdb',
+      },
+    ] : [
       {
         id: 'aws-official-starter-v1:analytics-athena',
         category: 'aws',
@@ -120,6 +147,32 @@ describe('AssetsView', () => {
 
     await waitFor(() => expect(onAddDomainLibraryItem).toHaveBeenCalledTimes(1));
     expect(onAddDomainLibraryItem.mock.calls[0]?.[0]?.label).toBe('Compute Lambda');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Azure product names without hover and preserves them when searching and inserting', async () => {
+    const onAddDomainLibraryItem = vi.fn();
+    const onClose = vi.fn();
+    render(<AssetsView onClose={onClose} handleBack={vi.fn()} onAddDomainLibraryItem={onAddDomainLibraryItem} />);
+
+    fireEvent.click(screen.getByRole('tab', { name: /AZURE/i }));
+    const foundry = await screen.findByRole('button', { name: 'Foundry Agent Service' });
+    expect(within(foundry).getByText('Foundry Agent Service')).toBeVisible();
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Search developer logos, AWS services, Azure diagrams, CNCF assets, icons...'),
+      { target: { value: 'documentdb' } }
+    );
+    const documentDb = screen.getByRole('button', { name: 'Azure DocumentDB' });
+    expect(within(documentDb).getByText('Azure DocumentDB')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Foundry Agent Service' })).toBeNull();
+    fireEvent.click(documentDb);
+
+    await waitFor(() => expect(onAddDomainLibraryItem).toHaveBeenCalledWith(expect.objectContaining({
+      label: 'Azure DocumentDB',
+      archIconPackId: 'azure-official-icons-v20',
+      archIconShapeId: 'databases-azure-documentdb',
+    })));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

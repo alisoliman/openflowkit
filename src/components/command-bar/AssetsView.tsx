@@ -100,6 +100,7 @@ export function AssetsView({
     })), [tabCounts]);
 
     const activeCloudTab = CLOUD_TABS.find((tab) => tab.id === activeTab);
+    const showLabels = activeTab === 'azure';
     const activeTabItems = useMemo(
         () => (activeCloudTab ? filteredCloudItems[activeCloudTab.id] : []),
         [activeCloudTab, filteredCloudItems]
@@ -232,9 +233,9 @@ export function AssetsView({
                                     </div>
                                 </div>
                             ) : null}
-                            <div className="grid grid-cols-6 gap-3">
+                            <div className={`grid gap-3 ${showLabels ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-6'}`}>
                                 {visibleCloudItems.map((item) => (
-                                    <Tooltip key={item.id} text={item.label}>
+                                    <Tooltip key={item.id} text={item.label} className={showLabels ? 'min-w-0' : undefined}>
                                         <button
                                             aria-label={item.label}
                                             onClick={async (event) => {
@@ -256,7 +257,7 @@ export function AssetsView({
                                                     onClose();
                                                 }
                                             }}
-                                            className={`group flex aspect-square items-center justify-center rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] p-3 transition-colors hover:border-[var(--brand-primary-200)] hover:bg-[var(--brand-primary-50)] ${
+                                            className={`group flex items-center justify-center rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] p-3 transition-colors hover:border-[var(--brand-primary-200)] hover:bg-[var(--brand-primary-50)] ${showLabels ? 'h-full w-full min-w-0 flex-col gap-2' : 'aspect-square'} ${
                                                 pendingSelectionIds.includes(item.id)
                                                     ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)]'
                                                     : 'border-[var(--color-brand-border)]'
@@ -273,6 +274,11 @@ export function AssetsView({
                                                     />
                                                 )}
                                             </div>
+                                            {showLabels ? (
+                                                <span className="w-full break-words text-center text-xs font-medium leading-4 text-[var(--brand-text)]">
+                                                    {item.label}
+                                                </span>
+                                            ) : null}
                                         </button>
                                     </Tooltip>
                                 ))}
