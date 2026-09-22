@@ -1,113 +1,105 @@
-import React, { useState } from 'react';
-import { ArrowUpRight, Check, Copy } from 'lucide-react';
+import React, { useEffect, useId, useState } from 'react';
+import { ArrowUpRight, Check, Code2, Copy, MousePointer2, Terminal, Wind } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { getAppUrl } from '@/lib/appUrl';
+import { CopilotIcon } from '../icons/CopilotIcon';
 
-type ClientId = 'claude' | 'cursor' | 'windsurf';
+type ClientId = 'copilot-app' | 'copilot-cli' | 'claude-code' | 'claude' | 'cursor' | 'windsurf';
 
 interface ClientOption {
   id: ClientId;
   label: string;
   configPath: string;
-  hint: string;
+  windowsConfigPath?: string;
 }
 
 const CLIENTS: ClientOption[] = [
   {
+    id: 'copilot-app',
+    label: 'GitHub Copilot App',
+    configPath: '~/.copilot/mcp-config.json',
+    windowsConfigPath: '%USERPROFILE%\\.copilot\\mcp-config.json',
+  },
+  {
+    id: 'copilot-cli',
+    label: 'GitHub Copilot CLI',
+    configPath: '~/.copilot/mcp-config.json',
+    windowsConfigPath: '%USERPROFILE%\\.copilot\\mcp-config.json',
+  },
+  { id: 'claude-code', label: 'Claude Code', configPath: '.mcp.json' },
+  {
     id: 'claude',
     label: 'Claude Desktop',
     configPath: '~/Library/Application Support/Claude/claude_desktop_config.json',
-    hint: 'Edit the JSON, restart Claude, open the tool picker.',
+    windowsConfigPath: '%APPDATA%\\Claude\\claude_desktop_config.json',
   },
-  {
-    id: 'cursor',
-    label: 'Cursor',
-    configPath: '~/.cursor/mcp.json',
-    hint: 'Settings → MCP → enable openflowkit after saving.',
-  },
-  {
-    id: 'windsurf',
-    label: 'Windsurf',
-    configPath: '~/.codeium/windsurf/mcp_config.json',
-    hint: 'Cascade refreshes available tools on next prompt.',
-  },
+  { id: 'cursor', label: 'Cursor', configPath: '~/.cursor/mcp.json' },
+  { id: 'windsurf', label: 'Windsurf', configPath: '~/.codeium/windsurf/mcp_config.json' },
 ];
 
-interface ToolGroup {
-  label: string;
-  tools: { name: string; desc: string }[];
-}
+const SERVER_COMMAND = 'npx -y @vrun-design/openflowkit-mcp';
+const COPILOT_DOCS = {
+  app: 'https://docs.github.com/en/copilot/how-tos/github-copilot-app/customize-github-copilot-app#configuring-mcp-servers',
+  cli: 'https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers',
+};
 
-const TOOL_GROUPS: ToolGroup[] = [
-  {
-    label: 'Author',
-    tools: [
-      { name: 'validate_openflow_dsl', desc: 'Lint and validate agent-authored DSL' },
-      { name: 'create_viewer_url', desc: 'Turn DSL into a shareable OpenFlowKit link' },
-    ],
-  },
-  {
-    label: 'Inspect',
-    tools: [
-      { name: 'analyze_codebase', desc: 'Summarize codebase structure for diagramming' },
-      { name: 'find_icon', desc: 'Find exact cloud and developer icon slugs' },
-    ],
-  },
-  {
-    label: 'Discover',
-    tools: [
-      { name: 'list_starter_templates', desc: 'List available diagram templates' },
-      { name: 'get_starter_template', desc: 'Fetch a specific template by name' },
-      { name: 'list_diagram_node_types', desc: 'List supported node types and shapes' },
-      { name: 'server_info', desc: 'Server version and capability info' },
-    ],
-  },
-];
+export function buildMcpConfig(appUrl: string, client: ClientId = 'copilot-app'): string {
+  const isCopilot = client === 'copilot-app' || client === 'copilot-cli';
 
-export function buildMcpConfig(appUrl: string): string {
   return JSON.stringify(
     {
       mcpServers: {
         openflowkit: {
+          ...(isCopilot ? { type: 'local' } : {}),
           command: 'npx',
           args: ['-y', '@vrun-design/openflowkit-mcp'],
           env: {
             OPENFLOWKIT_APP_URL: appUrl.replace(/\/+$/, ''),
           },
+          ...(isCopilot ? { tools: ['*'] } : {}),
         },
       },
     },
     null,
-    2,
+    2
   );
 }
 
-function CopyButton({ value, ariaLabel }: { value: string; ariaLabel: string }): React.ReactElement {
-  const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+export function buildCopilotCommand(appUrl: string): string {
+  const environment = `OPENFLOWKIT_APP_URL=${appUrl.replace(/\/+$/, '')}`;
+  return `copilot mcp add openflowkit --env ${JSON.stringify(environment)} -- ${SERVER_COMMAND}`;
+}
 
-  async function handleCopy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    } catch {
-      setCopied(false);
-    }
+function ClientIcon({
+  client,
+  className = 'h-5 w-5',
+}: {
+  client: ClientId;
+  className?: string;
+}): React.ReactElement {
+  switch (client) {
+    case 'copilot-app':
+      return <CopilotIcon className={className} />;
+    case 'copilot-cli':
+      return <Terminal aria-hidden="true" className={className} />;
+    case 'claude-code':
+      return <Code2 aria-hidden="true" className={className} />;
+    case 'claude':
+      return (
+        <span
+          aria-hidden="true"
+          className={`shrink-0 bg-current ${className}`}
+          style={{
+            mask: 'url("/logos/claude.svg") center / contain no-repeat',
+            WebkitMask: 'url("/logos/claude.svg") center / contain no-repeat',
+          }}
+        />
+      );
+    case 'cursor':
+      return <MousePointer2 aria-hidden="true" className={className} />;
+    case 'windsurf':
+      return <Wind aria-hidden="true" className={className} />;
   }
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label={ariaLabel}
-      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--brand-secondary)] transition-colors hover:text-[var(--brand-text)] hover:border-[var(--brand-primary)]/40"
-    >
-      {copied ? <Check className="h-3 w-3 text-[var(--brand-primary)]" /> : <Copy className="h-3 w-3" />}
-      <span className="tracking-wide">
-        {copied ? t('mcpSettings.copied', 'Copied') : t('mcpSettings.copy', 'Copy')}
-      </span>
-    </button>
-  );
 }
 
 function CodeSurface({
@@ -118,24 +110,69 @@ function CodeSurface({
 }: {
   code: string;
   ariaLabel: string;
-  caption?: React.ReactNode;
+  caption: string;
   wrap?: boolean;
 }): React.ReactElement {
+  const { t } = useTranslation();
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  useEffect(() => {
+    if (copyState !== 'copied') return;
+    const timeout = window.setTimeout(() => setCopyState('idle'), 1400);
+    return () => window.clearTimeout(timeout);
+  }, [copyState]);
+
+  async function handleCopy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    }
+  }
+
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-[var(--color-brand-border)] bg-[var(--brand-background)]">
-      <div className="flex items-center justify-between border-b border-[var(--color-brand-border)]/60 px-3 py-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--brand-secondary)]">
-          {caption ?? 'shell'}
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--color-brand-border)] px-3 py-1.5">
+        <span className="min-w-0 break-all font-mono text-xs text-[var(--brand-secondary)]">
+          {caption}
         </span>
-        <CopyButton value={code} ariaLabel={ariaLabel} />
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={ariaLabel}
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-surface)] hover:text-[var(--brand-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]"
+        >
+          {copyState === 'copied' ? (
+            <Check aria-hidden="true" className="h-3.5 w-3.5" />
+          ) : (
+            <Copy aria-hidden="true" className="h-3.5 w-3.5" />
+          )}
+          <span aria-live="polite">
+            {copyState === 'copied'
+              ? t('mcpSettings.copied', 'Copied')
+              : t('mcpSettings.copy', 'Copy')}
+          </span>
+        </button>
       </div>
       <pre
-        className={`px-3 py-2.5 text-[12px] leading-relaxed text-[var(--brand-text)] font-mono ${
+        className={`px-3 py-3 font-mono text-xs leading-relaxed text-[var(--brand-text)] ${
           wrap ? 'whitespace-pre-wrap break-words' : 'overflow-x-auto'
         }`}
       >
-        {code}
+        <code>{code}</code>
       </pre>
+      {copyState === 'error' && (
+        <p
+          role="alert"
+          className="border-t border-[var(--color-brand-border)] px-3 py-2 text-xs text-[var(--color-surface-danger-text)]"
+        >
+          {t(
+            'mcpSettings.copyError',
+            'Clipboard access failed. Select and copy the text above manually.'
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -152,216 +189,416 @@ function StepRail({
   isLast?: boolean;
 }): React.ReactElement {
   return (
-    <div className="relative grid grid-cols-[28px_1fr] gap-4">
+    <li className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 sm:gap-4">
       <div className="flex flex-col items-center">
         <span
-          aria-hidden
-          className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-[11px] font-bold text-[var(--brand-text)]"
+          aria-hidden="true"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-xs font-semibold text-[var(--brand-text)]"
         >
           {index}
         </span>
-        {!isLast ? (
-          <span aria-hidden className="mt-1 w-px flex-1 bg-[var(--color-brand-border)]" />
-        ) : null}
+        {!isLast && (
+          <span aria-hidden="true" className="mt-1 w-px flex-1 bg-[var(--color-brand-border)]" />
+        )}
       </div>
       <div className="min-w-0 pb-7">
-        <h4 className="text-[13px] font-semibold tracking-tight text-[var(--brand-text)]">
-          {title}
-        </h4>
-        <div className="mt-2 space-y-3">{children}</div>
+        <h3 className="pt-0.5 text-sm font-semibold text-[var(--brand-text)]">{title}</h3>
+        <div className="mt-3 space-y-3 text-sm leading-relaxed text-[var(--brand-secondary)]">
+          {children}
+        </div>
       </div>
-    </div>
+    </li>
   );
 }
 
 interface MCPSettingsProps {
-  /** 'page' hides the intro header (the standalone page supplies its own); 'panel' is the in-Settings tab. */
   variant?: 'page' | 'panel';
 }
 
 export function MCPSettings({ variant = 'panel' }: MCPSettingsProps = {}): React.ReactElement {
   const { t } = useTranslation();
-  const [client, setClient] = useState<ClientId>('claude');
-  const installCmd = 'npx -y @vrun-design/openflowkit-mcp';
-  const config = buildMcpConfig(window.location.origin);
-  const activeClient = CLIENTS.find((c) => c.id === client) ?? CLIENTS[0];
+  const pickerId = useId();
+  const [client, setClient] = useState<ClientId>('copilot-app');
+  const activeClient = CLIENTS.find((option) => option.id === client)!;
+  const isCopilot = client === 'copilot-app' || client === 'copilot-cli';
+  const appUrl = getAppUrl();
+  const config = buildMcpConfig(appUrl, client);
+  const environment = `OPENFLOWKIT_APP_URL=${appUrl}`;
+  const instructions: Record<ClientId, { add: string; verify: string }> = {
+    'copilot-app': {
+      add: t(
+        'mcpSettings.appSetup',
+        'In GitHub Copilot App, open Customize → MCP and add a custom server. Choose a local/stdio server and use these settings.'
+      ),
+      verify: t(
+        'mcpSettings.appVerify',
+        'Save the server, then open Customize → Installed to manage it. If you edited the JSON file, start a new Copilot session to load the change.'
+      ),
+    },
+    'copilot-cli': {
+      add: t(
+        'mcpSettings.cliSetup',
+        'With Copilot CLI installed and signed in, run this in your terminal. It registers OpenFlowKit in your user-level MCP configuration.'
+      ),
+      verify: t(
+        'mcpSettings.cliVerify',
+        'Start a new copilot session, then run /mcp show openflowkit to check its tools. You can also add servers interactively with /mcp add; those are available immediately.'
+      ),
+    },
+    'claude-code': {
+      add: t(
+        'mcpSettings.claudeCodeSetup',
+        'Merge this configuration into .mcp.json at your project root. Keep any existing servers.'
+      ),
+      verify: t(
+        'mcpSettings.claudeCodeVerify',
+        'Start Claude Code in the project, approve the project MCP server when prompted, and use /mcp to check the connection.'
+      ),
+    },
+    claude: {
+      add: t(
+        'mcpSettings.claudeSetup',
+        'Open Claude Desktop settings, go to Developer → Edit Config, and merge this server into your configuration.'
+      ),
+      verify: t(
+        'mcpSettings.claudeVerify',
+        'Restart Claude Desktop, then check that openflowkit appears in the available tools.'
+      ),
+    },
+    cursor: {
+      add: t(
+        'mcpSettings.cursorSetup',
+        'Merge this server into your Cursor MCP configuration. Keep any existing servers.'
+      ),
+      verify: t(
+        'mcpSettings.cursorVerify',
+        'Open Cursor settings → Tools & MCP and enable openflowkit. Use Agent mode to access its tools.'
+      ),
+    },
+    windsurf: {
+      add: t(
+        'mcpSettings.windsurfSetup',
+        'Merge this server into your Windsurf MCP configuration. Keep any existing servers.'
+      ),
+      verify: t(
+        'mcpSettings.windsurfVerify',
+        'Refresh MCP servers in Windsurf settings, then open Cascade and check that openflowkit is available.'
+      ),
+    },
+  };
+  const toolGroups = [
+    {
+      label: t('mcpSettings.author', 'Author'),
+      tools: [
+        {
+          name: 'validate_openflow_dsl',
+          desc: t('mcpSettings.toolValidate', 'Validate agent-authored DSL'),
+        },
+        {
+          name: 'create_viewer_url',
+          desc: t('mcpSettings.toolViewer', 'Create an editable diagram link'),
+        },
+      ],
+    },
+    {
+      label: t('mcpSettings.inspect', 'Inspect'),
+      tools: [
+        {
+          name: 'analyze_codebase',
+          desc: t('mcpSettings.toolAnalyze', 'Inspect a local codebase'),
+        },
+        { name: 'find_icon', desc: t('mcpSettings.toolIcons', 'Find cloud and developer icons') },
+      ],
+    },
+    {
+      label: t('mcpSettings.discover', 'Discover'),
+      tools: [
+        {
+          name: 'list_starter_templates',
+          desc: t('mcpSettings.toolTemplates', 'Browse starter templates'),
+        },
+        {
+          name: 'get_starter_template',
+          desc: t('mcpSettings.toolTemplate', 'Read a template and its DSL'),
+        },
+        {
+          name: 'list_diagram_node_types',
+          desc: t('mcpSettings.toolNodes', 'Explore node types and shapes'),
+        },
+        { name: 'server_info', desc: t('mcpSettings.toolInfo', 'Check version and capabilities') },
+      ],
+    },
+  ];
+  const installPrompt = t('mcpSettings.installPrompt', {
+    defaultValue:
+      'Add an MCP server named "openflowkit" to {{path}} for {{client}}. Merge the entry below into the existing mcpServers object, preserving all other servers and settings. Create the file if it does not exist. Explain how to reload the client after saving.\n\n{{config}}',
+    path: activeClient.windowsConfigPath
+      ? `${activeClient.configPath} (Windows: ${activeClient.windowsConfigPath})`
+      : activeClient.configPath,
+    client: activeClient.label,
+    config,
+  });
+
+  function renderClient(option: ClientOption, featured: boolean): React.ReactElement {
+    const selected = option.id === client;
+    return (
+      <label key={option.id} className="relative cursor-pointer">
+        <input
+          type="radio"
+          name={pickerId}
+          value={option.id}
+          checked={selected}
+          onChange={() => setClient(option.id)}
+          aria-label={option.label}
+          className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0"
+        />
+        <span
+          className={`flex h-full items-center gap-3 rounded-lg border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--brand-primary)] ${
+            featured ? 'min-h-24 px-4 py-4' : 'min-h-11 px-3 py-2'
+          } ${
+            selected
+              ? 'border-[var(--brand-primary)] bg-[var(--brand-background)] text-[var(--brand-text)]'
+              : 'border-[var(--color-brand-border)] text-[var(--brand-secondary)] hover:border-[var(--brand-secondary)] hover:text-[var(--brand-text)]'
+          }`}
+        >
+          <ClientIcon
+            client={option.id}
+            className={featured ? 'h-7 w-7 shrink-0' : 'h-4 w-4 shrink-0'}
+          />
+          <span className="min-w-0 flex-1">
+            <span className={`block font-semibold ${featured ? 'text-sm' : 'text-xs'}`}>
+              {option.label}
+            </span>
+            {featured && (
+              <span className="mt-1 block text-xs font-normal text-[var(--brand-secondary)]">
+                {option.id === 'copilot-app'
+                  ? t('mcpSettings.appDescription', 'Set up in your desktop workspace')
+                  : t('mcpSettings.cliDescription', 'Set up from your terminal')}
+              </span>
+            )}
+          </span>
+          {featured && (
+            <Check
+              aria-hidden="true"
+              className={`h-4 w-4 shrink-0 ${selected ? '' : 'invisible'}`}
+            />
+          )}
+        </span>
+      </label>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      {variant === 'panel' ? (
-        <header className="rounded-xl border border-[var(--color-brand-border)] bg-[var(--brand-background)]/60 p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
-            {t('mcpSettings.eyebrow', 'Model Context Protocol')}
-          </p>
-          <h3 className="mt-1 text-base font-semibold tracking-tight text-[var(--brand-text)]">
-            {t('mcpSettings.title', 'Connect AI tools (MCP)')}
-          </h3>
-          <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-[var(--brand-secondary)]">
+    <div className="min-w-0 space-y-7">
+      {variant === 'panel' && (
+        <header>
+          <div className="flex items-center gap-2.5 text-[var(--brand-text)]">
+            <CopilotIcon />
+            <h3 className="text-base font-semibold tracking-tight">
+              {t('mcpSettings.title', 'Connect GitHub Copilot')}
+            </h3>
+          </div>
+          <p className="mt-2 max-w-[70ch] text-sm leading-relaxed text-[var(--brand-secondary)]">
             {t(
               'mcpSettings.intro',
-              'Add the OpenFlowKit MCP server to Claude Desktop, Cursor, Windsurf, or any MCP client. Your assistant uses its own model to author diagrams, while OpenFlowKit supplies local validation, templates, icon lookup, codebase analysis, and viewer links.',
+              'Bring OpenFlowKit diagramming tools to GitHub Copilot App or CLI. Claude Code, Claude Desktop, Cursor, and Windsurf are supported too.'
             )}
           </p>
         </header>
-      ) : null}
+      )}
 
-      <ol className="list-none" aria-label={t('mcpSettings.stepsLabel', 'Setup steps')}>
-        <StepRail index={1} title={t('mcpSettings.installHeading', 'Install the server')}>
-          <p className="text-[12px] text-[var(--brand-secondary)]">
-            {t('mcpSettings.installNote', 'Requires Node 18+. No global install needed — npx fetches on demand.')}
-          </p>
-          <CodeSurface
-            code={installCmd}
-            ariaLabel={t('mcpSettings.copyInstall', 'Copy install command')}
-            caption="npm"
-          />
-        </StepRail>
+      <fieldset className="min-w-0 space-y-3">
+        <legend className="mb-3 text-base font-semibold text-[var(--brand-text)]">
+          {t('mcpSettings.clientPicker', 'Choose your client')}
+        </legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {CLIENTS.slice(0, 2).map((option) => renderClient(option, true))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs text-[var(--brand-secondary)]">
+            {t('mcpSettings.otherClients', 'Other MCP clients')}
+          </span>
+          {CLIENTS.slice(2).map((option) => renderClient(option, false))}
+        </div>
+      </fieldset>
 
-        <StepRail index={2} title={t('mcpSettings.configHeading', 'Add to your AI assistant')}>
-          <div
-            role="tablist"
-            aria-label={t('mcpSettings.clientPicker', 'AI assistant')}
-            className="inline-flex w-full rounded-lg border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-1"
+      <section
+        key={client}
+        aria-labelledby={`${pickerId}-setup`}
+        className="min-w-0 border-t border-[var(--color-brand-border)] pt-6"
+      >
+        <div className="mb-5">
+          <h2
+            id={`${pickerId}-setup`}
+            className="text-lg font-semibold tracking-tight text-[var(--brand-text)]"
           >
-            {CLIENTS.map((c) => {
-              const selected = c.id === client;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  aria-controls="mcp-config-block"
-                  onClick={() => setClient(c.id)}
-                  className={`flex-1 rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                    selected
-                      ? 'bg-[var(--brand-surface)] text-[var(--brand-text)] shadow-sm'
-                      : 'text-[var(--brand-secondary)] hover:text-[var(--brand-text)]'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              );
+            {t('mcpSettings.setupTitle', {
+              defaultValue: '{{client}} setup',
+              client: activeClient.label,
             })}
-          </div>
-          <div
-            id="mcp-config-block"
-            role="tabpanel"
-            aria-label={activeClient.label}
-            className="space-y-2"
-          >
-            <p className="text-[12px] text-[var(--brand-secondary)]">
-              {t('mcpSettings.configPathLabel', 'Add to')}{' '}
-              <code className="rounded bg-[var(--brand-background)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--brand-text)]">
-                {activeClient.configPath}
-              </code>
-            </p>
-            <p className="text-[12px] text-[var(--brand-secondary)]">
-              {activeClient.hint}{' '}
-              {t(
-                'mcpSettings.keysNote',
-                'No API keys needed. Your AI client already has the model; this server adds diagram-specific tools.',
-              )}
-            </p>
-          </div>
-          <CodeSurface
-            code={config}
-            ariaLabel={t('mcpSettings.copyConfig', 'Copy MCP config')}
-            caption="json"
-          />
-        </StepRail>
-
-        <StepRail index={3} title={t('mcpSettings.toolsHeading', 'Tools your assistant will use')}>
-          <p className="text-[12px] text-[var(--brand-secondary)]">
-            {t('mcpSettings.toolsIntro', 'These are the capabilities your AI assistant gains. It picks one automatically based on your request.')}
-          </p>
-          <div className="divide-y divide-[var(--color-brand-border)] overflow-hidden rounded-lg border border-[var(--color-brand-border)] bg-[var(--brand-surface)]">
-            {TOOL_GROUPS.map((group) => (
-              <section key={group.label} className="grid grid-cols-1 sm:grid-cols-[140px_1fr]">
-                <header className="border-b border-[var(--color-brand-border)] bg-[var(--brand-background)]/40 px-4 py-3 sm:border-b-0 sm:border-r">
-                  <h5 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--brand-text)]">
-                    {group.label}
-                  </h5>
-                  <p className="mt-0.5 text-[10.5px] text-[var(--brand-secondary)]">
-                    {group.tools.length} {group.tools.length === 1 ? 'tool' : 'tools'}
-                  </p>
-                </header>
-                <ul className="divide-y divide-[var(--color-brand-border)]/60">
-                  {group.tools.map((tool) => (
-                    <li key={tool.name} className="grid grid-cols-1 gap-0.5 px-4 py-2.5 sm:grid-cols-[1fr_auto] sm:items-baseline sm:gap-3">
-                      <code className="text-[11.5px] font-semibold text-[var(--brand-text)] font-mono">
-                        {tool.name}
-                      </code>
-                      <span className="text-[11.5px] text-[var(--brand-secondary)]">
-                        {tool.desc}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        </StepRail>
-
-        <StepRail index={4} title={t('mcpSettings.tryItHeading', 'Try it with a prompt')} isLast>
-          <p className="text-[12px] text-[var(--brand-secondary)]">
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--brand-secondary)]">
             {t(
-              'mcpSettings.tryItIntro',
-              'Paste these into your AI assistant. The install prompt asks an agentic client (Cursor, Claude Code, Windsurf) to write the config for you; the test prompt verifies the connection.',
+              'mcpSettings.installNote',
+              'Requires Node.js 18+ where your client runs. No global server install needed; npx downloads it on first use.'
             )}
           </p>
+          {isCopilot && (
+            <p className="mt-2 text-xs leading-relaxed text-[var(--brand-secondary)]">
+              {t(
+                'mcpSettings.sharedConfig',
+                'One configuration, both clients: MCP servers configured for Copilot CLI are also available in Copilot App.'
+              )}
+            </p>
+          )}
+        </div>
 
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <h5 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-text)]">
-                  {t('mcpSettings.installPromptLabel', 'Install prompt')}
-                </h5>
-                <span className="text-[10.5px] text-[var(--brand-secondary)]">
-                  {t('mcpSettings.installPromptHint', 'For Cursor / Claude Code / Windsurf agents')}
-                </span>
-              </div>
+        <ol className="list-none" aria-label={t('mcpSettings.stepsLabel', 'Setup steps')}>
+          <StepRail index={1} title={t('mcpSettings.configHeading', 'Add the server')}>
+            <p>{instructions[client].add}</p>
+            {isCopilot && (
               <CodeSurface
-                code={`Add an MCP server called "openflowkit" to ${activeClient.configPath}. Use this entry exactly:\n\n${config}\n\nAfter saving, tell me to restart ${activeClient.label}.`}
-                ariaLabel={t('mcpSettings.copyInstallPrompt', 'Copy install prompt')}
-                caption="prompt"
+                code={client === 'copilot-cli' ? buildCopilotCommand(appUrl) : SERVER_COMMAND}
+                ariaLabel={t('mcpSettings.copyInstall', 'Copy setup command')}
+                caption={client === 'copilot-cli' ? 'terminal' : 'command'}
                 wrap
               />
-            </div>
+            )}
+            {client === 'copilot-app' && (
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
+                <dt>{t('mcpSettings.serverName', 'Server name')}</dt>
+                <dd className="font-mono text-[var(--brand-text)]">openflowkit</dd>
+                <dt>{t('mcpSettings.transport', 'Transport')}</dt>
+                <dd className="font-mono text-[var(--brand-text)]">stdio</dd>
+                <dt>{t('mcpSettings.environment', 'Environment')}</dt>
+                <dd className="break-all font-mono text-[var(--brand-text)]">{environment}</dd>
+              </dl>
+            )}
 
-            <div className="space-y-1.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <h5 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-text)]">
-                  {t('mcpSettings.testPromptLabel', 'Test prompt')}
-                </h5>
-                <span className="text-[10.5px] text-[var(--brand-secondary)]">
-                  {t('mcpSettings.testPromptHint', 'Paste into any connected client')}
-                </span>
+            <details open={!isCopilot} className="min-w-0">
+              <summary className="w-fit cursor-pointer rounded py-1 text-xs font-semibold text-[var(--brand-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]">
+                {t('mcpSettings.manualConfig', 'JSON configuration and setup prompt')}
+              </summary>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs">
+                  {t(
+                    'mcpSettings.mergeNote',
+                    'Merge the openflowkit entry into mcpServers. Preserve your other servers and settings.'
+                  )}
+                </p>
+                {activeClient.windowsConfigPath && (
+                  <p className="break-all text-xs">
+                    Windows:{' '}
+                    <code className="font-mono text-[var(--brand-text)]">
+                      {activeClient.windowsConfigPath}
+                    </code>
+                  </p>
+                )}
+                <CodeSurface
+                  code={config}
+                  ariaLabel={t('mcpSettings.copyConfig', 'Copy MCP config')}
+                  caption={activeClient.configPath}
+                />
+                <p className="text-xs">
+                  {t(
+                    'mcpSettings.installPromptHint',
+                    'Or ask your coding assistant to merge the configuration for you:'
+                  )}
+                </p>
+                <CodeSurface
+                  code={installPrompt}
+                  ariaLabel={t('mcpSettings.copyInstallPrompt', 'Copy setup prompt')}
+                  caption="prompt"
+                  wrap
+                />
               </div>
-              <CodeSurface
-                code={`Using the openflowkit MCP server: read openflowkit://docs/dsl-cheatsheet, then write an OpenFlow DSL flowchart for a checkout flow (cart → shipping → payment → apply promo code branch → confirm). Call validate_openflow_dsl on your output, fix any errors, then call create_viewer_url. Show me the final DSL and viewer URL.`}
-                ariaLabel={t('mcpSettings.copyTestPrompt', 'Copy test prompt')}
-                caption="prompt"
-                wrap
-              />
-            </div>
-          </div>
-        </StepRail>
-      </ol>
+            </details>
+          </StepRail>
 
-      <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-brand-border)] pt-4">
-        <p className="text-[12px] text-[var(--brand-secondary)]">
-          {t('mcpSettings.footerNote', 'Need to debug a connection or build a custom client?')}
-        </p>
+          <StepRail index={2} title={t('mcpSettings.verifyHeading', 'Check the connection')}>
+            <p>{instructions[client].verify}</p>
+            <CodeSurface
+              code={t(
+                'mcpSettings.connectionPrompt',
+                'Call server_info from the openflowkit MCP server and report its version and available tools.'
+              )}
+              ariaLabel={t('mcpSettings.copyConnectionPrompt', 'Copy connection test prompt')}
+              caption="prompt"
+              wrap
+            />
+          </StepRail>
+
+          <StepRail
+            index={3}
+            title={t('mcpSettings.tryItHeading', 'Create your first diagram')}
+            isLast
+          >
+            <p>
+              {t(
+                'mcpSettings.tryItIntro',
+                'Paste this into your connected client. It will author the diagram, validate it, and return an OpenFlowKit viewer link.'
+              )}
+            </p>
+            <CodeSurface
+              code={t(
+                'mcpSettings.diagramPrompt',
+                'Use the openflowkit MCP tools to create a checkout flow with cart, shipping, a promo-code decision, payment, and confirmation. Start with list_starter_templates and get_starter_template to learn the DSL. Call validate_openflow_dsl, fix any errors, then call create_viewer_url. Return the final DSL and viewer link.'
+              )}
+              ariaLabel={t('mcpSettings.copyTestPrompt', 'Copy diagram prompt')}
+              caption="prompt"
+              wrap
+            />
+          </StepRail>
+        </ol>
+      </section>
+
+      <details className="border-t border-[var(--color-brand-border)] pt-4">
+        <summary className="w-fit cursor-pointer rounded py-1 text-sm font-semibold text-[var(--brand-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]">
+          {t('mcpSettings.toolsHeading', 'Explore the 8 diagramming tools')}
+        </summary>
+        <div className="mt-4 divide-y divide-[var(--color-brand-border)]">
+          {toolGroups.map((group) => (
+            <section
+              key={group.label}
+              className="grid gap-2 py-4 sm:grid-cols-[100px_minmax(0,1fr)]"
+            >
+              <h3 className="text-sm font-semibold text-[var(--brand-text)]">{group.label}</h3>
+              <ul className="space-y-3">
+                {group.tools.map((tool) => (
+                  <li key={tool.name} className="grid gap-0.5 lg:grid-cols-2 lg:gap-3">
+                    <code className="break-all font-mono text-xs text-[var(--brand-text)]">
+                      {tool.name}
+                    </code>
+                    <span className="text-xs text-[var(--brand-secondary)]">{tool.desc}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </details>
+
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-brand-border)] pt-4 text-xs">
         <a
           href="https://github.com/Vrun-design/openflowkit/tree/main/mcp-server#readme"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--brand-primary)] hover:underline"
+          className="inline-flex items-center gap-1 rounded font-semibold text-[var(--brand-text)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]"
         >
           {t('mcpSettings.docsLink', 'Full MCP documentation')}
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
         </a>
+        {isCopilot && (
+          <a
+            href={client === 'copilot-app' ? COPILOT_DOCS.app : COPILOT_DOCS.cli}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 rounded text-[var(--brand-secondary)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)]"
+          >
+            {t('mcpSettings.copilotDocs', 'GitHub Copilot setup guide')}
+            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        )}
       </footer>
     </div>
   );

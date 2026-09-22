@@ -1,10 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import type { TFunction } from 'i18next';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useFlowEditorActions } from './useFlowEditorActions';
 import type { FlowEdge, FlowNode } from '@/lib/types';
 import { getOpenFlowDSLExportDiagnostics, toOpenFlowDSL } from '@/services/openFlowDSLExporter';
 import { getElkLayout } from '@/services/elkLayout';
+import { encodeDslForViewer } from '@/services/viewerUrlCodec';
 
 vi.mock('@/services/openFlowDSLExporter', () => ({
     toOpenFlowDSL: vi.fn(() => 'mock-dsl'),
@@ -38,6 +39,7 @@ function createTranslator(fn: (key: string, options?: Record<string, unknown>) =
 
 describe('useFlowEditorActions', () => {
     beforeEach(() => {
+        vi.stubEnv('VITE_APP_URL', '');
         vi.restoreAllMocks();
         vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
             callback(0);
@@ -48,6 +50,10 @@ describe('useFlowEditorActions', () => {
                 writeText: vi.fn().mockResolvedValue(undefined),
             },
         });
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
     });
 
     it('copies OpenFlow DSL and shows success toast', async () => {
@@ -162,6 +168,34 @@ describe('useFlowEditorActions', () => {
 
         expect(addToast).toHaveBeenCalledWith('Add nodes before creating a share link.', 'error');
         expect(result.current.shareViewerUrl).toBeNull();
+    });
+
+    it.each([
+        { configuredUrl: '', expectedBase: window.location.origin },
+        { configuredUrl: ' https://diagrams.example.com/openflowkit/ ', expectedBase: 'https://diagrams.example.com/openflowkit' },
+    ])('uses the correct app URL for share links ($configuredUrl)', ({ configuredUrl, expectedBase }) => {
+        vi.stubEnv('VITE_APP_URL', configuredUrl);
+        const { result } = renderHook(() =>
+            useFlowEditorActions({
+                nodes: [createNode('n1')],
+                edges: [],
+                recordHistory: vi.fn(),
+                setNodes: vi.fn(),
+                setEdges: vi.fn(),
+                fitView: vi.fn(),
+                t: createTranslator((key: string) => key),
+                addToast: vi.fn(),
+                exportSerializationMode: 'deterministic',
+            })
+        );
+
+        act(() => {
+            result.current.handleShare();
+        });
+
+        expect(result.current.shareViewerUrl).toBe(
+            `${expectedBase}/#/view?flow=${encodeDslForViewer('mock-dsl')}`
+        );
     });
 
     it('uses mindmap relayout instead of ELK when auto-layouting a mindmap tab', async () => {
