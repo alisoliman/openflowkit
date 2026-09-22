@@ -26,6 +26,16 @@
     "viewCode": "Voir le code du diagramme"
   },
   "copilot": {
+    "hostedHelp": "Connectez votre compte GitHub dans le navigateur. Votre propre accès à Copilot est requis ; aucune installation de CLI n'est nécessaire.",
+    "hostedPrivacy": "Les instructions, le contexte des conversations et les images envoyés transitent par ce serveur vers GitHub Copilot. Les diagrammes et les conversations restent sur cet appareil. Les jetons GitHub sont chiffrés sur le serveur, jamais dans le stockage du navigateur. Les outils de fichiers, de terminal et MCP sont désactivés.",
+    "hostedSessionHint": "Restez connecté jusqu'à sept jours. Déconnectez-vous pour supprimer la connexion serveur de ce navigateur.",
+    "hostedProviderHint": "Connexion GitHub. Utilise votre propre accès à Copilot et votre quota.",
+    "hostedSignedIn": "GitHub connecté en tant que {{login}}",
+    "connectGitHub": "Connecter GitHub",
+    "connectingGitHub": "Ouverture de GitHub...",
+    "disconnectGitHub": "Déconnecter GitHub",
+    "disconnectingGitHub": "Déconnexion...",
+    "hostedActionFailed": "Impossible de mettre à jour la connexion GitHub. Réessayez.",
     "settingsSubtitle": "Utilisez votre connexion et votre quota GitHub Copilot, ou choisissez un autre fournisseur.",
     "providerHint": "Authentification via Copilot CLI. Aucune clé API fournisseur requise.",
     "connectionTitle": "Connecter votre compte Copilot",

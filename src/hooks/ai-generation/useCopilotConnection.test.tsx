@@ -36,6 +36,14 @@ describe('Copilot connection lifecycle', () => {
     await waitFor(() => expect(result.current.connection.state).toBe('ready'));
   });
 
+  it('does not prescribe a local CLI login for a connection timeout', async () => {
+    vi.mocked(getCopilotStatus).mockRejectedValueOnce(new DOMException('Timed out', 'TimeoutError'));
+    const { result } = renderHook(() => useCopilotConnection(true));
+    await waitFor(() => expect(result.current.connection).toEqual({
+      state: 'unavailable', message: 'The Copilot connection check failed. Retry the connection in Settings > AI.',
+    }));
+  });
+
   it('cancels in-flight discovery when the provider changes or the component unmounts', () => {
     vi.mocked(getCopilotStatus).mockReturnValue(new Promise(() => undefined));
     const { rerender, unmount } = renderHook(({ enabled }) => useCopilotConnection(enabled), { initialProps: { enabled: true } });

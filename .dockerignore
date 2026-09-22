@@ -3,12 +3,16 @@
 .husky
 .vscode
 .idea
+.npmrc
+.mcp.json
+.agents
 
 # Build + deps
 node_modules
 **/node_modules
 dist
 dist-ssr
+dist-server
 dist-lib
 src/lib/dist
 src/lib/*.tgz

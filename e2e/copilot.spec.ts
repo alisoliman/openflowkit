@@ -157,6 +157,41 @@ test('truncated Copilot output cannot be applied to the canvas', async ({ page }
   expect(requests).toBe(1);
 });
 
+test('hosted GitHub connection is actionable and responsive without local CLI instructions', async ({ page }, testInfo) => {
+  let signedIn = false;
+  await page.route('**/api/copilot/status', (route) => route.fulfill({
+    json: { ...STATUS, mode: 'hosted', signedIn, authenticated: signedIn, models: signedIn ? STATUS.models : [] },
+  }));
+  await page.route('**/api/copilot/auth/start', (route) => route.fulfill({
+    status: 503, json: { code: 'runtime_unavailable', message: 'GitHub sign-in is temporarily unavailable. Please retry.' },
+  }));
+  await page.route('**/api/copilot/auth/logout', (route) => {
+    signedIn = false;
+    return route.fulfill({ json: { disconnected: true } });
+  });
+  await openFlowpilot(page);
+  await expect(page.getByRole('button', { name: 'Connect GitHub', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Set up Flowpilot' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('gh copilot login', { exact: true })).toHaveCount(0);
+  await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Connect GitHub', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('GitHub sign-in is temporarily unavailable');
+  await expect(dialog.getByRole('button', { name: 'Connect GitHub', exact: true })).toBeEnabled();
+  signedIn = true;
+  await dialog.getByRole('button', { name: 'Check connection' }).click();
+  await expect(dialog.getByRole('status')).toContainText('GitHub connected as diagram-user');
+  await expect(dialog.getByRole('combobox', { name: 'Model' })).toBeEnabled();
+  await page.screenshot({ path: testInfo.outputPath('hosted-copilot-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(dialog.getByRole('button', { name: 'Disconnect GitHub' })).toBeVisible();
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('hosted-copilot-mobile.png') });
+  await dialog.getByRole('button', { name: 'Disconnect GitHub' }).click();
+  await expect(dialog.getByRole('button', { name: 'Connect GitHub', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('combobox', { name: 'Model' })).toBeDisabled();
+});
+
 test('live SDK generates a diagram using the signed-in Copilot account', async ({ page }, testInfo) => {
   test.skip(process.env.FLOWPILOT_LIVE_COPILOT !== '1', 'Opt-in: consumes the signed-in account Copilot quota.');
   test.setTimeout(210_000);

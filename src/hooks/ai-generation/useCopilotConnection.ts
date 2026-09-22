@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getCopilotStatus, type CopilotConnectionState } from '@/services/copilot/client';
-import { COPILOT_SETUP_MESSAGE } from '@/services/copilot/protocol';
 
 export function useCopilotConnection(enabled: boolean) {
   const [connection, setConnection] = useState<CopilotConnectionState>({ state: 'checking' });
@@ -14,14 +13,16 @@ export function useCopilotConnection(enabled: boolean) {
     if (!enabled) return;
     const controller = new AbortController();
     let disposed = false;
-    const timeout = setTimeout(() => controller.abort(new Error(COPILOT_SETUP_MESSAGE)), 30_000);
+    const timeout = setTimeout(() => controller.abort(new Error('The Copilot connection check timed out. Please retry.')), 30_000);
     void getCopilotStatus(controller.signal).then((status) => {
       if (!disposed) setConnection({ state: 'ready', status });
     }).catch((error: unknown) => {
       if (!disposed) {
         setConnection({
           state: 'unavailable',
-          message: error instanceof Error && error.name !== 'TimeoutError' ? error.message : COPILOT_SETUP_MESSAGE,
+          message: error instanceof Error && error.message && error.name !== 'TimeoutError'
+            ? error.message
+            : 'The Copilot connection check failed. Retry the connection in Settings > AI.',
         });
       }
     }).finally(() => {
@@ -37,7 +38,11 @@ export function useCopilotConnection(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     window.addEventListener('focus', refresh);
-    return () => window.removeEventListener('focus', refresh);
+    window.addEventListener('copilot-connection-changed', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('copilot-connection-changed', refresh);
+    };
   }, [enabled, refresh]);
 
   return { connection, refresh };

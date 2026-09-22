@@ -9,6 +9,10 @@ export const COPILOT_SETUP_MESSAGE =
   'The local Copilot runtime is unavailable. Run npm run dev (or npm run build && npm run preview) on this computer, then open the local app. Static hosted sites cannot access your Copilot CLI sign-in.';
 export const COPILOT_LOGIN_MESSAGE =
   'Sign in with gh copilot login in a terminal, then check the connection in Settings > AI. Your GitHub account must have Copilot access.';
+export const COPILOT_HOSTED_LOGIN_MESSAGE =
+  'Connect GitHub in Flowpilot or Settings > AI. Your own account must have Copilot access and available quota.';
+export const COPILOT_HOSTED_SETUP_MESSAGE =
+  'The hosted Copilot service is unavailable. Retry shortly or select an alternative provider in Settings > AI. Your saved diagrams remain on this device.';
 
 export const copilotRequestSchema = z.object({
   prompt: z.string().trim().min(1).max(1_000_000),
@@ -35,6 +39,9 @@ export const copilotStatusSchema = z.object({
     vision: z.boolean().optional(),
     multiplier: z.number().optional(),
   })),
+  mode: z.enum(['local', 'hosted']).optional(),
+  signedIn: z.boolean().optional(),
+  issue: z.string().optional(),
 });
 
 export type CopilotStatus = z.infer<typeof copilotStatusSchema>;
@@ -47,6 +54,8 @@ export const copilotErrorCodeSchema = z.enum([
   'timeout',
   'request_failed',
   'bad_response',
+  'copilot_access_denied',
+  'quota_exceeded',
 ]);
 
 export const copilotErrorSchema = z.object({

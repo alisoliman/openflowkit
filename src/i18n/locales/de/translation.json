@@ -26,6 +26,16 @@
     "viewCode": "Diagrammcode anzeigen"
   },
   "copilot": {
+    "hostedHelp": "Verbinde dein GitHub-Konto im Browser. Du benötigst eigenen Copilot-Zugang; eine CLI-Installation ist nicht erforderlich.",
+    "hostedPrivacy": "Gesendete Prompts, Gesprächskontext und Bilder werden über diesen Server an GitHub Copilot übertragen. Diagramme und Chats bleiben auf diesem Gerät. GitHub-Tokens werden auf dem Server verschlüsselt und nicht im Browserspeicher gespeichert. Datei-, Shell- und MCP-Werkzeuge sind deaktiviert.",
+    "hostedSessionHint": "Die Verbindung bleibt bis zu sieben Tage bestehen. Trenne sie, um die serverseitige Verbindung dieses Browsers zu entfernen.",
+    "hostedProviderHint": "GitHub-Anmeldung. Verwendet deinen eigenen Copilot-Zugang und dein Kontingent.",
+    "hostedSignedIn": "GitHub verbunden als {{login}}",
+    "connectGitHub": "GitHub verbinden",
+    "connectingGitHub": "GitHub wird geöffnet...",
+    "disconnectGitHub": "GitHub trennen",
+    "disconnectingGitHub": "Verbindung wird getrennt...",
+    "hostedActionFailed": "Die GitHub-Verbindung konnte nicht aktualisiert werden. Bitte erneut versuchen.",
     "settingsSubtitle": "Nutzen Sie Ihre GitHub-Copilot-Anmeldung und Ihr Kontingent oder wählen Sie einen anderen Anbieter.",
     "providerHint": "Anmeldung über die Copilot CLI. Kein Anbieter-API-Schlüssel erforderlich.",
     "connectionTitle": "Copilot-Konto verbinden",
