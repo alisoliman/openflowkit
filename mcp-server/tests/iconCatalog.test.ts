@@ -44,4 +44,23 @@ describe('iconCatalog', () => {
     const results = await findIcons('zzzzzzz_no_such_icon', { limit: 5 });
     expect(results).toEqual([]);
   });
+
+  it('includes the full current Azure catalog with legacy entries', async () => {
+    const azure = await getIconsByProvider('azure');
+    expect(azure).toHaveLength(736);
+    expect(new Set(azure.map((icon) => icon.slug)).size).toBe(736);
+    expect(azure.every((icon) => icon.label.trim() && icon.category.trim())).toBe(true);
+  });
+
+  it.each([
+    ['Foundry Agent Service', 'ai-plus-machine-learning-foundry-agent-service'],
+    ['Azure DocumentDB', 'databases-azure-documentdb'],
+    ['AI Gateway', 'new-icons-ai-gateway'],
+    ['Microsoft Foundry', 'ai-plus-machine-learning-ai-foundry'],
+    ['Prometheus', 'other-promethus'],
+    ['Azure PubSub', 'integration-pubsub'],
+  ])('finds the Azure icon labeled %s', async (label, slug) => {
+    const results = await findIcons(label, { provider: 'azure', limit: 1 });
+    expect(results[0]).toMatchObject({ label, slug, provider: 'azure' });
+  });
 });

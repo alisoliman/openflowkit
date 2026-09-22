@@ -32,15 +32,17 @@ export function IconSearchField({
 interface IconTileScrollGridProps {
   children: React.ReactNode;
   className?: string;
+  showLabels?: boolean;
 }
 
 export function IconTileScrollGrid({
   children,
   className = '',
+  showLabels = false,
 }: IconTileScrollGridProps): React.ReactElement {
   return (
     <div className={`max-h-40 overflow-y-auto rounded-[var(--brand-radius)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-2 custom-scrollbar ${className}`.trim()}>
-      <div className="grid grid-cols-6 gap-2">
+      <div className={`grid gap-2 ${showLabels ? 'grid-cols-2' : 'grid-cols-6'}`}>
         {children}
       </div>
     </div>

@@ -202,6 +202,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
     }
 
     const activeProviderLabel = getProviderLabel(provider);
+    const showProviderLabels = provider === 'azure';
 
     return (
         <div className="space-y-3">
@@ -290,7 +291,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                         />
                     ) : null}
 
-                    <IconTileScrollGrid>
+                    <IconTileScrollGrid showLabels={showProviderLabels}>
                         {isLoading ? (
                             Array.from({ length: 12 }, (_, index) => (
                                 <div
@@ -313,12 +314,12 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                                 ? `${item.label} • ${item.providerShapeCategory}`
                                                 : item.label
                                         }
-                                        className="block w-full aspect-square"
+                                        className={`block w-full ${showProviderLabels ? 'min-w-0' : 'aspect-square'}`}
                                     >
                                         <button
                                             type="button"
                                             aria-label={item.label}
-                                            className={`flex h-full w-full items-center justify-center rounded-[var(--radius-md)] border p-2 transition-all ${
+                                            className={`flex h-full w-full items-center justify-center rounded-[var(--radius-md)] border p-2 transition-all ${showProviderLabels ? 'min-w-0 flex-col gap-2' : ''} ${
                                                 isSelected
                                                     ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)]'
                                                     : 'border-transparent bg-transparent hover:border-[var(--color-brand-border)] hover:bg-[var(--brand-surface)]'
@@ -330,6 +331,11 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                             ) : (
                                                 <ImageIcon className="h-5 w-5 text-[var(--brand-secondary-light)]" />
                                             )}
+                                            {showProviderLabels ? (
+                                                <span className="w-full break-words text-center text-xs font-medium leading-4 text-[var(--brand-text)]">
+                                                    {item.label}
+                                                </span>
+                                            ) : null}
                                         </button>
                                     </Tooltip>
                                 );

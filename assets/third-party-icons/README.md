@@ -19,6 +19,6 @@ Rules:
 ## Current rollout status
 
 - `aws`: local SVG pack wired into the app as a lazy-loaded provider asset pack.
-- `azure`: official Microsoft SVG pack imported locally and available in the asset browser.
+- `azure`: official Microsoft V24 (July 2026) SVG pack, with product labels in the asset browser and icon pickers; legacy paths remain available for existing diagrams.
 - `cncf`: official CNCF project icon SVGs imported locally and available in the asset browser.
 - `google-cloud`: blocked for production bundling until redistribution terms are explicitly confirmed.
