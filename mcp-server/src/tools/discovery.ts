@@ -10,7 +10,7 @@ const NODE_TYPE_CATALOG = [
   { type: 'architecture', usage: 'Cloud / infra resource (AWS, Azure, GCP, CNCF, Docker).' },
   { type: 'browser', usage: 'Web page or frontend client.' },
   { type: 'mobile', usage: 'Mobile screen.' },
-  { type: 'note', usage: 'Callout / annotation. Connect with `..` to attach.' },
+  { type: 'note', usage: 'Callout / annotation. Connect with `..>` to attach.' },
 ];
 
 const EDGE_STYLES = [
@@ -18,7 +18,7 @@ const EDGE_STYLES = [
   { syntax: '->|label|', usage: 'Edge with an inline label (e.g. Yes / No / HTTP).' },
   { syntax: '==>', usage: 'Primary / critical path. Renders heavier.' },
   { syntax: '-->', usage: 'Secondary / soft flow.' },
-  { syntax: '..', usage: 'Async, error, or optional flow. Renders dotted.' },
+  { syntax: '..>', usage: 'Async, error, or optional flow. Renders dashed; include the closing >.' },
 ];
 
 export function registerDiscoveryTools(server: McpServer): void {

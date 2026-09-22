@@ -23,7 +23,7 @@ direction: TB | LR       # default TB
 s1 -> step1                 # default
 step1 ==> api               # primary path
 api  --> db                 # secondary
-api  ..|error| n            # async / dotted
+api  ..>|error| n           # async / dashed
 branch ->|Yes| step1
 branch ->|No|  e1
 

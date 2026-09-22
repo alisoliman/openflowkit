@@ -118,6 +118,8 @@ export interface StudioRailBuilderParams {
   onClearAIError: () => void;
   chatMessages: ChatMessage[];
   assistantThread: AssistantThreadItem[];
+  canUndoLastChange?: boolean;
+  undoLastChange?: () => void;
   clearChat: () => void;
   selectedNode: FlowNode | null;
   selectedNodeCount: number;
@@ -336,6 +338,8 @@ export function buildStudioRailProps({
   onClearAIError,
   chatMessages,
   assistantThread,
+  canUndoLastChange,
+  undoLastChange,
   clearChat,
   selectedNode,
   selectedNodeCount,
@@ -364,6 +368,8 @@ export function buildStudioRailProps({
     onClearAIError,
     chatMessages,
     assistantThread,
+    canUndoLastChange,
+    undoLastChange,
     onClearChat: clearChat,
     selectedNode,
     selectedNodeCount,

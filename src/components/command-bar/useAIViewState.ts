@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent, RefObject } from 'react';
 
 interface UseAIViewStateParams {
@@ -28,10 +28,22 @@ export function useAIViewState({
     onClose,
     chatMessageCount,
 }: UseAIViewStateParams): UseAIViewStateResult {
-    const [prompt, setPrompt] = useState(searchQuery || '');
-    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [prompt, setPromptState] = useState(searchQuery || '');
+    const [selectedImage, setSelectedImageState] = useState<string | null>(null);
+    const draftRevision = useRef(0);
+    const submitting = useRef(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    const setPrompt = useCallback((value: string) => {
+        draftRevision.current += 1;
+        setPromptState(value);
+    }, []);
+
+    const setSelectedImage = useCallback((value: string | null) => {
+        draftRevision.current += 1;
+        setSelectedImageState(value);
+    }, []);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -41,13 +53,26 @@ export function useAIViewState({
 
     async function handleGenerate(text?: string): Promise<void> {
         const promptText = text || prompt;
-        if ((!promptText.trim() && !selectedImage) || isGenerating) return;
+        if ((!promptText.trim() && !selectedImage) || isGenerating || submitting.current) return;
 
-        const didGenerate = await onAIGenerate(promptText, selectedImage || undefined);
-        if (didGenerate) {
-            setPrompt('');
-            setSelectedImage(null);
-            onClose();
+        const submittedImage = selectedImage;
+        const submittedRevision = draftRevision.current;
+        submitting.current = true;
+        setPromptState('');
+        setSelectedImageState(null);
+
+        let didGenerate = false;
+        try {
+            didGenerate = await onAIGenerate(promptText, submittedImage || undefined);
+            if (didGenerate) onClose();
+        } finally {
+            submitting.current = false;
+            // A failed request must not replace a newer draft, even if the user
+            // deliberately typed and then cleared that draft while waiting.
+            if (!didGenerate && draftRevision.current === submittedRevision) {
+                setPromptState(promptText);
+                setSelectedImageState(submittedImage);
+            }
         }
     }
 

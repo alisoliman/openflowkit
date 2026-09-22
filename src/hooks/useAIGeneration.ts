@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createLogger } from '@/lib/logger';
-import type { FlowEdge, FlowNode } from '@/lib/types';
+import type { FlowEdge, FlowNode, FlowHistoryState } from '@/lib/types';
 import { captureAnalyticsEvent } from '@/services/analytics/analytics';
 import { chatWithFlowpilot } from '@/services/aiService';
 import {
@@ -9,17 +9,20 @@ import {
   buildFlowpilotDiagramPrompt,
 } from '@/services/flowpilot/prompting';
 import { groundFlowpilotAssets, summarizeAssetGrounding } from '@/services/flowpilot/assetGrounding';
-import { buildFlowpilotPlan } from '@/services/flowpilot/responsePolicy';
+import { buildFlowpilotPlan, isFlowpilotConfirmation } from '@/services/flowpilot/responsePolicy';
 import {
   assistantThreadToChatMessages,
   createAnswerThreadItem,
-  createAppliedThreadItem,
   createErrorThreadItem,
-  createPlanThreadItem,
   createPreviewThreadItem,
   createUserThreadItem,
+  getLatestAssistantResponse,
+  getPendingConversationPlan,
+  setPreviewStatus,
 } from '@/services/flowpilot/thread';
-import type { AssistantThreadItem, AssetGroundingMatch } from '@/services/flowpilot/types';
+import type { AssetGroundingMatch, DiagramChangeSummary } from '@/services/flowpilot/types';
+import { getCanvasFingerprint, summarizeDiagramChanges } from '@/services/flowpilot/changeSummary';
+import { serializeCanvasContextForAI } from '@/services/ai/contextSerializer';
 import { useFlowStore } from '@/store';
 import { useToast } from '@/components/ui/ToastContext';
 import { toErrorMessage } from './ai-generation/graphComposer';
@@ -40,12 +43,8 @@ import {
 } from './ai-generation/terraformToCloud';
 import { buildOpenApiToSequencePrompt } from './ai-generation/openApiToSequence';
 import { getAIReadinessState } from './ai-generation/readiness';
-import {
-  clearChatHistory,
-  clearAssistantThreadHistory,
-  loadAssistantThreadHistory,
-  saveAssistantThreadHistory,
-} from './ai-generation/chatHistoryStorage';
+import { useCopilotConnection } from './ai-generation/useCopilotConnection';
+import { useAssistantThread } from './ai-generation/useAssistantThread';
 import { notifyOperationOutcome } from '@/services/operationFeedback';
 
 const logger = createLogger({ scope: 'useAIGeneration' });
@@ -59,6 +58,11 @@ export interface ImportDiff {
   previewStats?: string[];
   assetMatches?: AssetGroundingMatch[];
   result: GenerateAIFlowResult;
+  changes: DiagramChangeSummary;
+  threadItemId: string;
+  documentId: string;
+  baselineFingerprint: string;
+  stale?: boolean;
 }
 
 type PreviewRequestKind =
@@ -101,31 +105,37 @@ function buildPreviewCopy(
   }
 
   return {
-    previewTitle: 'Import ready — review changes before applying.',
+    previewTitle: 'Changes ready to review.',
     previewStats: undefined,
   };
 }
 
 function computeImportDiff(
   currentNodes: FlowNode[],
+  currentEdges: FlowEdge[],
   result: GenerateAIFlowResult,
   requestKind: PreviewRequestKind,
+  documentId: string,
   previewDescriptor?: PreviewDescriptor,
   assetMatches?: AssetGroundingMatch[]
 ): ImportDiff {
-  const currentIds = new Set(currentNodes.map((n) => n.id));
-  const newIds = new Set(result.layoutedNodes.map((n) => n.id));
-  const addedCount = result.layoutedNodes.filter((n) => !currentIds.has(n.id)).length;
-  const removedCount = currentNodes.filter((n) => !newIds.has(n.id)).length;
-  const updatedCount = result.layoutedNodes.filter((n) => currentIds.has(n.id)).length;
+  const baseline = { nodes: currentNodes, edges: currentEdges };
+  const changes = summarizeDiagramChanges(baseline, { nodes: result.layoutedNodes, edges: result.layoutedEdges });
+  const { addedCount, removedCount, updatedCount } = changes;
+  const copy = buildPreviewCopy(requestKind, addedCount, updatedCount, previewDescriptor);
+  const item = createPreviewThreadItem(result.dslText, copy.previewTitle, copy.previewDetail, copy.previewStats, assetMatches, changes);
 
   return {
     addedCount,
     removedCount,
     updatedCount,
     assetMatches,
-    ...buildPreviewCopy(requestKind, addedCount, updatedCount, previewDescriptor),
+    ...copy,
     result,
+    changes,
+    threadItemId: item.id,
+    documentId,
+    baselineFingerprint: getCanvasFingerprint(baseline),
   };
 }
 
@@ -179,10 +189,14 @@ function getFailureSummary(existingNodeCount: number, focusedNodeIds?: string[])
   return 'Could not generate the requested diagram.';
 }
 
-export function useAIGeneration(
-  recordHistory: () => void,
-  applyComposedGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void
-) {
+interface AppliedChange {
+  documentId: string;
+  threadItemId: string;
+  fingerprint: string;
+  undoSnapshot: FlowHistoryState | undefined;
+}
+
+export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void) {
   const { nodes, edges, aiSettings, globalEdgeOptions, activeTabId } = useFlowStore();
   const selectedNodeIds = nodes.filter((n) => n.selected).map((n) => n.id);
   const { addToast } = useToast();
@@ -190,71 +204,103 @@ export function useAIGeneration(
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [pendingDiff, setPendingDiff] = useState<ImportDiff | null>(null);
-  const [assistantThread, setAssistantThread] = useState<AssistantThreadItem[]>([]);
+  const { assistantThread, threadReady, updateThread, appendThreadItem } = useAssistantThread(activeTabId);
+  const [lastAppliedChange, setLastAppliedChange] = useState<AppliedChange | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  const readiness = getAIReadinessState(aiSettings);
+  const { connection } = useCopilotConnection((aiSettings.provider ?? 'copilot') === 'copilot');
+  const providerReadiness = useMemo(() => getAIReadinessState(aiSettings, connection), [aiSettings, connection]);
+  const readiness = useMemo(() => !threadReady && providerReadiness.canGenerate ? {
+    ...providerReadiness,
+    canGenerate: false,
+    blockingIssue: {
+      tone: 'info' as const,
+      title: 'Restoring conversation',
+      detail: 'The Flowpilot conversation is still loading. Please try again in a moment.',
+    },
+  } : providerReadiness, [providerReadiness, threadReady]);
+  const canvasFingerprint = useMemo(() => getCanvasFingerprint({ nodes, edges }), [nodes, edges]);
+  const currentPreview = threadReady && pendingDiff?.documentId === activeTabId
+    && assistantThread.some((item) => item.id === pendingDiff.threadItemId && item.previewStatus === 'pending')
+    ? pendingDiff : null;
+  const activeHistory = useFlowStore((state) => state.tabs.find((tab) => tab.id === state.activeTabId)?.history);
+  const canUndoLastChange = Boolean(
+    lastAppliedChange
+    && lastAppliedChange.documentId === activeTabId
+    && lastAppliedChange.fingerprint === canvasFingerprint
+    && lastAppliedChange.undoSnapshot
+    && activeHistory?.past.at(-1) === lastAppliedChange.undoSnapshot
+  );
 
   const chatMessages = useMemo(() => assistantThreadToChatMessages(assistantThread), [assistantThread]);
 
-  const persistThread = useCallback(
-    (nextItems: AssistantThreadItem[]) => {
-      void saveAssistantThreadHistory(activeTabId, nextItems);
-    },
-    [activeTabId]
-  );
-
-  const appendThreadItem = useCallback(
-    (item: AssistantThreadItem) => {
-      setAssistantThread((previous) => {
-        const next = [...previous, item];
-        persistThread(next);
-        return next;
-      });
-    },
-    [persistThread]
-  );
-
-  useEffect(() => {
-    let isDisposed = false;
-
-    void loadAssistantThreadHistory(activeTabId).then((messages) => {
-      if (!isDisposed) {
-        setAssistantThread(messages);
-      }
-    });
-
-    return () => {
-      isDisposed = true;
-    };
-  }, [activeTabId]);
+  useEffect(() => () => abortControllerRef.current?.abort(), [activeTabId]);
 
   const cancelGeneration = useCallback(() => {
     abortControllerRef.current?.abort();
   }, []);
 
   const clearChat = useCallback(() => {
-    void clearAssistantThreadHistory(activeTabId);
-    void clearChatHistory(activeTabId);
-    setAssistantThread([]);
-  }, [activeTabId]);
+    abortControllerRef.current?.abort();
+    setPendingDiff(null);
+    updateThread(() => []);
+  }, [updateThread]);
 
   const clearLastError = useCallback(() => {
     setLastError(null);
   }, []);
 
-  const confirmPendingDiff = useCallback(() => {
-    if (!pendingDiff) return;
-    recordHistory();
-    applyComposedGraph(pendingDiff.result.layoutedNodes, pendingDiff.result.layoutedEdges);
-    appendThreadItem(createAppliedThreadItem('Applied the preview to the canvas.'));
-    notifyOperationOutcome(addToast, { status: 'success', summary: 'Import applied to canvas.' });
-    setPendingDiff(null);
-  }, [pendingDiff, applyComposedGraph, addToast, recordHistory, appendThreadItem]);
+  const applyChange = useCallback((preview: ImportDiff) => {
+    const current = useFlowStore.getState();
+    if (current.activeTabId !== preview.documentId || getCanvasFingerprint(current) !== preview.baselineFingerprint) {
+      throw new Error('The canvas changed after this draft was prepared. Generate an updated draft before applying it.');
+    }
+    applyComposedGraph(preview.result.layoutedNodes, preview.result.layoutedEdges);
+    const applied = useFlowStore.getState();
+    setLastAppliedChange({
+      documentId: preview.documentId,
+      threadItemId: preview.threadItemId,
+      fingerprint: getCanvasFingerprint(applied),
+      undoSnapshot: applied.tabs.find((tab) => tab.id === applied.activeTabId)?.history.past.at(-1),
+    });
+    updateThread((items) => setPreviewStatus(items, preview.threadItemId, 'applied'));
+  }, [applyComposedGraph, updateThread]);
+
+  const confirmPendingDiff = useCallback((): boolean => {
+    if (!currentPreview || abortControllerRef.current) return false;
+    try {
+      applyChange(currentPreview);
+      setPendingDiff(null);
+      setLastError(null);
+      notifyOperationOutcome(addToast, { status: 'success', summary: 'Changes applied to canvas.' });
+      return true;
+    } catch (error) {
+      const message = toErrorMessage(error);
+      setLastError(message);
+      notifyOperationOutcome(addToast, { status: 'error', summary: message });
+      return false;
+    }
+  }, [currentPreview, applyChange, addToast]);
 
   const discardPendingDiff = useCallback(() => {
+    if (currentPreview) updateThread((items) => setPreviewStatus(items, currentPreview.threadItemId, 'discarded'));
     setPendingDiff(null);
-  }, []);
+  }, [currentPreview, updateThread]);
+
+  const undoLastChange = useCallback(() => {
+    const current = useFlowStore.getState();
+    const history = current.tabs.find((tab) => tab.id === current.activeTabId)?.history;
+    if (!lastAppliedChange || current.activeTabId !== lastAppliedChange.documentId
+      || getCanvasFingerprint(current) !== lastAppliedChange.fingerprint
+      || history?.past.at(-1) !== lastAppliedChange.undoSnapshot) {
+      addToast('The canvas has changed since this AI edit. Use the canvas Undo control to review more recent changes first.', 'warning');
+      return;
+    }
+    current.undoV2();
+    updateThread((items) => setPreviewStatus(items, lastAppliedChange.threadItemId, 'undone'));
+    setLastAppliedChange(null);
+    addToast('Undid the last AI edit.', 'success');
+  }, [addToast, lastAppliedChange, updateThread]);
 
   const runConversationRequest = useCallback(
     async (
@@ -263,6 +309,7 @@ export function useAIGeneration(
       assetMatches: AssetGroundingMatch[],
       imageBase64?: string
     ): Promise<boolean> => {
+      if (abortControllerRef.current) return false;
       if (!readiness.canGenerate && readiness.blockingIssue) {
         setLastError(readiness.blockingIssue.detail);
         return false;
@@ -286,6 +333,7 @@ export function useAIGeneration(
               nodeCount: nodes.length,
               selectedNodeCount: selectedNodeIds.length,
               hasImage: Boolean(imageBase64),
+              currentDiagram: serializeCanvasContextForAI(nodes, edges, selectedNodeIds),
             },
             assetMatches,
             mode
@@ -293,12 +341,17 @@ export function useAIGeneration(
           buildFlowpilotAssistantSystemInstruction(mode),
           aiSettings.apiKey,
           aiSettings.model,
-          aiSettings.provider || 'gemini',
+          aiSettings.provider || 'copilot',
           aiSettings.customBaseUrl,
           (delta) => setStreamingText((previous) => (previous ?? '') + delta),
-          controller.signal
+          controller.signal,
+          imageBase64
         );
 
+        controller.signal.throwIfAborted();
+        if (getCanvasFingerprint(useFlowStore.getState()) !== getCanvasFingerprint({ nodes, edges })) {
+          throw new Error('The canvas changed while Flowpilot was answering. Ask again using the current diagram.');
+        }
         appendThreadItem(createAnswerThreadItem(response, mode, assetMatches));
         notifyOperationOutcome(addToast, {
           status: 'success',
@@ -306,7 +359,7 @@ export function useAIGeneration(
         });
         return true;
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
+        if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
           return false;
         }
         const errorMessage = toErrorMessage(error);
@@ -333,10 +386,11 @@ export function useAIGeneration(
       aiSettings.provider,
       appendThreadItem,
       chatMessages,
-      nodes.length,
+      nodes,
+      edges,
       readiness.blockingIssue,
       readiness.canGenerate,
-      selectedNodeIds.length,
+      selectedNodeIds,
     ]
   );
 
@@ -351,6 +405,7 @@ export function useAIGeneration(
       previewDescriptor?: PreviewDescriptor,
       assetMatches?: AssetGroundingMatch[]
     ): Promise<boolean> => {
+      if (abortControllerRef.current) return false;
       if (!readiness.canGenerate && readiness.blockingIssue) {
         setLastError(readiness.blockingIssue.detail);
         notifyOperationOutcome(addToast, {
@@ -366,13 +421,18 @@ export function useAIGeneration(
       setStreamingGraph(null);
       setStreamingActive(true);
       setRetryCount(0);
-      if (!showPreview) recordHistory();
       setIsGenerating(true);
 
       const controller = new AbortController();
       abortControllerRef.current = controller;
+      const baselineFingerprint = getCanvasFingerprint({ nodes, edges });
+      let streamedDsl = '';
+      if (currentPreview) {
+        updateThread((items) => setPreviewStatus(items, currentPreview.threadItemId, 'superseded'));
+        setPendingDiff(null);
+      }
       captureAnalyticsEvent('ai_generation_started', {
-        provider: aiSettings.provider || 'gemini',
+        provider: aiSettings.provider || 'copilot',
         has_image: Boolean(imageBase64),
         is_preview: showPreview,
         request_kind: requestKind,
@@ -380,9 +440,13 @@ export function useAIGeneration(
       });
 
       try {
+        const groundedAssets = assetMatches ?? (
+          requestKind === 'prompt' || requestKind === 'focused-edit' ? await groundFlowpilotAssets(prompt) : []
+        );
+        controller.signal.throwIfAborted();
         const result = await generateAIFlowResult({
           chatMessages,
-          prompt: buildFlowpilotDiagramPrompt(prompt, assetMatches ?? []),
+          prompt: buildFlowpilotDiagramPrompt(prompt, groundedAssets),
           seedDsl,
           imageBase64,
           nodes,
@@ -391,60 +455,55 @@ export function useAIGeneration(
           aiSettings,
           globalEdgeOptions,
           onChunk: (delta) => {
-            setStreamingText((prev) => {
-              const next = (prev ?? '') + delta;
-              const parsed = parseStreamingDsl(next);
-              if (parsed.nodeCount > 0) {
-                setStreamingGraph(parsed);
-              }
-              return next;
-            });
+            if (controller.signal.aborted) return;
+            streamedDsl += delta;
+            setStreamingText(streamedDsl);
+            const parsed = parseStreamingDsl(streamedDsl);
+            if (parsed.nodeCount > 0) setStreamingGraph(parsed);
           },
           onRetry: (attempt) => {
             setRetryCount(attempt);
+            streamedDsl = '';
             setStreamingText('');
+            setStreamingGraph(null);
           },
           signal: controller.signal,
         });
 
-        const { dslText, layoutedNodes, layoutedEdges } = result;
-        if (showPreview) {
-          const previewDiff = computeImportDiff(
-            nodes,
-            result,
-            requestKind,
-            previewDescriptor,
-            assetMatches
-          );
+        controller.signal.throwIfAborted();
+        const current = useFlowStore.getState();
+        if (current.activeTabId !== activeTabId || getCanvasFingerprint(current) !== baselineFingerprint) {
+          throw new Error('The canvas changed while Flowpilot was working. No changes were applied. Retry using the current diagram.');
+        }
+        const previewDiff = computeImportDiff(nodes, edges, result, requestKind, activeTabId, previewDescriptor, groundedAssets);
+        if (previewDiff.changes.totalChanges === 0) {
+          appendThreadItem(createAnswerThreadItem('No changes are needed; the canvas already matches this result.', 'answer'));
+          return true;
+        }
+        appendThreadItem({
+          ...createPreviewThreadItem(result.dslText, previewDiff.previewTitle, previewDiff.previewDetail, previewDiff.previewStats, groundedAssets, previewDiff.changes),
+          id: previewDiff.threadItemId,
+        });
+        if (showPreview && !aiSettings.autoApply) {
           setPendingDiff(previewDiff);
-          appendThreadItem(
-            createPreviewThreadItem(
-              dslText,
-              previewDiff.previewTitle,
-              previewDiff.previewDetail,
-              previewDiff.previewStats,
-              assetMatches
-            )
-          );
           notifyOperationOutcome(addToast, {
             status: 'success',
             summary: previewDiff.previewTitle,
             detail: previewDiff.previewDetail,
           });
           captureAnalyticsEvent('import_preview_ready', {
-            provider: aiSettings.provider || 'gemini',
+            provider: aiSettings.provider || 'copilot',
             request_kind: requestKind,
           });
         } else {
-          applyComposedGraph(layoutedNodes, layoutedEdges);
-          appendThreadItem(createAppliedThreadItem(getSuccessSummary(nodes.length, focusedNodeIds)));
+          applyChange(previewDiff);
           notifyOperationOutcome(addToast, {
             status: 'success',
             summary: getSuccessSummary(nodes.length, focusedNodeIds),
           });
         }
         captureAnalyticsEvent('ai_generation_succeeded', {
-          provider: aiSettings.provider || 'gemini',
+          provider: aiSettings.provider || 'copilot',
           has_image: Boolean(imageBase64),
           is_preview: showPreview,
           request_kind: requestKind,
@@ -452,9 +511,9 @@ export function useAIGeneration(
         });
         return true;
       } catch (error: unknown) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
+        if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
           captureAnalyticsEvent('ai_generation_cancelled', {
-            provider: aiSettings.provider || 'gemini',
+            provider: aiSettings.provider || 'copilot',
             is_preview: showPreview,
             request_kind: requestKind,
           });
@@ -465,7 +524,7 @@ export function useAIGeneration(
         setLastError(errorMessage);
         appendThreadItem(createErrorThreadItem(errorMessage));
         captureAnalyticsEvent('ai_generation_failed', {
-          provider: aiSettings.provider || 'gemini',
+          provider: aiSettings.provider || 'copilot',
           is_preview: showPreview,
           request_kind: requestKind,
           error_name: error instanceof Error ? error.name : 'UnknownError',
@@ -495,42 +554,66 @@ export function useAIGeneration(
       readiness,
       nodes,
       selectedNodeIds,
-      recordHistory,
-      applyComposedGraph,
+      activeTabId,
+      applyChange,
+      currentPreview,
+      updateThread,
     ]
   );
 
   const handleAIRequest = useCallback(
     async (prompt: string, imageBase64?: string): Promise<boolean> => {
+      if (abortControllerRef.current) return false;
+      if (!threadReady) {
+        addToast('The Flowpilot conversation is still loading. Please try again in a moment.', 'info');
+        return false;
+      }
       const userThreadItem = createUserThreadItem(prompt, imageBase64);
       appendThreadItem(userThreadItem);
+      if (currentPreview && getLatestAssistantResponse(assistantThread)?.id === currentPreview.threadItemId
+        && isFlowpilotConfirmation(prompt)) return confirmPendingDiff();
 
+      const previousPlan = getPendingConversationPlan(assistantThread);
       const plan = buildFlowpilotPlan({
         prompt,
         nodeCount: nodes.length,
         selectedNodeCount: selectedNodeIds.length,
         hasImage: Boolean(imageBase64),
+        hasPendingPlan: Boolean(previousPlan),
       });
-      appendThreadItem(createPlanThreadItem(plan));
-
-      const assetMatches =
-        plan.mode === 'asset_suggestions' || plan.mode === 'diagram_preview'
-          ? await groundFlowpilotAssets(prompt)
-          : [];
-
       if (plan.mode === 'asset_suggestions') {
-        const assetSummary = assetMatches.length > 0
-          ? `I found these strong local matches: ${summarizeAssetGrounding(assetMatches)}.`
-          : 'I could not find a strong local asset match yet. Try naming the cloud provider or exact service.';
-        appendThreadItem(createAnswerThreadItem(assetSummary, 'asset_suggestions', assetMatches));
-        return true;
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        setIsGenerating(true);
+        try {
+          const assetMatches = await groundFlowpilotAssets(prompt);
+          controller.signal.throwIfAborted();
+          const assetSummary = assetMatches.length > 0
+            ? `I found these strong local matches: ${summarizeAssetGrounding(assetMatches)}.`
+            : 'I could not find a strong local asset match yet. Try naming the cloud provider or exact service.';
+          appendThreadItem(createAnswerThreadItem(assetSummary, 'asset_suggestions', assetMatches));
+          return true;
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            const message = toErrorMessage(error);
+            setLastError(message);
+            addToast(message, 'error');
+          }
+          return false;
+        } finally {
+          abortControllerRef.current = null;
+          setIsGenerating(false);
+        }
       }
 
       if (plan.mode === 'answer' || plan.mode === 'plan' || plan.mode === 'clarification') {
-        return runConversationRequest(prompt, plan.mode === 'plan' ? 'plan' : 'answer', assetMatches, imageBase64);
+        return runConversationRequest(prompt, plan.mode === 'plan' ? 'plan' : 'answer', [], imageBase64);
       }
 
-      return runDiagramRequest(prompt, imageBase64, undefined, true, 'prompt', undefined, undefined, assetMatches);
+      const diagramPrompt = previousPlan && isFlowpilotConfirmation(prompt)
+        ? `${prompt}\n\nCarry out this previously discussed plan on the CURRENT DIAGRAM:\n${previousPlan}`
+        : prompt;
+      return runDiagramRequest(diagramPrompt, imageBase64, undefined, true, 'prompt');
     },
     [
       appendThreadItem,
@@ -538,23 +621,18 @@ export function useAIGeneration(
       runConversationRequest,
       runDiagramRequest,
       selectedNodeIds.length,
+      addToast,
+      assistantThread,
+      confirmPendingDiff,
+      currentPreview,
+      threadReady,
     ]
   );
 
   const handleFocusedAIRequest = useCallback(
     async (prompt: string, focusedNodeIds: string[], imageBase64?: string): Promise<boolean> => {
+      if (abortControllerRef.current || !threadReady) return false;
       appendThreadItem(createUserThreadItem(prompt, imageBase64));
-      appendThreadItem(
-        createPlanThreadItem(
-          buildFlowpilotPlan({
-            prompt,
-            nodeCount: nodes.length,
-            selectedNodeCount: focusedNodeIds.length,
-            hasImage: Boolean(imageBase64),
-          })
-        )
-      );
-      const assetMatches = await groundFlowpilotAssets(prompt);
       return runDiagramRequest(
         prompt,
         imageBase64,
@@ -562,11 +640,10 @@ export function useAIGeneration(
         true,
         'focused-edit',
         undefined,
-        undefined,
-        assetMatches
+        undefined
       );
     },
-    [appendThreadItem, nodes.length, runDiagramRequest]
+    [appendThreadItem, runDiagramRequest, threadReady]
   );
 
   const handleCodeAnalysis = useCallback(
@@ -643,7 +720,7 @@ export function useAIGeneration(
     streamingText,
     retryCount,
     cancelGeneration,
-    pendingDiff,
+    pendingDiff: currentPreview ? { ...currentPreview, stale: currentPreview.baselineFingerprint !== canvasFingerprint } : null,
     confirmPendingDiff,
     discardPendingDiff,
     readiness,
@@ -659,5 +736,7 @@ export function useAIGeneration(
     assistantThread,
     clearChat,
     clearLastError,
+    canUndoLastChange,
+    undoLastChange,
   };
 }

@@ -5,6 +5,7 @@ import type {
   AssistantThreadItem,
   AssistantThreadItemType,
   AssetGroundingMatch,
+  DiagramChangeSummary,
 } from './types';
 
 function nowIso(): string {
@@ -62,7 +63,8 @@ export function createPreviewThreadItem(
   previewTitle: string,
   previewDetail?: string,
   previewStats?: string[],
-  assetMatches?: AssetGroundingMatch[]
+  assetMatches?: AssetGroundingMatch[],
+  changes?: DiagramChangeSummary
 ): AssistantThreadItem {
   return createAssistantThreadItem('assistant_canvas_preview', 'model', content, {
     responseMode: 'diagram_preview',
@@ -71,6 +73,8 @@ export function createPreviewThreadItem(
     previewDetail,
     previewStats,
     assetMatches,
+    previewStatus: 'pending',
+    changes,
   });
 }
 
@@ -93,6 +97,41 @@ export function assistantThreadToChatMessages(items: AssistantThreadItem[]): Cha
     .filter((item) => item.type !== 'assistant_plan' && item.type !== 'assistant_thinking')
     .map((item) => ({
       role: item.role,
-      parts: [{ text: item.content }],
+      parts: [{
+        text: item.type === 'assistant_canvas_preview'
+          ? `Diagram proposal ${item.previewStatus ?? (item.applied ? 'applied' : 'superseded')}. ${
+            item.previewStatus === 'applied' || item.applied
+              ? 'The canvas may have changed since this historical action; use the current canvas context.'
+              : 'This proposal is not the current canvas. Do not treat its suggested edits as applied.'
+          }`
+          : item.content,
+      }],
     }));
+}
+
+export function setPreviewStatus(
+  items: AssistantThreadItem[],
+  previewId: string,
+  status: NonNullable<AssistantThreadItem['previewStatus']>
+): AssistantThreadItem[] {
+  return items.map((item) => item.id === previewId
+    ? { ...item, previewStatus: status, applied: status === 'applied' }
+    : item);
+}
+
+export function expirePendingPreviews(items: AssistantThreadItem[]): AssistantThreadItem[] {
+  return items.map((item) => item.type === 'assistant_canvas_preview' && (!item.previewStatus || item.previewStatus === 'pending')
+    ? { ...item, previewStatus: item.applied ? 'applied' : 'superseded' }
+    : item);
+}
+
+export function getLatestAssistantResponse(items: AssistantThreadItem[]): AssistantThreadItem | undefined {
+  const latest = [...items].reverse().find((item) =>
+    item.type !== 'assistant_plan' && item.type !== 'assistant_thinking');
+  return latest?.role === 'model' ? latest : undefined;
+}
+
+export function getPendingConversationPlan(items: AssistantThreadItem[]): string | undefined {
+  const lastAnswer = getLatestAssistantResponse(items);
+  return lastAnswer?.responseMode === 'plan' ? lastAnswer.content : undefined;
 }

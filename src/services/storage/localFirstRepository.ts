@@ -5,6 +5,8 @@ import type {
   AgentResponseMode,
   AgentThinkingState,
   AssetGroundingMatch,
+  AssistantThreadItem,
+  DiagramChangeSummary,
 } from '@/services/flowpilot/types';
 import {
   createFlowTabsFromPersistedDocuments,
@@ -70,6 +72,7 @@ export interface PersistedChatMessage {
   role: ChatMessage['role'];
   parts: ChatMessage['parts'];
   createdAt: string;
+  sequence?: number;
   threadType?: string;
   responseMode?: AgentResponseMode;
   thinkingState?: AgentThinkingState;
@@ -78,6 +81,8 @@ export interface PersistedChatMessage {
   previewDetail?: string;
   previewStats?: string[];
   applied?: boolean;
+  previewStatus?: AssistantThreadItem['previewStatus'];
+  changes?: DiagramChangeSummary;
   plan?: AgentPlan;
   assetMatches?: AssetGroundingMatch[];
 }
@@ -123,30 +128,18 @@ function getNowIso(): string {
 
 function toPersistedChatMessages(
   documentId: string,
-  messages: ChatMessage[]
+  messages: Array<ChatMessage & Partial<PersistedChatMessage>>
 ): PersistedChatMessage[] {
   const startedAt = Date.now();
 
   return messages.map((message, index) => ({
-    id: `${documentId}:${index}`,
+    ...message,
+    id: message.id ?? `${documentId}:${index}`,
     documentId,
     role: message.role,
     parts: message.parts,
-    createdAt: new Date(startedAt + index).toISOString(),
+    createdAt: message.createdAt ?? new Date(startedAt + index).toISOString(),
   }));
-}
-
-async function migrateLegacyChatHistory(documentId: string): Promise<void> {
-  const legacyMessages = readLegacyChatHistory(documentId);
-  if (legacyMessages.length === 0) {
-    return;
-  }
-
-  await localFirstRepository.replaceChatThread(
-    documentId,
-    toPersistedChatMessages(documentId, legacyMessages)
-  );
-  removeLegacyChatHistory(documentId);
 }
 
 export const localFirstRepository: PersistenceRepository = {
@@ -391,13 +384,18 @@ export const localFirstRepository: PersistenceRepository = {
           CHAT_MESSAGES_BY_DOCUMENT_ID_INDEX,
           documentId
         );
-        return documentMessages
-          .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+        return documentMessages.sort((left, right) =>
+          typeof left.sequence === 'number' && typeof right.sequence === 'number'
+            ? left.sequence - right.sequence
+            : left.createdAt.localeCompare(right.createdAt));
       });
 
       if (messages.length === 0) {
-        await migrateLegacyChatHistory(documentId);
-        return await this.loadChatThread(documentId);
+        const legacyMessages = readLegacyChatHistory(documentId);
+        if (legacyMessages.length === 0) return [];
+        const migrated = toPersistedChatMessages(documentId, legacyMessages);
+        await this.replaceChatThread(documentId, migrated);
+        return migrated;
       }
 
       return messages;
@@ -421,7 +419,7 @@ export const localFirstRepository: PersistenceRepository = {
       const existingMessages = readLegacyChatHistory(documentId);
       writeLegacyChatHistory(documentId, [
         ...existingMessages,
-        { role: message.role, parts: message.parts } satisfies ChatMessage,
+        message,
       ]);
     }
   },
@@ -450,12 +448,7 @@ export const localFirstRepository: PersistenceRepository = {
       });
       removeLegacyChatHistory(documentId);
     } catch {
-      writeLegacyChatHistory(
-        documentId,
-        messages.map(
-          (message) => ({ role: message.role, parts: message.parts }) satisfies ChatMessage
-        )
-      );
+      writeLegacyChatHistory(documentId, messages);
     }
   },
 

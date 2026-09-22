@@ -14,6 +14,7 @@ import {
     parseOpenAIStreamDelta,
 } from './aiServiceSchemas';
 import type { AIProvider } from '@/store/types';
+import { requestCopilot } from './copilot/client';
 
 export type { AIProvider };
 
@@ -45,7 +46,7 @@ function getEnvApiKey(provider: AIProvider): string | undefined {
     }
 }
 
-function historyToMessages(history: ChatMessage[]): TextMessage[] {
+function historyToMessages(history: ChatMessage[]): { role: 'assistant' | 'user'; content: string }[] {
     return history.map(h => ({
         role: h.role === 'model' ? 'assistant' : 'user',
         content: h.parts.map(p => p.text || '').join(''),
@@ -272,20 +273,30 @@ export async function generateDiagramFromChat(
     imageBase64?: string,
     apiKeySetting?: string,
     modelIdSetting?: string,
-    provider: AIProvider = 'gemini',
+    provider: AIProvider = 'copilot',
     customBaseUrlSetting?: string,
     isEditMode = false,
     onChunk?: (delta: string) => void,
     signal?: AbortSignal,
     temperature?: number,
 ): Promise<string> {
-    const apiKey = resolveApiKey(provider, apiKeySetting);
     const modelId = resolveModelId(provider, modelIdSetting);
 
     const userPrompt = isEditMode && currentDSL
         ? `User Request: ${newMessage}\n\nCURRENT DIAGRAM — output the complete updated OpenFlow DSL:\n${currentDSL}\n\nIMPORTANT: Preserve ALL unchanged node IDs and attributes exactly. Only modify what was requested.`
         : `User Request: ${newMessage}\n\nGenerate a new OpenFlow DSL diagram.`;
 
+    if (provider === 'copilot') {
+        return requestCopilot({
+            prompt: userPrompt,
+            systemInstruction: getSystemInstruction(isEditMode ? 'edit' : 'create'),
+            history: historyToMessages(history),
+            model: modelId || DEFAULT_MODELS.copilot,
+            image: imageBase64,
+        }, onChunk, signal);
+    }
+
+    const apiKey = resolveApiKey(provider, apiKeySetting);
     if (provider === 'gemini') {
         return generateDiagramFromChatGemini(history, newMessage, currentDSL, imageBase64, apiKey, modelId, isEditMode, onChunk, signal, temperature);
     }
@@ -324,14 +335,13 @@ export async function chatWithDocs(
     docsContext: string,
     apiKeySetting?: string,
     modelIdSetting?: string,
-    provider: AIProvider = 'gemini',
+    provider: AIProvider = 'copilot',
     customBaseUrlSetting?: string
 ): Promise<string> {
-    const apiKey = resolveApiKey(provider, apiKeySetting);
     const modelId = resolveModelId(provider, modelIdSetting);
 
     if (provider === 'gemini') {
-        return chatWithDocsGemini(history, newMessage, docsContext, apiKey, modelId);
+        return chatWithDocsGemini(history, newMessage, docsContext, resolveApiKey(provider, apiKeySetting), modelId);
     }
 
     const systemInstruction = `
@@ -346,6 +356,16 @@ ${docsContext}
 ---
 `;
 
+    if (provider === 'copilot') {
+        return requestCopilot({
+            prompt: newMessage,
+            systemInstruction,
+            history: historyToMessages(history),
+            model: modelId || DEFAULT_MODELS.copilot,
+        });
+    }
+
+    const apiKey = resolveApiKey(provider, apiKeySetting);
     if (provider === 'claude') {
         const messages: TextMessage[] = [
             ...historyToMessages(history),
@@ -374,14 +394,25 @@ export async function chatWithFlowpilot(
     systemInstruction: string,
     apiKeySetting?: string,
     modelIdSetting?: string,
-    provider: AIProvider = 'gemini',
+    provider: AIProvider = 'copilot',
     customBaseUrlSetting?: string,
     onChunk?: (delta: string) => void,
     signal?: AbortSignal,
+    imageBase64?: string,
 ): Promise<string> {
-    const apiKey = resolveApiKey(provider, apiKeySetting);
     const modelId = resolveModelId(provider, modelIdSetting);
 
+    if (provider === 'copilot') {
+        return requestCopilot({
+            prompt: newMessage,
+            systemInstruction,
+            history: historyToMessages(history),
+            model: modelId || DEFAULT_MODELS.copilot,
+            image: imageBase64,
+        }, onChunk, signal);
+    }
+
+    const apiKey = resolveApiKey(provider, apiKeySetting);
     if (provider === 'gemini') {
         return chatWithSystemInstructionGemini(
             history,

@@ -64,12 +64,16 @@ NOTE: Be sure to merge the latest from "upstream" before making a pull request!
 
 ## Developer Setup
 
+Use Node 20.19+ or 22.12+. Flowpilot's default GitHub Copilot SDK engine reuses
+your local CLI sign-in and quota; run `gh copilot login` before generating.
+The SDK runtime is bundled with the dependency, and no provider API key is needed.
+
 ```bash
 # Install dependencies (also activates husky pre-commit hooks)
 npm install
 
 # Start dev server
-npm run dev          # http://localhost:5173
+npm run dev          # http://127.0.0.1:3000, including the local Copilot bridge
 
 # Run unit + integration tests (Vitest)
 npm test
@@ -82,7 +86,25 @@ npm run e2e
 
 # Lint
 npm run lint
+
+# Type-check browser and local Copilot runtime
+npm run typecheck
 ```
+
+Copilot tests use fake SDK sessions and HTTP streams by default, so CI needs no
+GitHub credentials and consumes no Copilot quota. For an opt-in live browser check:
+
+```bash
+FLOWPILOT_LIVE_COPILOT=1 npm run e2e -- e2e/copilot.spec.ts --grep "live SDK"
+# Multi-turn review/discard, model selection, auto-apply, and undo:
+FLOWPILOT_LIVE_COPILOT=1 npm run e2e -- e2e/flowpilot-multiturn.spec.ts --grep "live Copilot"
+```
+
+The live check uses the signed-in account's quota. The dev and preview bridges
+accept only same-origin loopback requests; static deployments do not include the
+SDK runtime. Never expose personal CLI credentials through a public server.
+Set `PLAYWRIGHT_PORT` to an unused port and `CI=1` when testing an isolated
+worktree so Playwright starts that checkout instead of reusing another server.
 
 ### Pre-commit hooks
 

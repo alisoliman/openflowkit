@@ -6,6 +6,18 @@ description: Use Flowpilot as the chat-based Studio assistant for drafting, revi
 
 Flowpilot is the chat-based assistant inside Studio. It is the fastest way to describe a diagram in plain language, revise an existing draft, or ask for a different structural take before you start polishing the result manually.
 
+## Connect GitHub Copilot
+
+Flowpilot defaults to the GitHub Copilot SDK and uses your CLI sign-in and quota.
+Run `gh copilot login`, start the local app with `npm run dev`, then open
+**Settings → AI → GitHub Copilot → Check connection**. No provider API key is
+required. Models come from your Copilot account; saved alternative-provider
+choices are preserved.
+
+The local Node runtime is required: a static hosted site cannot read your local
+CLI login. See [AI Generation](/ai-generation/) for setup, deployment boundaries,
+usage, and alternative providers.
+
 ## Good use cases
 
 Ask Flowpilot when you want to:
@@ -36,12 +48,28 @@ Show public ingress, async jobs, and failure-handling paths.
 
 ## What to do after generation
 
-Flowpilot is strongest as a draft generator, not the final editor. After generation:
+Flowpilot presents a concise change preview by default. Select **Apply to canvas**
+to accept it, or **Discard** to leave the diagram unchanged. **View diagram code**
+expands the source only when you need it.
+
+Use **Copilot model** in the composer to choose a model from your account.
+For an uninterrupted editing workflow, enable **Apply edits automatically**;
+the nearby **Undo AI edit** button reverts the latest applied AI change. The
+normal canvas Undo/Redo controls remain available for older changes.
+
+Follow-ups default to **Edit current**. Try “Add a cache,” “Rename it,” or
+“Yes, do that” after a plan. Discarded drafts do not become the context for later
+answers. Cancellation stops the Copilot request without applying a partial
+draft. After applying:
 
 - inspect the structure on the canvas
 - relabel and normalize in the [Properties Panel](/properties-panel/)
 - run [Smart Layout](/smart-layout/) if spacing is poor
 - save a snapshot before the next major rewrite
+
+The composer clears as soon as a message is submitted, so you can draft the next
+message while Flowpilot works. A failed or cancelled request restores its text
+and attachment only if you have not changed the composer in the meantime.
 
 ## Related pages
 

@@ -45,9 +45,9 @@ export const DEFAULT_DESIGN_SYSTEM: DesignSystem = {
 };
 
 export const DEFAULT_AI_SETTINGS: AISettings = sanitizeAISettings(
-    { provider: 'gemini' },
+    { provider: 'copilot' },
     {
-        provider: 'gemini',
+        provider: 'copilot',
         storageMode: 'local',
         apiKey: undefined,
         model: undefined,

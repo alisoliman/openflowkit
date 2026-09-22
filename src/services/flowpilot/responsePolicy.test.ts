@@ -1,7 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { buildFlowpilotPlan, chooseFlowpilotResponseMode } from './responsePolicy';
+import { buildFlowpilotPlan, chooseFlowpilotResponseMode, isFlowpilotConfirmation } from './responsePolicy';
 
 describe('flowpilot response policy', () => {
+  it.each([
+    'Rename it to Orders Cache.', 'Make it Azure-based.', 'Add Redis.',
+    'Change its color to blue.', 'Remove the queue.', 'Connect it to the API.',
+    'Replace the icon with Redis.', 'Move it below the database.',
+    'Update this diagram.', 'Simplify it.',
+  ])('routes short contextual edits to an editable result: %s', (prompt) => {
+    expect(chooseFlowpilotResponseMode({ prompt, nodeCount: 4, selectedNodeCount: 0 }).mode).toBe('diagram_preview');
+  });
+
+  it.each(['Yes, do that.', 'Go ahead', 'Apply it', 'yes', 'Yes please', 'Please proceed'])(
+    'executes a confirmed plan rather than returning another plan: %s',
+    (prompt) => {
+      expect(isFlowpilotConfirmation(prompt)).toBe(true);
+      expect(chooseFlowpilotResponseMode({ prompt, nodeCount: 4, selectedNodeCount: 0, hasPendingPlan: true }).mode).toBe('diagram_preview');
+      expect(chooseFlowpilotResponseMode({ prompt, nodeCount: 4, selectedNodeCount: 0 }).mode).toBe('clarification');
+    },
+  );
+
+  it.each(['How should I add a cache?', 'What is the cache called?', 'Explain the current diagram'])(
+    'preserves questions as non-mutating conversation: %s',
+    (prompt) => {
+      expect(chooseFlowpilotResponseMode({ prompt, nodeCount: 4, selectedNodeCount: 0 }).mode).toBe('answer');
+    },
+  );
+
   it('selects answer mode for explanatory prompts', () => {
     const result = chooseFlowpilotResponseMode({
       prompt: "Explain what's wrong with this architecture",

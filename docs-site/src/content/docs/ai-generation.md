@@ -1,7 +1,7 @@
 ---
 draft: false
 title: AI Generation
-description: Generate and refine diagrams in Studio with Flowpilot, BYOK providers, code-to-architecture, and structured imports.
+description: Generate and refine diagrams with the GitHub Copilot SDK and your CLI sign-in, or use alternative providers.
 ---
 
 OpenFlowKit includes AI-assisted diagram generation through the Studio rail. Flowpilot is best used for first drafts, structural revisions, and code-backed architecture exploration.
@@ -10,7 +10,27 @@ AI generation is most valuable when you need to go from ambiguity to structure q
 
 ## Access and setup
 
-Flowpilot lives inside Studio. If an API key is not configured yet, OpenFlowKit prompts you to open the shared AI settings modal instead of keeping setup inline inside the panel.
+Flowpilot lives inside Studio and defaults to the **GitHub Copilot SDK**. It uses your Copilot CLI sign-in and quota, without a provider API key. Existing saved provider selections are preserved.
+
+Use Node 20.19+ or 22.12+ and a current GitHub CLI:
+
+```bash
+npm install
+gh copilot login
+npm run dev
+```
+
+Open **http://127.0.0.1:3000**, then **Settings → AI → GitHub Copilot → Check connection**. Models are discovered from your account; choose **Copilot default** to let the SDK select its default model. Availability and usage multipliers depend on your plan and organization policy.
+
+The **Copilot model** selector is also available directly in Flowpilot. It uses
+the same account model list and saved selection as Settings. The selected model
+runs the next turn; switching models does not clear the conversation.
+
+The SDK runs in a local Node process, not in the browser. Both `npm run dev` and `npm run build && npm run preview` provide the local bridge. **Static hosting, including Azure Static Web Apps and the nginx Docker image, cannot access your computer's CLI sign-in.** Run the app locally for Copilot, or choose an alternative provider on the hosted site.
+
+If the CLI is not authenticated, sign in from the terminal and return to the browser or select **Check connection**. If the runtime cannot start, reinstall dependencies and restart the local server. Advanced setups can export `COPILOT_CLI_PATH` to use an existing compatible CLI. Do not put Copilot tokens in browser settings or `VITE_*` variables.
+
+When setup is incomplete, **Set up Flowpilot** opens the shared AI settings modal.
 
 That matters for two reasons:
 
@@ -23,7 +43,7 @@ AI is available in the Studio panel under **Flowpilot** and through the **Open F
 
 | Mode | What it does |
 | --- | --- |
-| **Flowpilot** | Chat-based generation and iteration |
+| **Flowpilot** | Copilot-powered chat, generation, and iteration |
 | **From Code** | Paste source code and generate an architecture diagram |
 | **Import** | Paste SQL, Terraform, K8s, or OpenAPI and generate a draft |
 
@@ -34,11 +54,45 @@ Typical generation flow:
 3. receive a structured graph representation
 4. compose nodes and edges
 5. apply layout
-6. replace or update the current graph
+6. review the preview, then select **Apply to canvas** to replace or update the current graph
+
+## Follow-up edits and automatic mode
+
+After applying your first draft, Flowpilot defaults to **Edit current**. Short
+requests such as “Add Redis” or “Rename it to Orders Cache” prepare edits rather
+than another plan. If you explicitly asked for a plan, “Yes, do that” generates
+its changes. A confirmation of an existing preview applies that preview without
+another model request. **Create new** remains an explicit choice; Enter and the
+send button use the same mode.
+
+Previews list actual additions, removals, renames, and changed connections.
+Unchanged nodes are not counted as updated. **View diagram code** expands the
+DSL when needed. Discarded, replaced, and undone proposals remain marked in the
+conversation, but their DSL is not treated as the current diagram. Answers
+receive the current canvas, including manual changes.
+
+Review is the default. Enable **Apply edits automatically** in Flowpilot to apply
+completed edits without approval. Each edit is one undo step; **Undo AI edit**
+reverts the latest AI change while it is still the current canvas operation.
+After a manual edit, use the normal Undo/Redo controls so unrelated work is not
+reverted accidentally. Automatic mode and model selection follow the existing
+AI settings storage preference.
+
+Model selection and automatic mode cannot be changed during a request.
+Cancellation never applies a partial response. If you change the canvas while
+Flowpilot is working, or before applying a pending preview, request an updated
+draft rather than overwrite those changes. Pending previews are not restored
+as applied work after a reload.
 
 ## Provider model
 
-The app supports multiple BYOK providers, including:
+GitHub Copilot is the default engine, not an OpenAI-compatible API-key preset. The existing diagram harness still owns intent routing, asset grounding, parsing, automatic repair, layout, history, and preview approval.
+
+Requests and automatic DSL repairs use your Copilot quota. Cancellation stops the SDK request. A failed or truncated stream is not applied, silently retried by the browser, or rerouted to another provider. The SDK manages its own transport retries.
+
+CLI credentials remain on your computer. Prompts, conversation context, and attached images go through the local SDK to GitHub Copilot. The bridge accepts only same-origin loopback requests and disables file/shell tools, MCP servers, skills, ambient instructions, and shared session-store access. Temporary SDK sessions are removed after each request. This is not a multi-user public backend.
+
+Alternative providers retain their existing browser-to-provider transports:
 
 - Ollama
 - Gemini
@@ -53,7 +107,7 @@ The app supports multiple BYOK providers, including:
 
 This matters because you are not locked to one hosted AI vendor or one billing model. Ollama can run locally with no API key when its daemon and model are available.
 
-API keys stay browser-local. Persistent keys can be stored for reuse on the current device, and session-only mode is available when you do not want the key to survive the browser session.
+For these alternatives, API keys stay browser-local. Persistent keys can be stored for reuse on the current device, and session-only mode is available when you do not want the key to survive the browser session. Copilot does not use either API-key storage mode.
 
 ## When AI is the right tool
 

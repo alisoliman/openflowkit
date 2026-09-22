@@ -1,10 +1,16 @@
 import type { FlowEdge, FlowNode } from '@/lib/types';
+import { matchDiagramEdges } from '@/services/flowpilot/changeSummary';
+import { EDGE_ATTRIBUTE_KEYS, NODE_ATTRIBUTE_KEYS } from '@/services/openFlowDSLExporter';
 
 export interface PositionPreservingApplyResult {
     mergedNodes: FlowNode[];
     mergedEdges: FlowEdge[];
     newNodeIds: Set<string>;
     existingById: Map<string, FlowNode>;
+}
+
+function retainEditorData(data: Record<string, unknown>, dslKeys: readonly string[]): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(data).filter(([key]) => !dslKeys.includes(key)));
 }
 
 /**
@@ -18,7 +24,8 @@ export function applyAIResultToCanvas(
     aiNodes: FlowNode[],
     aiEdges: FlowEdge[],
     existingNodes: FlowNode[],
-    idMap: Map<string, string>
+    idMap: Map<string, string>,
+    existingEdges: FlowEdge[] = []
 ): PositionPreservingApplyResult {
     const existingById = new Map(existingNodes.map((n) => [n.id, n]));
     const newNodeIds = new Set<string>();
@@ -28,14 +35,39 @@ export function applyAIResultToCanvas(
         const existing = existingById.get(resolvedId);
 
         if (existing) {
-            return { ...aiNode, id: resolvedId, position: existing.position };
+            return {
+                ...existing,
+                ...aiNode,
+                id: resolvedId,
+                position: existing.position,
+                style: aiNode.style ?? existing.style,
+                // The response is a complete DSL document. Omitted DSL fields
+                // are removals; only metadata unavailable to the model is kept.
+                data: existing.type === aiNode.type
+                    ? { ...retainEditorData(existing.data, NODE_ATTRIBUTE_KEYS), ...aiNode.data }
+                    : aiNode.data,
+            };
         }
 
         newNodeIds.add(resolvedId);
         return { ...aiNode, id: resolvedId };
     });
 
-    return { mergedNodes, mergedEdges: aiEdges, newNodeIds, existingById };
+    const mergedEdges = matchDiagramEdges(existingEdges, aiEdges)
+        .filter((pair): pair is { before?: FlowEdge; after: FlowEdge } => Boolean(pair.after))
+        .map(({ before, after }) => before ? {
+            ...before,
+            ...after,
+            id: before.id,
+            sourceHandle: before.sourceHandle ?? after.sourceHandle,
+            targetHandle: before.targetHandle ?? after.targetHandle,
+            data: {
+                ...retainEditorData(before.data ?? {}, [...EDGE_ATTRIBUTE_KEYS, 'style', 'styleType']),
+                ...after.data,
+            },
+            style: { ...before.style, strokeDasharray: undefined, ...after.style },
+        } : after);
+    return { mergedNodes, mergedEdges, newNodeIds, existingById };
 }
 
 /**

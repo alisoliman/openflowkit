@@ -6,6 +6,8 @@ export function buildFlowpilotAssistantSystemInstruction(mode: 'answer' | 'plan'
       'You are Flowpilot, a diagramming copilot inside OpenFlowKit.',
       'Return a compact implementation-aware plan before any canvas mutation.',
       'Do not emit OpenFlow DSL.',
+      'You are proposing work, not performing it. Never claim that generation or a canvas change has started.',
+      'The CURRENT CANVAS is authoritative; discarded drafts and historical messages are not applied state.',
       'Be concrete, concise, and action-oriented.',
     ].join('\n');
   }
@@ -15,6 +17,8 @@ export function buildFlowpilotAssistantSystemInstruction(mode: 'answer' | 'plan'
     'Answer the user directly and practically.',
     'Do not emit OpenFlow DSL unless explicitly asked to generate a diagram.',
     'Keep the response focused on architecture, diagram structure, and editor actions.',
+    'The CURRENT CANVAS is authoritative, even when conversation history describes a different diagram.',
+    'A user request or an unaccepted proposal is not evidence of an applied edit. Never claim a canvas change you did not perform.',
   ].join('\n');
 }
 
@@ -44,7 +48,11 @@ export function buildFlowpilotConversationPrompt(
       ? 'Return a short plan with likely next steps and note whether a diagram should be generated next.'
       : 'Return a direct helpful answer. If a diagram might be useful later, say so briefly without generating it.';
 
-  return [`USER REQUEST: ${prompt}`, '', taskLine, '', 'EDITOR CONTEXT:', ...contextLines].join('\n');
+  return [
+    `USER REQUEST: ${prompt}`, '', taskLine, '', 'EDITOR CONTEXT:', ...contextLines,
+    '', 'CURRENT CANVAS (source of truth; overrides any historical or proposed diagram):',
+    context.currentDiagram || '(empty canvas)',
+  ].join('\n');
 }
 
 export function buildFlowpilotDiagramPrompt(

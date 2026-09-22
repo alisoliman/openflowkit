@@ -52,7 +52,9 @@ export function useFlowEditorScreenModel({ onGoHome }: UseFlowEditorScreenModelP
     assistantThread,
     clearChat,
     clearLastError,
-  } = useAIGeneration(screenState.recordHistory, callbacks.handleCommandBarApply);
+    canUndoLastChange,
+    undoLastChange,
+  } = useAIGeneration(callbacks.handlePreparedGraphApply);
 
   const handleApplyDsl = useCallback(
     (dsl: string) => {
@@ -270,6 +272,8 @@ export function useFlowEditorScreenModel({ onGoHome }: UseFlowEditorScreenModelP
         onClearAIError: clearLastError,
         chatMessages,
         assistantThread,
+        canUndoLastChange,
+        undoLastChange,
         clearChat,
         studioCodeMode: screenState.studioCodeMode,
         playback: {

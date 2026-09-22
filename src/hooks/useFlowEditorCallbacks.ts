@@ -35,7 +35,8 @@ interface UseFlowEditorCallbacksResult {
   handleReorderPage: (draggedPageId: string, targetPageId: string) => void;
   selectAll: () => void;
   handleRestoreSnapshot: (snapshot: FlowSnapshot) => void;
-  handleCommandBarApply: (newNodes: FlowNode[], newEdges: FlowEdge[]) => void;
+  handleCommandBarApply: (newNodes: FlowNode[], newEdges: FlowEdge[], options?: { preservePositions?: boolean }) => void;
+  handlePreparedGraphApply: (nodes: FlowNode[], edges: FlowEdge[]) => void;
 }
 
 function isMermaidImportApply(node: FlowNode): boolean {
@@ -128,8 +129,29 @@ export function useFlowEditorCallbacks({
     [recordHistory, restoreSnapshot, setEdges, setNodes]
   );
 
+  const commitGraph = useCallback((nodes: FlowNode[], edges: FlowEdge[], synchronous = false) => {
+    // React Flow setters enqueue updates. AI receipts and undo must observe the
+    // committed graph immediately, so prepared edits use the store actions.
+    const actions = synchronous ? useFlowStore.getState() : { setNodes, setEdges };
+    recordHistory();
+    startTransition(() => {
+      actions.setNodes(nodes.map((node, index) => ({
+        ...node,
+        data: { ...node.data, freshlyAdded: true, animateDelay: Math.min(index * 20, 400) },
+      })));
+      actions.setEdges(edges);
+    });
+    setTimeout(() => fitView({ duration: 800, padding: 0.2 }), 100);
+  }, [fitView, recordHistory, setEdges, setNodes]);
+
+  const handlePreparedGraphApply = useCallback((nodes: FlowNode[], edges: FlowEdge[]) => {
+    stabilizationRunIdRef.current += 1;
+    const normalized = nodes.map((node) => ({ ...node, data: normalizeNodeIconData(node.data) }));
+    commitGraph(normalized, assignSmartHandles(normalized, edges), true);
+  }, [commitGraph]);
+
   const handleCommandBarApply = useCallback(
-    async (newNodes: FlowNode[], newEdges: FlowEdge[]) => {
+    async (newNodes: FlowNode[], newEdges: FlowEdge[], options?: { preservePositions?: boolean }) => {
       const incomingMermaidImport =
         newNodes.some(isMermaidImportApply)
         || newEdges.some((edge) => edge.data?.routingMode === 'import-fixed');
@@ -146,19 +168,9 @@ export function useFlowEditorCallbacks({
         data: normalizeNodeIconData(node.data),
       }));
       const routedEdges = assignSmartHandles(enrichedNodes, newEdges);
-      recordHistory();
-      startTransition(() => {
-        setNodes(
-          enrichedNodes.map((node, index) => ({
-            ...node,
-            data: { ...node.data, freshlyAdded: true, animateDelay: Math.min(index * 20, 400) },
-          }))
-        );
-        setEdges(routedEdges);
-      });
-      setTimeout(() => fitView({ duration: 800, padding: 0.2 }), 100);
+      commitGraph(enrichedNodes, routedEdges);
 
-      if (incomingMermaidImport) {
+      if (incomingMermaidImport || options?.preservePositions) {
         stabilizationRunIdRef.current += 1;
         return;
       }
@@ -207,7 +219,7 @@ export function useFlowEditorCallbacks({
         })();
       }, 180);
     },
-    [fitView, recordHistory, setEdges, setNodes]
+    [commitGraph, fitView, setEdges, setNodes]
   );
 
   return {
@@ -220,5 +232,6 @@ export function useFlowEditorCallbacks({
     selectAll,
     handleRestoreSnapshot,
     handleCommandBarApply,
+    handlePreparedGraphApply,
   };
 }

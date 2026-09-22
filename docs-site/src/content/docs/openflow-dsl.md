@@ -72,7 +72,7 @@ approved ->|Yes| success
 approved ->|No| signup
 ```
 
-Common edge styles are `->` for default flow, `==>` for primary flow, `-->` for secondary flow, and `..` for dotted async or optional relationships.
+Common edge styles are `->` for default flow, `==>` for primary flow, `-->` for secondary flow, and `..>` for dashed async or optional relationships. Every connector needs its closing `>`, including labeled async edges such as `provider ..>|callback| auth_svc`.
 
 ## Why teams use it
 

@@ -18,8 +18,8 @@ export function ProviderIcon({ provider, isSelected }: ProviderIconProps): React
             <div
                 className="w-8 h-8 bg-[var(--brand-primary)]"
                 style={{
-                    maskImage: `url(${provider.logoPath})`,
-                    WebkitMaskImage: `url(${provider.logoPath})`,
+                    maskImage: `url("${provider.logoPath}")`,
+                    WebkitMaskImage: `url("${provider.logoPath}")`,
                     maskSize: 'contain',
                     WebkitMaskSize: 'contain',
                     maskRepeat: 'no-repeat',

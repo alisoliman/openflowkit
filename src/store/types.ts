@@ -39,6 +39,7 @@ export interface ViewSettings {
 }
 
 export type AIProvider =
+  | 'copilot'
   | 'gemini'
   | 'openai'
   | 'claude'
@@ -66,6 +67,7 @@ export interface AISettings {
   customBaseUrl?: string;
   customHeaders?: CustomHeaderConfig[];
   temperature?: number;
+  autoApply?: boolean;
 }
 
 export interface Layer {

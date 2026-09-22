@@ -56,7 +56,7 @@
 <table>
 <tr>
 <td align="center"><b>✨ Mermaid → Icons</b><br/><sub>Paste Mermaid · 1,600+ icons<br/>auto-assigned · beautiful</sub></td>
-<td align="center"><b>🤖 AI Generation</b><br/><sub>10 providers inc. local Ollama<br/>Direct-to-canvas output</sub></td>
+<td align="center"><b>🤖 AI Generation</b><br/><sub>GitHub Copilot + 10 alternatives<br/>Review before applying</sub></td>
 <td align="center"><b>`{}` Diagram as Code</b><br/><sub>Bidirectional live sync<br/>Git-friendly DSL</sub></td>
 <td align="center"><b>🧩 Asset Libraries</b><br/><sub>Developer · AWS · Azure<br/>GCP · CNCF · Icons</sub></td>
 <td align="center"><b>🎬 Cinematic MP4</b><br/><sub>WebCodecs H.264<br/>Faster-than-realtime</sub></td>
@@ -108,7 +108,7 @@ Every diagramming tool makes a compromise. OpenFlowKit doesn't.
 | **Lucidchart / Miro**   | Cloud lock-in — expensive, account required, your data lives on their servers |
 | **PlantUML**            | Server-dependent rendering — no visual editor, no local-first model           |
 
-OpenFlowKit is the **only MIT-licensed tool** that combines a real workspace home, a professional visual canvas, bidirectional diagram-as-code, AI generation from 10 providers (including fully-local Ollama), **automatic icon assignment from 1,600+ tech icons**, anchored auto-layout, hardware-encoded cinematic MP4 export, and a Model Context Protocol server so GitHub Copilot App, Copilot CLI, and other MCP clients can drive it directly — all with zero server-side storage.
+OpenFlowKit combines a real workspace home, a professional visual canvas, bidirectional diagram-as-code, AI generation using your GitHub Copilot quota or 10 alternative providers (including fully-local Ollama), **automatic icon assignment from 1,600+ tech icons**, anchored auto-layout, hardware-encoded cinematic MP4 export, and a Model Context Protocol server so GitHub Copilot App, Copilot CLI, and other MCP clients can drive it directly. Documents stay local-first.
 
 ---
 
@@ -118,7 +118,7 @@ OpenFlowKit is the **only MIT-licensed tool** that combines a real workspace hom
 | ------------------------------------- | :---------: | :--------: | :-----: | :-----: | :--------: |
 | Visual canvas editor                  |     ✅      |     ✅     |   ✅    |   ❌    |     ✅     |
 | Bidirectional diagram-as-code         |     ✅      |     ❌     |   ❌    |   ✅    |     ❌     |
-| AI generation (10 providers + Ollama) |     ✅      |     ❌     |   ❌    |   ❌    |  Limited   |
+| AI generation (Copilot + alternatives) |     ✅      |     ❌     |   ❌    |   ❌    |  Limited   |
 | Mermaid import (8 types)              |     ✅      |     ❌     |   ⚠️    |   ✅    |     ❌     |
 | Auto-icon assignment (1,600+)         |     ✅      |     ❌     |   ❌    |   ❌    |     ❌     |
 | AWS / Azure / GCP / CNCF icons        |     ✅      |     ❌     |   ✅    | Partial |     ✅     |
@@ -159,7 +159,7 @@ Paste this → you get the Express wordmark, PostgreSQL elephant, Redis logo, an
 - `npm run test:mermaid:layout` runs the layout, import-state, and recovery corpus gate
 - `npm run test:mermaid:gold` runs both together
 
-### AI generation (API key required)
+### AI generation (Copilot sign-in or a provider API key)
 
 Describe your system in plain English. AI generates a diagram on the canvas with correct icons applied automatically.
 
@@ -169,7 +169,7 @@ Describe your system in plain English. AI generates a diagram on the canvas with
 | "AWS Lambda → SQS → DynamoDB"             | 3 nodes with AWS icons                  |
 | "React frontend → Express → MongoDB → S3" | 4 nodes across developer + AWS catalogs |
 
-10 providers supported: Google Gemini, OpenAI, Anthropic Claude, Groq, Mistral, NVIDIA NIM, Cerebras, OpenRouter, **Ollama (fully local)**, or any custom OpenAI-compatible endpoint. Bad DSL from any provider is now auto-repaired — the model sees its own broken output and the parser error, then returns corrected DSL in a single follow-up turn.
+GitHub Copilot is the default engine, using the official SDK and your CLI sign-in. Alternative providers remain available: Google Gemini, OpenAI, Anthropic Claude, Groq, Mistral, NVIDIA NIM, Cerebras, OpenRouter, **Ollama (fully local)**, or a custom OpenAI-compatible endpoint. Bad DSL is auto-repaired in one follow-up request; repairs also consume the selected provider's quota.
 
 ---
 
@@ -184,11 +184,33 @@ That means the app does not create a fake default flow just to get you onto the 
 
 ---
 
-## Flowpilot — AI generation with any model
+## Flowpilot — powered by the GitHub Copilot SDK
 
-Flowpilot sits directly in the editor. Describe a system, paste source code, upload a screenshot, or ask it to refine what's already on the canvas. Your API key is stored in your browser and sent directly to the provider — OpenFlowKit's servers never see it.
+Flowpilot sits directly in the editor. Describe a system, paste source code, upload a screenshot, or refine the current canvas. Its existing intent routing, asset grounding, DSL repair, layout, history, and preview approval run on top of the official [`@github/copilot-sdk`](https://github.com/github/copilot-sdk) inference engine.
 
-**10 providers. Bring your own key. Switch any time. One runs entirely on your laptop.**
+With Node **20.19+ or 22.12+**, a current GitHub CLI, and Copilot access:
+
+```bash
+npm install
+gh copilot login
+npm run dev
+```
+
+Open **http://127.0.0.1:3000**, then **Settings → AI → GitHub Copilot** and **Check connection**. Available models are discovered from your account; the default uses the SDK's default model. No provider API key or browser-stored Copilot token is needed. Returning from terminal login refreshes the connection. Existing saved provider choices are preserved.
+
+Requests use your Copilot quota and are subject to your plan, model usage multipliers, and organization policy. Choose **Copilot model** directly in Flowpilot to select an account-provided model for subsequent turns; the same selection is reflected in Settings. Model and execution-mode controls are locked while a request is running.
+
+Flowpilot defaults to **Edit current** after your first draft and accepts short follow-ups such as “Add Redis,” “Rename it,” and “Yes, do that” after a plan. Answers use the actual canvas, not discarded or outdated proposals. Previews show changed nodes and connections, including renames; full DSL is available under **View diagram code**.
+
+**Review mode is the default.** Use **Apply to canvas** or **Discard**, or explicitly enable **Apply edits automatically** to let completed Flowpilot edits update the diagram without confirmation. Each applied edit creates one undo step, with an **Undo AI edit** button next to the toggle. If you make a later manual change, use the normal canvas Undo controls instead; Flowpilot will not silently undo unrelated work. Model and automatic-edit preferences persist using your existing AI settings storage mode.
+
+The SDK handles transport retries; Flowpilot does not silently replay failed streams or fall back to another provider. Cancellation stops the SDK request. If you change the canvas while a request is running, or after a preview was prepared, regenerate against the latest canvas rather than applying a stale result.
+
+**Copilot runs locally, not inside a static website.** Both `npm run dev` and `npm run build && npm run preview` include a same-origin, loopback-only Node bridge. Credentials stay with the CLI; prompts, conversation context, and attached images go to GitHub Copilot. Host file/shell tools, MCP servers, skills, and ambient instructions are disabled. Each request uses a temporary SDK session that is removed afterward. Inherited automation tokens are excluded so they cannot replace your CLI identity; `COPILOT_HOME` and the SDK's `COPILOT_CLI_PATH` override are honored.
+
+### Alternative providers
+
+Ten alternatives remain available in Settings. Their existing browser-to-provider transport and key-storage options are unchanged.
 
 | Provider            | Default model                              | Why use it                                      |
 | ------------------- | ------------------------------------------ | ----------------------------------------------- |
@@ -203,7 +225,7 @@ Flowpilot sits directly in the editor. Describe a system, paste source code, upl
 | OpenRouter          | `google/gemini-2.5-pro`                    | Access 300+ models through one key              |
 | **Custom endpoint** | Any model                                  | LM Studio, vLLM, or any OpenAI-compatible API   |
 
-No proxy. No middleman. Direct browser-to-provider requests.
+These alternatives send requests directly from the browser; some providers require a compatible proxy because of their CORS policies.
 
 ---
 
@@ -367,15 +389,22 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). Done.
+Use Node **20.19+ or 22.12+** and open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-> **Zero environment variables required.** AI provider keys are configured in the in-app settings panel at runtime — nothing goes in `.env`.
+> **Zero environment variables required.** Run `gh copilot login` to use your Copilot account, or configure an alternative provider in Settings.
 
 ---
 
 ## Self-host
 
-OpenFlowKit is a pure static SPA. There is no backend. Deploy the `dist/` folder anywhere that serves HTML.
+The editor can still be deployed as a static SPA by serving `dist/`. Static hosting (including Azure Static Web Apps) and the nginx Docker image do **not** run the Copilot SDK or inherit your laptop's CLI login. Use an alternative provider there, or run the app locally for Copilot:
+
+```bash
+npm run build
+npm run preview    # http://127.0.0.1:4173, with the local Copilot bridge
+```
+
+Do not expose the authenticated bridge publicly or share a server's personal Copilot session with other users. A multi-user hosted integration would require a separate per-user OAuth service; it is not provided by this local runtime.
 
 **Cloudflare Pages / Netlify / Vercel:**
 
@@ -409,7 +438,7 @@ Open [http://localhost:3045](http://localhost:3045). The container serves the pr
 
 For a fixed URL override, build with `docker build --build-arg VITE_APP_URL=https://diagrams.example.com -t openflowkit .`. A runtime `docker run -e VITE_APP_URL=...` cannot change an already-built static app; omit the build argument to use the hosting origin at runtime.
 
-No database. No secrets. No infrastructure. One folder, or one container.
+The static editor needs no database or server-side provider credentials.
 
 ---
 
@@ -424,6 +453,7 @@ No database. No secrets. No infrastructure. One folder, or one container.
 | Video export  | WebCodecs `VideoEncoder` + `mp4-muxer` (MediaRecorder fallback) |
 | State         | Zustand                                                   |
 | Storage       | IndexedDB — local-first, no backend                       |
+| Flowpilot engine | GitHub Copilot SDK — local Node bridge, CLI authentication |
 | Styling       | Tailwind CSS                                              |
 | Agent surface | `@vrun-design/openflowkit-mcp` — Model Context Protocol stdio  |
 | Collaboration | WebRTC P2P (opt-in, off by default)                       |
@@ -439,10 +469,11 @@ All contributions are welcome — bug fixes, new diagram types, parser improveme
 Start here:
 
 ```bash
-npm run dev        # development server at localhost:5173
+npm run dev        # development server + Copilot bridge at 127.0.0.1:3000
 npm run test       # unit tests via Vitest
 npm run e2e        # end-to-end tests via Playwright
-npm run lint       # ESLint + TypeScript type-check
+npm run lint       # ESLint
+npm run typecheck  # browser + Copilot runtime TypeScript checks
 ```
 
 **Good first issues** are tagged [`good first issue`](https://github.com/Vrun-design/openflowkit/labels/good%20first%20issue). Before opening a PR, please read [CONTRIBUTING.md](CONTRIBUTING.md).

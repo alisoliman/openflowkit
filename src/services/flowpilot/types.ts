@@ -85,6 +85,26 @@ export interface AssistantThreadItem {
   previewDetail?: string;
   previewStats?: string[];
   applied?: boolean;
+  previewStatus?: 'pending' | 'applied' | 'discarded' | 'superseded' | 'undone';
+  changes?: DiagramChangeSummary;
+}
+
+export interface DiagramChange {
+  kind: 'node' | 'edge';
+  status: 'added' | 'removed' | 'updated';
+  label: string;
+  previousLabel?: string;
+}
+
+export interface DiagramChangeSummary {
+  addedCount: number;
+  removedCount: number;
+  updatedCount: number;
+  addedEdgeCount: number;
+  removedEdgeCount: number;
+  updatedEdgeCount: number;
+  totalChanges: number;
+  details: DiagramChange[];
 }
 
 export interface FlowpilotPolicyContext {
@@ -92,4 +112,6 @@ export interface FlowpilotPolicyContext {
   nodeCount: number;
   selectedNodeCount: number;
   hasImage?: boolean;
+  currentDiagram?: string;
+  hasPendingPlan?: boolean;
 }

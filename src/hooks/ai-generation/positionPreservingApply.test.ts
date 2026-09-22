@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { FlowNode } from '@/lib/types';
+import type { FlowEdge, FlowNode } from '@/lib/types';
+import { parseDslOrThrow } from './graphComposer';
 import { applyAIResultToCanvas, positionNewNodesSmartly, restoreExistingPositions } from './positionPreservingApply';
 
 function node(id: string, x = 0, y = 0): FlowNode {
@@ -47,6 +48,43 @@ describe('applyAIResultToCanvas', () => {
     expect(mergedNodes.find((n) => n.id === 'keep-me')?.position).toEqual({ x: 50, y: 60 });
     expect(newNodeIds.has('ai-new')).toBe(true);
     expect(newNodeIds.has('keep-me')).toBe(false);
+  });
+
+  it('removes omitted DSL attributes while retaining editor-only metadata and node positions', () => {
+    const existing = node('api', 100, 200);
+    existing.data = {
+      label: 'API', subLabel: 'Remove this subtitle', archEnvironment: 'staging',
+      pinned: true, imageAssetId: 'local-image',
+    };
+    const parsed = parseDslOrThrow('flow: Test\n[process] api: API');
+    const { mergedNodes } = applyAIResultToCanvas(parsed.nodes, [], [existing], new Map([['api', 'api']]));
+
+    expect(mergedNodes[0].data.subLabel).toBeUndefined();
+    expect(mergedNodes[0].data.archEnvironment).toBeUndefined();
+    expect(mergedNodes[0].data.pinned).toBe(true);
+    expect(mergedNodes[0].data.imageAssetId).toBe('local-image');
+    expect(mergedNodes[0].position).toEqual({ x: 100, y: 200 });
+  });
+
+  it('can turn a dashed conditional connection into a plain solid connection', () => {
+    const existing: FlowEdge = {
+      id: 'existing-edge', source: 'api', target: 'db', label: 'query',
+      sourceHandle: 'bottom-source', targetHandle: 'top-target',
+      style: { stroke: '#123456', strokeDasharray: '5 5' },
+      data: { label: 'query', styleType: 'dashed', style: 'dashed', condition: 'timeout', labelOffsetX: 12 },
+    };
+    const parsed = parseDslOrThrow('flow: Test\n[process] api: API\n[process] db: DB\napi ->|query| db');
+    const { mergedEdges } = applyAIResultToCanvas(parsed.nodes, parsed.edges, parsed.nodes, new Map(), [existing]);
+
+    expect(mergedEdges[0].id).toBe('existing-edge');
+    expect(mergedEdges[0].style?.strokeDasharray).toBeUndefined();
+    expect(mergedEdges[0].data?.styleType).toBeUndefined();
+    expect(mergedEdges[0].data?.style).toBeUndefined();
+    expect(mergedEdges[0].data?.condition).toBeUndefined();
+    expect(mergedEdges[0].style?.stroke).toBe('#123456');
+    expect(mergedEdges[0].data?.labelOffsetX).toBe(12);
+    expect(mergedEdges[0].sourceHandle).toBe('bottom-source');
+    expect(mergedEdges[0].targetHandle).toBe('top-target');
   });
 });
 

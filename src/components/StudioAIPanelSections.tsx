@@ -5,12 +5,9 @@ import {
   CheckCircle2,
   Crosshair,
   Info,
-  Key,
+  Settings2,
   Loader2,
-  Minus,
   Paperclip,
-  Plus,
-  RefreshCw,
   Square,
   Trash2,
   WandSparkles,
@@ -24,6 +21,7 @@ import type { ImportDiff } from '@/hooks/useAIGeneration';
 import type { AIReadinessState } from '@/hooks/ai-generation/readiness';
 import { SECTION_CARD_CLASS, SECTION_SURFACE_CLASS, STATUS_SURFACE_CLASS } from '@/lib/designTokens';
 import { STUDIO_AI_COPY } from './studioAICopy';
+import { FlowpilotChangeSummary } from './FlowpilotChangeSummary';
 
 export type AIGenerationMode = 'edit' | 'create';
 type TranslateFn = (...args: unknown[]) => string;
@@ -33,6 +31,7 @@ interface PendingDiffBannerProps {
   onConfirmDiff: () => void;
   onDiscardDiff: () => void;
   t: TranslateFn;
+  isGenerating?: boolean;
 }
 
 export function PendingDiffBanner({
@@ -40,6 +39,7 @@ export function PendingDiffBanner({
   onConfirmDiff,
   onDiscardDiff,
   t,
+  isGenerating,
 }: PendingDiffBannerProps): ReactElement {
   return (
     <div className={`mx-1 mb-2 rounded-[var(--radius-md)] p-3 ${STATUS_SURFACE_CLASS.success}`}>
@@ -66,35 +66,14 @@ export function PendingDiffBanner({
           ))}
         </div>
       ) : null}
-      <div className="flex items-center gap-3 mb-3 text-[11px]">
-        {pendingDiff.addedCount > 0 ? (
-          <span className="flex items-center gap-1 font-medium text-[var(--color-surface-success-text)]">
-            <Plus className="h-3 w-3" />
-            {t('commandBar.aiStudio.addedCount', {
-              count: pendingDiff.addedCount,
-              defaultValue: '{{count}} added',
-            })}
-          </span>
-        ) : null}
-        {pendingDiff.updatedCount > 0 ? (
-          <span className="flex items-center gap-1 font-medium text-[var(--color-surface-warning-text)]">
-            <RefreshCw className="h-3 w-3" />
-            {t('commandBar.aiStudio.updatedCount', {
-              count: pendingDiff.updatedCount,
-              defaultValue: '{{count}} updated',
-            })}
-          </span>
-        ) : null}
-        {pendingDiff.removedCount > 0 ? (
-          <span className="flex items-center gap-1 font-medium text-[var(--color-surface-danger-text)]">
-            <Minus className="h-3 w-3" />
-            {t('commandBar.aiStudio.removedCount', {
-              count: pendingDiff.removedCount,
-              defaultValue: '{{count}} removed',
-            })}
-          </span>
-        ) : null}
+      <div className="mb-3">
+        <FlowpilotChangeSummary changes={pendingDiff.changes} compact />
       </div>
+      {pendingDiff.stale && (
+        <p role="status" className="mb-3 text-sm leading-5">
+          {t('flowpilot.stalePreview', 'The canvas changed. Discard this draft and request an updated edit.')}
+        </p>
+      )}
       <div className="flex gap-2">
         <button
           onClick={onDiscardDiff}
@@ -104,7 +83,8 @@ export function PendingDiffBanner({
         </button>
         <button
           onClick={onConfirmDiff}
-          className="flex h-7 flex-1 items-center justify-center rounded bg-emerald-600 text-[11px] font-medium text-white hover:bg-emerald-700"
+          disabled={pendingDiff.stale || isGenerating}
+          className="flex h-8 flex-1 items-center justify-center rounded bg-emerald-600 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('commandBar.aiStudio.applyToCanvas', 'Apply to canvas')}
         </button>
@@ -212,7 +192,27 @@ function renderPlanContent(item: AssistantThreadItem): ReactElement {
   );
 }
 
-function renderThreadContent(item: AssistantThreadItem): ReactElement {
+function renderThreadContent(item: AssistantThreadItem, t: TranslateFn): ReactElement {
+  if (item.type === 'assistant_canvas_preview') {
+    const status = item.previewStatus ?? (item.applied ? 'applied' : 'superseded');
+    const statusLabels = {
+      pending: t('flowpilot.previewPending', 'Proposed changes'),
+      applied: t('flowpilot.previewApplied', 'Applied to canvas'),
+      discarded: t('flowpilot.previewDiscarded', 'Discarded · canvas unchanged'),
+      superseded: t('flowpilot.previewSuperseded', 'Previous draft · not applied'),
+      undone: t('flowpilot.previewUndone', 'Undone'),
+    };
+    return (
+      <div className="space-y-3 whitespace-normal">
+        <p className="text-sm font-semibold" data-preview-status={status}>{statusLabels[status]}</p>
+        {item.changes ? <FlowpilotChangeSummary changes={item.changes} /> : <p>{item.previewTitle}</p>}
+        <details className="text-xs text-[var(--brand-secondary)]">
+          <summary className="cursor-pointer">{t('flowpilot.viewCode', 'View diagram code')}</summary>
+          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words">{item.content}</pre>
+        </details>
+      </div>
+    );
+  }
   if (item.role !== 'user' && item.type === 'assistant_plan' && item.plan) {
     return renderPlanContent(item);
   }
@@ -244,17 +244,17 @@ function getStreamingStatusCopy(
   return 'Understanding the request and deciding whether to answer in chat or prepare a canvas preview.';
 }
 
-function renderThreadItem(item: AssistantThreadItem): ReactElement {
+function renderThreadItem(item: AssistantThreadItem, t: TranslateFn): ReactElement {
   const isUser = item.role === 'user';
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`} key={item.id}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`} key={item.id} data-thread-type={item.type}>
       <div
         className={`max-w-[88%] rounded-[var(--radius-md)] px-3.5 py-2.5 text-sm whitespace-pre-wrap ${getThreadBubbleClassName(isUser)}`}
       >
-        {renderThreadContent(item)}
-        {isUser ? null : renderThreadAssetMatches(item)}
-        {isUser ? null : renderThreadPreview(item)}
+        {renderThreadContent(item, t)}
+        {isUser || item.type === 'assistant_canvas_preview' ? null : renderThreadAssetMatches(item)}
+        {isUser || item.type === 'assistant_canvas_preview' ? null : renderThreadPreview(item)}
       </div>
     </div>
   );
@@ -291,9 +291,11 @@ export function ChatHistoryView({
         </div>
         <div
           ref={scrollRef}
+          role="log"
+          aria-live="polite"
           className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-4 custom-scrollbar"
         >
-          {assistantThread.map((item) => renderThreadItem(item))}
+          {assistantThread.map((item) => renderThreadItem(item, t))}
           {isGenerating ? (
             <div className="flex justify-start">
               <div className="max-w-[88%] rounded-[var(--radius-md)] rounded-bl-sm border border-[var(--color-brand-border)]/70 bg-[var(--brand-surface)] px-3.5 py-2.5 text-sm text-[var(--brand-text)] shadow-sm">
@@ -304,7 +306,7 @@ export function ChatHistoryView({
                 <div className="mt-2 text-[12px] leading-relaxed text-[var(--brand-secondary)]">
                   {getStreamingStatusCopy(streamingText, retryCount, chatMessages.length, t)}
                 </div>
-                {streamingText ? (
+                {streamingText && !/^\s*(?:```[^\n]*\n?)?\s*flow\s*:/i.test(streamingText) ? (
                   <div className="mt-3 whitespace-pre-wrap leading-relaxed">{streamingText}</div>
                 ) : null}
               </div>
@@ -365,8 +367,8 @@ export function ChatHistoryView({
               onClick={onOpenAISettings}
               className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-[var(--brand-secondary)] transition-all hover:bg-[var(--brand-background)] hover:text-[var(--brand-text)] active:scale-95 ${SECTION_SURFACE_CLASS}`}
             >
-              <Key className="h-3.5 w-3.5" />
-              {t('commandBar.aiStudio.addKeyCta', 'Add AI key to start generating')}
+              <Settings2 className="h-3.5 w-3.5" />
+              {t('copilot.setupCta', 'Set up Flowpilot')}
             </button>
           </div>
         )}

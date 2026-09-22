@@ -64,7 +64,7 @@ describe('StudioAIPanel', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Add AI key to start generating' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set up Flowpilot' })).toBeInTheDocument();
   });
 
   it('opens settings instead of generating when AI is not configured', () => {
@@ -252,7 +252,7 @@ describe('StudioAIPanel', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add AI key to start generating' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Flowpilot' }));
 
     expect(dispatchEventSpy).toHaveBeenCalledTimes(1);
     expect(dispatchEventSpy.mock.calls[0]?.[0]).toBeInstanceOf(CustomEvent);
@@ -300,6 +300,10 @@ describe('StudioAIPanel', () => {
         retryCount={0}
         onCancelGeneration={vi.fn()}
         pendingDiff={{
+          documentId: 'diagram',
+          baselineFingerprint: '',
+          threadItemId: 'preview',
+          changes: { addedCount: 4, updatedCount: 6, removedCount: 0, addedEdgeCount: 0, updatedEdgeCount: 0, removedEdgeCount: 0, totalChanges: 10, details: [] },
           addedCount: 4,
           updatedCount: 6,
           removedCount: 0,

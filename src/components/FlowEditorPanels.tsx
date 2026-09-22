@@ -239,6 +239,8 @@ export interface StudioRailProps {
   onViewProperties: () => void;
   chatMessages: ChatMessage[];
   assistantThread: AssistantThreadItem[];
+  canUndoLastChange?: boolean;
+  undoLastChange?: () => void;
   onClearChat: () => void;
   activeTab: StudioTab;
   onTabChange: (tab: StudioTab) => void;
@@ -414,6 +416,8 @@ export function FlowEditorPanels({
                 onViewProperties={studio.onViewProperties}
                 chatMessages={studio.chatMessages}
                 assistantThread={studio.assistantThread}
+                canUndoLastChange={studio.canUndoLastChange}
+                undoLastChange={studio.undoLastChange}
                 onClearChat={studio.onClearChat}
                 activeTab={studio.activeTab}
                 onTabChange={studio.onTabChange}

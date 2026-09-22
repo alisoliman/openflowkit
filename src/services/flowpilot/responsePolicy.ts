@@ -8,14 +8,13 @@ const EXPLANATION_PATTERNS = [
   /\breview\b/i,
   /\banalyze\b/i,
   /\bcompare\b/i,
+  /^(?:please\s+)?(?:what|why|how|is|are|does|can you explain|could you explain)\b/i,
 ];
 
 const PLANNING_PATTERNS = [
-  /\bplan\b/i,
-  /\bstrategy\b/i,
-  /\boptions\b/i,
+  /^(?:please\s+)?(?:plan|outline|propose|brainstorm|suggest)\b/i,
+  /\b(?:give|show|discuss)\s+(?:me\s+)?(?:a\s+)?(?:plan|strategy|options)\b/i,
   /\bbefore drawing\b/i,
-  /\boutline\b/i,
 ];
 
 const ASSET_PATTERNS = [
@@ -35,7 +34,10 @@ const DIAGRAM_PATTERNS = [
   /\bmap\b/i,
 ];
 
-const EDIT_PATTERNS = [/\bchange\b/i, /\bupdate\b/i, /\bedit\b/i, /\brefine\b/i, /\breplace\b/i];
+const EDIT_PATTERNS = [
+  /\b(?:change|update|edit|refine|replace|rename|add|remove|delete|insert|connect|disconnect|move|reorder|simplify|recolor|resize|convert|switch)\b/i,
+  /^(?:please\s+)?(?:make|turn|use|keep|put|set)\b/i,
+];
 
 const ARCHITECTURE_PATTERNS = [
   /\barchitecture\b/i,
@@ -56,6 +58,11 @@ function clampConfidence(value: number): number {
   return Math.max(0.1, Math.min(0.98, Math.round(value * 100) / 100));
 }
 
+export function isFlowpilotConfirmation(prompt: string): boolean {
+  const normalized = prompt.trim().replace(/[,.!]/g, '').replace(/\s+/g, ' ');
+  return /^(?:(?:yes|sure|ok(?:ay)?)(?: please)?|(?:(?:yes|sure|ok(?:ay)?) )?(?:please )?(?:do (?:it|that)|go ahead|apply (?:it|that|the changes|the plan)|proceed|continue|sounds good)(?: please)?)$/i.test(normalized);
+}
+
 export function chooseFlowpilotResponseMode(
   context: FlowpilotPolicyContext
 ): {
@@ -73,7 +80,19 @@ export function chooseFlowpilotResponseMode(
   const hasEditIntent = matchesAny(normalizedPrompt, EDIT_PATTERNS);
   const hasArchitectureIntent = matchesAny(normalizedPrompt, ARCHITECTURE_PATTERNS);
 
-  if (hasAssetIntent && !hasDiagramIntent) {
+  if (isFlowpilotConfirmation(normalizedPrompt)) {
+    return context.hasPendingPlan ? {
+      mode: 'diagram_preview', confidence: 0.95, requiresApproval: true,
+      reasoningSummary: 'The user confirmed the previous plan; prepare its changes on the current canvas.',
+      skillId: 'create_architecture',
+    } : {
+      mode: 'clarification', confidence: 0.8, requiresApproval: false,
+      reasoningSummary: 'There is no pending plan to apply; ask which change the user wants.',
+      skillId: 'answer_question',
+    };
+  }
+
+  if (hasAssetIntent && !hasDiagramIntent && !hasEditIntent) {
     return {
       mode: 'asset_suggestions',
       confidence: 0.9,
@@ -83,7 +102,7 @@ export function chooseFlowpilotResponseMode(
     };
   }
 
-  if (hasExplanationIntent && context.nodeCount > 0) {
+  if (hasExplanationIntent) {
     return {
       mode: 'answer',
       confidence: 0.87,
@@ -93,7 +112,7 @@ export function chooseFlowpilotResponseMode(
     };
   }
 
-  if (hasPlanningIntent || (!hasDiagramIntent && normalizedPrompt.split(/\s+/).length < 10)) {
+  if (hasPlanningIntent) {
     return {
       mode: 'plan',
       confidence: clampConfidence(hasPlanningIntent ? 0.88 : 0.66),
@@ -103,17 +122,17 @@ export function chooseFlowpilotResponseMode(
     };
   }
 
-  if (context.selectedNodeCount > 0 && hasEditIntent) {
+  if (hasEditIntent && context.nodeCount > 0) {
     return {
       mode: 'diagram_preview',
       confidence: 0.9,
       requiresApproval: true,
-      reasoningSummary: 'The request is a scoped edit on selected nodes, so a preview is safer than applying directly.',
-      skillId: 'edit_selected_nodes',
+      reasoningSummary: 'The request modifies the current diagram; preserve everything outside the requested change.',
+      skillId: context.selectedNodeCount > 0 ? 'edit_selected_nodes' : 'create_architecture',
     };
   }
 
-  if (hasArchitectureIntent || hasDiagramIntent) {
+  if (hasArchitectureIntent || hasDiagramIntent || hasEditIntent || context.hasImage) {
     return {
       mode: 'diagram_preview',
       confidence: clampConfidence(hasArchitectureIntent ? 0.92 : 0.84),
