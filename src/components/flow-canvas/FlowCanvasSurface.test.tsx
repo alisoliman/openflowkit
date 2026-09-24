@@ -165,7 +165,8 @@ describe('FlowCanvasSurface', () => {
       nodesConnectable: true,
       edgesReconnectable: true,
       elementsSelectable: true,
-      deleteKeyCode: undefined,
+      // Deletion keys belong to the app's shortcut handler, which records one undo step.
+      deleteKeyCode: null,
       disableKeyboardA11y: false,
     });
     expect(screen.getByTestId('viewport-mock')).not.toHaveAttribute('inert');

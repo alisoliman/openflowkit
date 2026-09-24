@@ -83,6 +83,7 @@ export interface ContextMenuProps {
   onBringToFront?: () => void;
   onSendToBack?: () => void;
   onEditLabel?: () => void;
+  onReverseEdge?: () => void;
   onFitSectionToContents?: () => void;
   onBringContentsIntoSection?: () => void;
   onReleaseFromSection?: () => void;
@@ -115,6 +116,7 @@ export function ContextMenu({
   onBringToFront,
   onSendToBack,
   onEditLabel,
+  onReverseEdge,
   onFitSectionToContents,
   onBringContentsIntoSection,
   onReleaseFromSection,
@@ -314,13 +316,15 @@ export function ContextMenu({
               <Pencil className="w-4 h-4" /> {t('common.editLabel')}
             </button>
           )}
-          <button
-            role="menuitem"
-            onClick={onDuplicate}
-            className={MENU_BUTTON_CLASS_NAME}
-          >
-            <Replace className="w-4 h-4" /> {t('common.reverseDirection')}
-          </button>
+          {onReverseEdge && (
+            <button
+              role="menuitem"
+              onClick={onReverseEdge}
+              className={MENU_BUTTON_CLASS_NAME}
+            >
+              <Replace className="w-4 h-4" /> {t('common.reverseDirection')}
+            </button>
+          )}
           <div className={DIVIDER_CLASS_NAME} />
           <button
             role="menuitem"

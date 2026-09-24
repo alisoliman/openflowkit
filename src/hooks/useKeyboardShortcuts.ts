@@ -4,10 +4,8 @@ import { requestNodeLabelEdit } from './nodeLabelEditRequest';
 
 interface ShortcutHandlers {
   selectedNodeId: string | null;
-  selectedEdgeId: string | null;
   selectedNodeType?: string | null;
-  deleteNode: (id: string) => void;
-  deleteEdge: (id: string) => void;
+  deleteSelection: () => void;
   undo: () => void;
   redo: () => void;
   canUndo?: boolean;
@@ -39,10 +37,8 @@ interface ShortcutHandlers {
 
 export function useKeyboardShortcuts({
   selectedNodeId,
-  selectedEdgeId,
   selectedNodeType,
-  deleteNode,
-  deleteEdge,
+  deleteSelection,
   undo,
   redo,
   canUndo,
@@ -159,16 +155,11 @@ export function useKeyboardShortcuts({
 
       if (isAgentEditing) return;
 
-      // Delete
+      // Delete, also with modifiers (Cmd+Backspace). React Flow's own delete key is off, so
+      // this is the one path and one undo step.
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (isEditable) return;
-
-        if (selectedNodeId) {
-          deleteNode(selectedNodeId);
-        }
-        if (selectedEdgeId) {
-          deleteEdge(selectedEdgeId);
-        }
+        deleteSelection();
       }
 
       // Undo / Redo
@@ -327,5 +318,5 @@ export function useKeyboardShortcuts({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedNodeId, selectedEdgeId, selectedNodeType, deleteNode, deleteEdge, undo, redo, canUndo, canRedo, onUndoUnavailable, onRedoUnavailable, duplicateNode, selectAll, onAddMindmapChildShortcut, onAddMindmapSiblingShortcut, onCommandBar, onSearch, onShortcutsHelp, onSelectMode, onPanMode, onFitView, onZoomIn, onZoomOut, onCopy, onPaste, onCopyStyle, onPasteStyle, onQuickCreateShortcut, onAnnotationColorShortcut, onClearSelection, onNudge, onTogglePinPositionShortcut]);
+  }, [selectedNodeId, selectedNodeType, deleteSelection, undo, redo, canUndo, canRedo, onUndoUnavailable, onRedoUnavailable, duplicateNode, selectAll, onAddMindmapChildShortcut, onAddMindmapSiblingShortcut, onCommandBar, onSearch, onShortcutsHelp, onSelectMode, onPanMode, onFitView, onZoomIn, onZoomOut, onCopy, onPaste, onCopyStyle, onPasteStyle, onQuickCreateShortcut, onAnnotationColorShortcut, onClearSelection, onNudge, onTogglePinPositionShortcut]);
 }

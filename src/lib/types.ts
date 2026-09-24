@@ -372,6 +372,8 @@ export interface GeneratedFlowData {
 export interface FlowHistoryState {
   nodes: FlowNode[];
   edges: FlowEdge[];
+  /** The diagram-wide edge style, which a canvas-wide restyle changes along with every edge. */
+  globalEdgeOptions?: GlobalEdgeOptions;
 }
 
 export interface FlowTab {

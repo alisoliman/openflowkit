@@ -6,10 +6,8 @@ import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 function renderShortcuts(overrides: Partial<Parameters<typeof useKeyboardShortcuts>[0]> = {}): void {
   const baseHandlers = {
     selectedNodeId: 'node-1',
-    selectedEdgeId: null,
     selectedNodeType: 'process',
-    deleteNode: vi.fn(),
-    deleteEdge: vi.fn(),
+    deleteSelection: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
     duplicateNode: vi.fn(),
@@ -175,17 +173,32 @@ describe('useKeyboardShortcuts', () => {
     expect(onAddMindmapSiblingShortcut).toHaveBeenCalledTimes(1);
   });
 
-  it('deletes the selected edge on Delete', () => {
-    const deleteEdge = vi.fn();
-    renderShortcuts({
-      selectedNodeId: null,
-      selectedEdgeId: 'edge-1',
-      deleteEdge,
-    });
+  it('deletes the selection on Delete and Backspace, with or without modifiers', () => {
+    const deleteSelection = vi.fn();
+    renderShortcuts({ deleteSelection });
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+    for (const init of [
+      { key: 'Delete' },
+      { key: 'Backspace' },
+      { key: 'Backspace', metaKey: true },
+      { key: 'Backspace', shiftKey: true },
+    ]) {
+      window.dispatchEvent(new KeyboardEvent('keydown', init));
+    }
 
-    expect(deleteEdge).toHaveBeenCalledWith('edge-1');
+    expect(deleteSelection).toHaveBeenCalledTimes(4);
+  });
+
+  it('leaves Backspace to the field being typed in', () => {
+    const deleteSelection = vi.fn();
+    renderShortcuts({ deleteSelection });
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
+
+    expect(deleteSelection).not.toHaveBeenCalled();
   });
 
   it('copies style on Cmd/Ctrl+Alt+C outside editable fields', () => {
@@ -250,7 +263,7 @@ describe('useKeyboardShortcuts', () => {
 
   it('leaves only help, fit view and zoom while a Flowpilot turn edits the page', () => {
     const handlers = {
-      deleteNode: vi.fn(),
+      deleteSelection: vi.fn(),
       undo: vi.fn(),
       redo: vi.fn(),
       duplicateNode: vi.fn(),
@@ -271,6 +284,7 @@ describe('useKeyboardShortcuts', () => {
 
     for (const init of [
       { key: 'Delete' },
+      { key: 'Backspace' },
       { key: 'z', ctrlKey: true },
       { key: 'y', ctrlKey: true },
       { key: 'd', ctrlKey: true },

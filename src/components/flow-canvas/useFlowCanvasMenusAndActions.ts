@@ -1,4 +1,4 @@
-import type { Node } from '@/lib/reactflowCompat';
+import type { Edge, Node } from '@/lib/reactflowCompat';
 import { useFlowCanvasContextActions } from './useFlowCanvasContextActions';
 import { useFlowCanvasMenus } from './useFlowCanvasMenus';
 
@@ -10,6 +10,8 @@ interface UseFlowCanvasMenusAndActionsParams {
     duplicateNode: (id: string) => void;
     deleteNode: (id: string) => void;
     deleteEdge: (id: string) => void;
+    deleteSelection: () => void;
+    reverseEdge: (id: string) => void;
     updateNodeZIndex: (id: string, action: 'front' | 'back') => void;
     updateNodeType: (id: string, type: string) => void;
     updateNodeData: (id: string, updates: Record<string, unknown>) => void;
@@ -21,6 +23,7 @@ interface UseFlowCanvasMenusAndActionsParams {
     handleGroupNodes: () => void;
     handleWrapInSection: () => void;
     nodes: Node[];
+    edges: Edge[];
 }
 
 export function useFlowCanvasMenusAndActions({
@@ -31,6 +34,8 @@ export function useFlowCanvasMenusAndActions({
     duplicateNode,
     deleteNode,
     deleteEdge,
+    deleteSelection,
+    reverseEdge,
     updateNodeZIndex,
     updateNodeType,
     updateNodeData,
@@ -42,6 +47,7 @@ export function useFlowCanvasMenusAndActions({
     handleGroupNodes,
     handleWrapInSection,
     nodes,
+    edges,
 }: UseFlowCanvasMenusAndActionsParams) {
     const menus = useFlowCanvasMenus({
         onPaneSelectionClear,
@@ -55,6 +61,8 @@ export function useFlowCanvasMenusAndActions({
         duplicateNode,
         deleteNode,
         deleteEdge,
+        deleteSelection,
+        reverseEdge,
         updateNodeZIndex,
         updateNodeType,
         updateNodeData,
@@ -66,6 +74,7 @@ export function useFlowCanvasMenusAndActions({
         handleGroupNodes,
         handleWrapInSection,
         nodes,
+        edges,
     });
 
     return {

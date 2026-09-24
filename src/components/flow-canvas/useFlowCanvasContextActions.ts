@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
-import type { Node } from '@/lib/reactflowCompat';
+import type { Edge, Node } from '@/lib/reactflowCompat';
 import type { ContextMenuProps } from '@/components/ContextMenu';
+import { canReverseEdge } from '@/components/properties/edge/reverseEdge';
+import { requestEdgeLabelEdit } from '@/hooks/edgeLabelEditRequest';
 
 interface UseFlowCanvasContextActionsParams {
   contextMenu: ContextMenuProps & { isOpen: boolean };
@@ -11,6 +13,8 @@ interface UseFlowCanvasContextActionsParams {
   duplicateNode: (id: string) => void;
   deleteNode: (id: string) => void;
   deleteEdge: (id: string) => void;
+  deleteSelection: () => void;
+  reverseEdge: (id: string) => void;
   updateNodeZIndex: (id: string, action: 'front' | 'back') => void;
   updateNodeType: (id: string, type: string) => void;
   updateNodeData: (id: string, updates: Record<string, unknown>) => void;
@@ -22,16 +26,20 @@ interface UseFlowCanvasContextActionsParams {
   handleGroupNodes: () => void;
   handleWrapInSection: () => void;
   nodes: Node[];
+  edges: Edge[];
 }
 
 export interface UseFlowCanvasContextActionsResult {
   selectedCount: number;
+  canEditEdgeLabel: boolean;
+  canReverseEdge: boolean;
   onPaste: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onSendToBack: () => void;
   onChangeNodeType: (type: string) => void;
   onEditLabel: () => void;
+  onReverseEdge: () => void;
   onFitSectionToContents: () => void;
   onBringContentsIntoSection: () => void;
   onReleaseFromSection: () => void;
@@ -54,6 +62,8 @@ export function useFlowCanvasContextActions({
   duplicateNode,
   deleteNode,
   deleteEdge,
+  deleteSelection,
+  reverseEdge,
   updateNodeZIndex,
   updateNodeType,
   updateNodeData,
@@ -65,12 +75,19 @@ export function useFlowCanvasContextActions({
   handleGroupNodes,
   handleWrapInSection,
   nodes,
+  edges,
 }: UseFlowCanvasContextActionsParams): UseFlowCanvasContextActionsResult {
   const selectedCount = useMemo(() => nodes.filter((node) => node.selected).length, [nodes]);
   const contextNode = useMemo(
     () => nodes.find((node) => node.id === contextMenu.id) ?? null,
     [contextMenu.id, nodes]
   );
+  const contextEdge = contextMenu.type === 'edge'
+    ? edges.find((edge) => edge.id === contextMenu.id) ?? null
+    : null;
+  // Sequence messages draw their own label without the inline editor.
+  const canEditEdgeLabel = Boolean(contextEdge) && contextEdge?.type !== 'sequence_message';
+  const canReverseContextEdge = Boolean(contextEdge && canReverseEdge(contextEdge, nodes));
 
   function onPaste(): void {
     if (contextMenu.position) {
@@ -88,8 +105,7 @@ export function useFlowCanvasContextActions({
 
   function onDelete(): void {
     if (contextMenu.type === 'multi') {
-      const selectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
-      selectedIds.forEach((id) => deleteNode(id));
+      deleteSelection();
     } else if (contextMenu.id) {
       if (contextMenu.type === 'edge') {
         deleteEdge(contextMenu.id);
@@ -137,6 +153,16 @@ export function useFlowCanvasContextActions({
   }
 
   function onEditLabel(): void {
+    if (contextMenu.type === 'edge' && contextMenu.id) {
+      requestEdgeLabelEdit(contextMenu.id);
+    }
+    onCloseContextMenu();
+  }
+
+  function onReverseEdge(): void {
+    if (contextMenu.type === 'edge' && contextMenu.id) {
+      reverseEdge(contextMenu.id);
+    }
     onCloseContextMenu();
   }
 
@@ -196,12 +222,15 @@ export function useFlowCanvasContextActions({
 
   return {
     selectedCount,
+    canEditEdgeLabel,
+    canReverseEdge: canReverseContextEdge,
     onPaste,
     onDuplicate,
     onDelete,
     onSendToBack,
     onChangeNodeType,
     onEditLabel,
+    onReverseEdge,
     onFitSectionToContents,
     onBringContentsIntoSection,
     onReleaseFromSection,

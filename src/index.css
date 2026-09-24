@@ -774,6 +774,18 @@ body {
   display: none !important;
 }
 
+/*
+ * Image export clones each edge <svg> without applying page rules to its children. It does
+ * copy the custom properties defined on :root, so the selection halo hides through one.
+ */
+:root {
+  --flow-edge-selection-halo-opacity: 0.5;
+}
+
+.exporting {
+  --flow-edge-selection-halo-opacity: 0;
+}
+
 /* Kill dash animations so html-to-image captures solid lines */
 .exporting .react-flow__edge.animated path {
   animation: none !important;

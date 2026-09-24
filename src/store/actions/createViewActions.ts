@@ -1,6 +1,7 @@
 import { NODE_DEFAULTS } from '@/theme';
 import { assignSmartHandlesWithOptions, getSmartRoutingOptionsFromViewSettings } from '@/services/smartEdgeRouting';
 import type { SetFlowState } from '../actionFactory';
+import { syncTabNodesEdges } from './syncTabNodesEdges';
 import type { FlowState } from '../types';
 
 export function createViewActions(set: SetFlowState): Pick<
@@ -36,6 +37,7 @@ export function createViewActions(set: SetFlowState): Pick<
 
         setGlobalEdgeOptions: (options) => set((state) => {
             const newOptions = { ...state.globalEdgeOptions, ...options };
+            const restylesLines = options.type !== undefined || options.curve !== undefined;
 
             const updatedEdges = state.edges.map((edge) => ({
                 ...edge,
@@ -46,11 +48,17 @@ export function createViewActions(set: SetFlowState): Pick<
                     strokeWidth: newOptions.strokeWidth,
                     ...(newOptions.color ? { stroke: newOptions.color } : {}),
                 },
+                // A per-edge curve outranks the diagram-wide one, so a new diagram-wide line
+                // style drops it; otherwise edges restyled one by one would keep their old shape.
+                ...(restylesLines && edge.data?.curve !== undefined
+                    ? { data: { ...edge.data, curve: undefined } }
+                    : {}),
             }));
 
             return {
                 globalEdgeOptions: newOptions,
                 edges: updatedEdges,
+                tabs: syncTabNodesEdges(state.tabs, state.activeTabId, state.nodes, updatedEdges),
             };
         }),
 

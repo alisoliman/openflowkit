@@ -25,13 +25,19 @@ export function VisualsView({ onBack }: VisualsViewProps): ReactElement {
     const { t } = useTranslation();
     const globalEdgeOptions = useFlowStore((state) => state.globalEdgeOptions);
     const viewSettings = useViewSettings();
+    const recordHistory = useFlowStore((state) => state.recordHistoryV2);
     const {
-        setGlobalEdgeOptions,
+        setGlobalEdgeOptions: applyGlobalEdgeOptions,
         setViewSettings,
         setDefaultIconsEnabled,
         setSmartRoutingEnabled,
         setLargeGraphSafetyMode,
     } = useVisualSettingsActions();
+    // Restyling every edge is one undo step.
+    const setGlobalEdgeOptions = (options: Partial<GlobalEdgeOptions>): void => {
+        recordHistory();
+        applyGlobalEdgeOptions(options);
+    };
     const isBeveled = IS_BEVELED;
     const edgeStyleOptions: Array<{
         type: GlobalEdgeOptions['type'];

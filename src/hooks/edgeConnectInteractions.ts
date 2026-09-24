@@ -5,10 +5,17 @@ export function isPaneTarget(target: EventTarget | null): boolean {
   return target.classList.contains('react-flow__pane') || target.closest('.react-flow__pane') !== null;
 }
 
+// Edge labels and their editors render in the label layer, outside the edge's own element.
 export function isCanvasBackgroundTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (!isPaneTarget(target)) return false;
-  return target.closest('.react-flow__node, .react-flow__edge') === null;
+  return target.closest('.react-flow__node, .react-flow__edge, .react-flow__edgelabel-renderer') === null;
+}
+
+// React Flow reports dragging an edge's end as a connection too, starting from its reconnect anchor.
+export function isEdgeReconnectTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return target.closest('.react-flow__edgeupdater') !== null;
 }
 
 export function getPointerClientPosition(

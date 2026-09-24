@@ -104,6 +104,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     handleAddNode,
     deleteNode,
     deleteEdge,
+    deleteSelection,
+    reverseEdge,
     duplicateNode,
     updateNodeType,
     updateNodeData,
@@ -142,6 +144,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     duplicateNode,
     deleteNode,
     deleteEdge,
+    deleteSelection,
+    reverseEdge,
     updateNodeZIndex,
     updateNodeType,
     updateNodeData,
@@ -153,6 +157,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     handleGroupNodes,
     handleWrapInSection,
     nodes,
+    edges,
   });
   useEffect(() => {
     connectMenuSetterRef.current = setConnectMenu;

@@ -11,10 +11,11 @@ export function CanvasSettings(): React.ReactElement {
   const { t } = useTranslation();
   const viewSettings = useViewSettings();
   const globalEdgeOptions = useFlowStore((state) => state.globalEdgeOptions);
+  const recordHistory = useFlowStore((state) => state.recordHistoryV2);
   const {
     toggleGrid,
     toggleSnap,
-    setGlobalEdgeOptions,
+    setGlobalEdgeOptions: applyGlobalEdgeOptions,
     setDefaultIconsEnabled,
     setSmartRoutingEnabled,
     setSmartRoutingProfile,
@@ -23,6 +24,11 @@ export function CanvasSettings(): React.ReactElement {
     setLargeGraphSafetyMode,
     setLargeGraphSafetyProfile,
   } = useVisualSettingsActions();
+  // Restyling every edge is one undo step. Imports that also set these options record their own.
+  const setGlobalEdgeOptions = (options: Partial<GlobalEdgeOptions>): void => {
+    recordHistory();
+    applyGlobalEdgeOptions(options);
+  };
 
   return (
     <div className="space-y-6">

@@ -4,19 +4,12 @@ import { ArrowRightLeft, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import type { FlowEdge } from '@/lib/types';
+import { useFlowStore } from '@/store';
 import { SegmentedChoice } from '../SegmentedChoice';
 import { PropertySliderRow } from '../PropertySliderRow';
-import {
-    applyArchitectureDirection,
-    getDirectionFromMarkers,
-    reverseArchitectureDirection,
-} from './architectureSemantics';
-
-const LINE_STYLE_OPTIONS = [
-    { id: 'default', label: 'Bezier' },
-    { id: 'smoothstep', label: 'Smoothstep' },
-    { id: 'step', label: 'Step' },
-];
+import { applyArchitectureDirection } from './architectureSemantics';
+import { buildEdgeLineStyleUpdates, EDGE_LINE_STYLES, resolveEdgeLineStyle } from './edgeLineStyle';
+import { buildReversedEdgeUpdates, canReverseEdge } from './reverseEdge';
 
 interface EdgeStyleSectionProps {
     selectedEdge: FlowEdge;
@@ -25,6 +18,8 @@ interface EdgeStyleSectionProps {
 
 export function EdgeStyleSection({ selectedEdge, onChange }: EdgeStyleSectionProps): React.ReactElement {
     const [advancedOpen, setAdvancedOpen] = useState(false);
+    const diagramCurve = useFlowStore((state) => state.globalEdgeOptions.curve);
+    const canReverse = useFlowStore((state) => canReverseEdge(selectedEdge, state.nodes));
     const selectedStroke = selectedEdge.style?.stroke || '#94a3b8';
 
     return (
@@ -38,10 +33,10 @@ export function EdgeStyleSection({ selectedEdge, onChange }: EdgeStyleSectionPro
             </div>
 
             <SegmentedChoice
-                items={LINE_STYLE_OPTIONS}
-                selectedId={selectedEdge.type || 'default'}
-                onSelect={(edgeType) => onChange(selectedEdge.id, { type: edgeType })}
-                columns={3}
+                items={EDGE_LINE_STYLES}
+                selectedId={resolveEdgeLineStyle(selectedEdge, diagramCurve)}
+                onSelect={(styleId) => onChange(selectedEdge.id, buildEdgeLineStyleUpdates(selectedEdge, styleId))}
+                columns={2}
             />
 
             <button
@@ -115,7 +110,7 @@ export function EdgeStyleSection({ selectedEdge, onChange }: EdgeStyleSectionPro
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className={`grid gap-2 ${canReverse ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         <Button
                             onClick={() => {
                                 const isBidirectional = Boolean(selectedEdge.markerStart);
@@ -134,36 +129,16 @@ export function EdgeStyleSection({ selectedEdge, onChange }: EdgeStyleSectionPro
                             Bidirectional
                         </Button>
 
-                        <Button
-                            onClick={() => {
-                                const currentDirection = selectedEdge.data?.archDirection || getDirectionFromMarkers(selectedEdge);
-                                const reversedDirection = reverseArchitectureDirection(currentDirection);
-                                const edgeWithSwappedArchitecture = selectedEdge.data?.archDirection
-                                    ? {
-                                        ...selectedEdge,
-                                        data: {
-                                            ...selectedEdge.data,
-                                            archDirection: reversedDirection,
-                                            archSourceSide: selectedEdge.data?.archTargetSide,
-                                            archTargetSide: selectedEdge.data?.archSourceSide,
-                                        },
-                                    }
-                                    : selectedEdge;
-                                const architectureDirectionUpdates = applyArchitectureDirection(edgeWithSwappedArchitecture, reversedDirection);
-                                onChange(selectedEdge.id, {
-                                    source: selectedEdge.target,
-                                    target: selectedEdge.source,
-                                    sourceHandle: selectedEdge.targetHandle,
-                                    targetHandle: selectedEdge.sourceHandle,
-                                    ...architectureDirectionUpdates,
-                                });
-                            }}
-                            variant="secondary"
-                            className="w-full"
-                            icon={<ArrowRightLeft className="w-3.5 h-3.5" />}
-                        >
-                            Swap
-                        </Button>
+                        {canReverse && (
+                            <Button
+                                onClick={() => onChange(selectedEdge.id, buildReversedEdgeUpdates(selectedEdge))}
+                                variant="secondary"
+                                className="w-full"
+                                icon={<ArrowRightLeft className="w-3.5 h-3.5" />}
+                            >
+                                Swap
+                            </Button>
+                        )}
                     </div>
                 </div>
             )}

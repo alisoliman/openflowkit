@@ -38,10 +38,8 @@ export function useFlowEditorScreenBehavior(params: {
 
   useFlowEditorInteractionBindings({
     selectedNodeId: screenState.selectedNodeId,
-    selectedEdgeId: screenState.selectedEdgeId,
     selectedNodeType,
-    deleteNode: operations.deleteNode,
-    deleteEdge: operations.deleteEdge,
+    deleteSelection: operations.deleteSelection,
     undo: screenState.undo,
     redo: screenState.redo,
     canUndo: screenState.canUndo,

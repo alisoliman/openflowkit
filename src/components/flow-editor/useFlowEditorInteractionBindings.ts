@@ -6,10 +6,8 @@ import { useNodeQuickCreateRequest } from '@/hooks/nodeQuickCreateRequest';
 
 interface UseFlowEditorInteractionBindingsParams {
     selectedNodeId: string | null;
-    selectedEdgeId: string | null;
     selectedNodeType: string | null;
-    deleteNode: (id: string) => void;
-    deleteEdge: (id: string) => void;
+    deleteSelection: () => void;
     undo: () => void;
     redo: () => void;
     canUndo: boolean;
@@ -41,10 +39,8 @@ interface UseFlowEditorInteractionBindingsParams {
 
 export function useFlowEditorInteractionBindings({
     selectedNodeId,
-    selectedEdgeId,
     selectedNodeType,
-    deleteNode,
-    deleteEdge,
+    deleteSelection,
     undo,
     redo,
     canUndo,
@@ -75,9 +71,7 @@ export function useFlowEditorInteractionBindings({
 }: UseFlowEditorInteractionBindingsParams) {
     useKeyboardShortcuts({
         selectedNodeId,
-        selectedEdgeId,
-        deleteNode,
-        deleteEdge,
+        deleteSelection,
         undo,
         redo,
         canUndo,

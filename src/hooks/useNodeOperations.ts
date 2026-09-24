@@ -11,15 +11,18 @@ import {
   getMindmapDescendantIds,
 } from '@/lib/mindmapTree';
 import {
-  autoFitSectionsToChildren,
   bringContentsIntoSection,
   duplicateSectionWithChildren,
   fitSectionToChildren,
   reassignArchitectureNodeBoundary,
   releaseNodeFromSection,
-  unparentSectionChildren,
 } from './node-operations/utils';
 import { useNodeOperationAdders } from './node-operations/useNodeOperationAdders';
+import {
+  getSelectedElementIds,
+  removeFlowElements,
+  type FlowElementIds,
+} from './node-operations/deleteSelection';
 import { useMindmapNodeOperations } from './node-operations/useMindmapNodeOperations';
 import { useArchitectureNodeOperations } from './node-operations/useArchitectureNodeOperations';
 import { useNodeDragOperations } from './node-operations/useNodeDragOperations';
@@ -28,7 +31,7 @@ import { filterBulkUpdatesForNode } from '@/lib/nodeBulkEditing';
 
 export const useNodeOperations = (recordHistory: () => void) => {
   useTranslation();
-  const { nodes, setNodes, setEdges, setSelectedNodeId } = useFlowStore();
+  const { nodes, setNodes, setEdges, setSelectedNodeId, setSelectedEdgeId } = useFlowStore();
   useReactFlow();
 
   const mindmapOps = useMindmapNodeOperations(recordHistory);
@@ -216,25 +219,36 @@ export const useNodeOperations = (recordHistory: () => void) => {
   );
 
   // --- Delete ---
-  const deleteNode = useCallback(
-    (id: string) => {
+  // One undo step per delete, however many nodes and edges it removes.
+  const deleteElements = useCallback(
+    (ids: FlowElementIds) => {
+      const state = useFlowStore.getState();
+      const next = removeFlowElements(state.nodes, state.edges, ids);
+      if (!next) {
+        return;
+      }
+
       recordHistory();
-      setNodes((nds) => {
-        const targetNode = nds.find((node) => node.id === id);
-        if (!targetNode) {
-          return nds;
-        }
-
-        if (targetNode.type !== 'section') {
-          return autoFitSectionsToChildren(nds.filter((node) => node.id !== id));
-        }
-
-        const releasedNodes = unparentSectionChildren(id, nds).filter((node) => node.id !== id);
-        return autoFitSectionsToChildren(releasedNodes);
-      });
-      setSelectedNodeId(null);
+      setNodes(() => next.nodes);
+      setEdges(() => next.edges);
+      if (state.selectedNodeId && !next.nodes.some((node) => node.id === state.selectedNodeId)) {
+        setSelectedNodeId(null);
+      }
+      if (state.selectedEdgeId && !next.edges.some((edge) => edge.id === state.selectedEdgeId)) {
+        setSelectedEdgeId(null);
+      }
     },
-    [setNodes, recordHistory, setSelectedNodeId]
+    [setNodes, setEdges, recordHistory, setSelectedNodeId, setSelectedEdgeId]
+  );
+
+  const deleteNode = useCallback(
+    (id: string) => deleteElements({ nodeIds: [id], edgeIds: [] }),
+    [deleteElements]
+  );
+
+  const deleteSelection = useCallback(
+    () => deleteElements(getSelectedElementIds(useFlowStore.getState())),
+    [deleteElements]
   );
 
   // --- Duplicate ---
@@ -332,6 +346,7 @@ export const useNodeOperations = (recordHistory: () => void) => {
     updateNodeType,
     updateNodeZIndex,
     deleteNode,
+    deleteSelection,
     duplicateNode,
     fitSectionToContents,
     releaseFromSection,
