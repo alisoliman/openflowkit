@@ -19,6 +19,10 @@ const sessionSchema = z.object({
 });
 const flowSchema = z.object({ verifier: z.string(), returnTo: z.string(), expiresAt: z.number() });
 const ID_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+// Access tokens are renewed this long before they expire. An agent turn keeps the token it starts with and has no
+// deadline, so agent sockets start with one good for at least four of its eight hours.
+const REFRESH_MARGIN_MS = 240_000;
+const AGENT_REFRESH_MARGIN_MS = 4 * 3600_000;
 type AuthSession = z.infer<typeof sessionSchema>;
 
 export interface HostedIdentity {
@@ -64,10 +68,10 @@ export class AuthSessions {
     return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(lifetime / 1000)}${this.config.development ? '' : '; Secure'}`;
   }
 
-  private sessionId(request: IncomingMessage, response: ServerResponse): string | undefined {
+  private sessionId(request: IncomingMessage, response?: ServerResponse): string | undefined {
     try { return readCookie(request, this.sessionCookie); }
     catch (error) {
-      appendCookie(response, this.cookie(this.sessionCookie, '', 0));
+      if (response) appendCookie(response, this.cookie(this.sessionCookie, '', 0));
       throw error;
     }
   }
@@ -138,19 +142,19 @@ export class AuthSessions {
     return session;
   }
 
-  private async refresh(key: string): Promise<AuthSession> {
+  private async refresh(key: string, margin: number): Promise<AuthSession> {
     const pending = this.refreshing.get(key);
     if (pending) return pending;
     const operation = (async () => {
-      const release = await acquireLease(this.store, 'refresh', key, 30_000);
-      if (!release) throw new CopilotRequestError('busy', 'Your GitHub connection is being renewed. Please retry shortly.', 429);
+      const lease = await acquireLease(this.store, 'refresh', key, 30_000);
+      if (!lease) throw new CopilotRequestError('busy', 'Your GitHub connection is being renewed. Please retry shortly.', 429);
       try {
         const record = await this.store.get('auth', key);
         if (!record || record.expiresAt <= Date.now()) {
           throw new CopilotRequestError('not_authenticated', 'Your GitHub connection expired. Connect again.', 401);
         }
         const session = this.parseSession(key, record);
-        if (session.accessExpiresAt > Date.now() + 240_000) return session;
+        if (session.accessExpiresAt > Date.now() + margin) return session;
         if (session.refreshExpiresAt <= Date.now()) {
           await this.store.delete('auth', key, record.version);
           throw new CopilotRequestError('not_authenticated', 'Your GitHub authorization expired. Connect again.', 401);
@@ -169,7 +173,7 @@ export class AuthSessions {
           throw error;
         }
       } finally {
-        await release();
+        await lease.release();
       }
     })();
     this.refreshing.set(key, operation);
@@ -177,18 +181,30 @@ export class AuthSessions {
     finally { this.refreshing.delete(key); }
   }
 
-  async authenticate(request: IncomingMessage, response: ServerResponse): Promise<HostedIdentity | undefined> {
-    const id = this.sessionId(request, response);
-    if (!id) return undefined;
-    const key = stateKey(id);
+  /** The stored session, with its token renewed when it expires within `margin`, or undefined once it has ended. */
+  private async current(key: string, margin: number): Promise<AuthSession | undefined> {
     const record = await this.store.get('auth', key);
     if (!record || record.expiresAt <= Date.now()) {
       if (record) await this.store.delete('auth', key, record.version);
-      appendCookie(response, this.cookie(this.sessionCookie, '', 0));
       return undefined;
     }
-    let session = this.parseSession(key, record);
-    if (session.accessExpiresAt <= Date.now() + 240_000) session = await this.refresh(key);
+    const session = this.parseSession(key, record);
+    return session.accessExpiresAt <= Date.now() + margin ? this.refresh(key, margin) : session;
+  }
+
+  /**
+   * Agent socket upgrades pass no response: the next HTTP request clears a stale cookie, and their token
+   * is renewed further ahead, because the turn keeps it and has no deadline.
+   */
+  async authenticate(request: IncomingMessage, response?: ServerResponse): Promise<HostedIdentity | undefined> {
+    const id = this.sessionId(request, response);
+    if (!id) return undefined;
+    const key = stateKey(id);
+    const session = await this.current(key, response ? REFRESH_MARGIN_MS : AGENT_REFRESH_MARGIN_MS);
+    if (!session) {
+      if (response) appendCookie(response, this.cookie(this.sessionCookie, '', 0));
+      return undefined;
+    }
     return { userId: session.userId, login: session.login, token: session.accessToken, sessionKey: key };
   }
 

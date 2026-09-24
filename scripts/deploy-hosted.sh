@@ -72,6 +72,7 @@ wait_for_revision "$fqdn"
 completed=true
 
 # Existing streams may run for three minutes; drain before stopping the old replica.
+# Agent turns have no deadline, so one still running at deactivation ends as interrupted.
 sleep 240
 if ! az containerapp revision deactivate --name "$HOSTED_CONTAINER_APP" --resource-group "$HOSTED_RESOURCE_GROUP" --revision "$previous" --output none; then
   echo "::error::The new release is live, but the previous revision still needs deactivation." >&2

@@ -22,7 +22,7 @@ import { useToast } from './ui/ToastContext';
 import { isCanvasBackgroundTarget } from '@/hooks/edgeConnectInteractions';
 import { setEdgeInteractionLowDetailMode } from './custom-edge/edgeRenderMode';
 import { useCanvasActions, useCanvasState } from '@/store/canvasHooks';
-import { useSelectionActions } from '@/store/selectionHooks';
+import { useIsAgentEditing, useSelectionActions } from '@/store/selectionHooks';
 import { useTabActions, useActiveTabId } from '@/store/tabHooks';
 import { useCanvasViewSettings } from '@/store/viewHooks';
 import { useMermaidDiagnosticsActions } from '@/store/selectionHooks';
@@ -168,7 +168,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const { isSelectionModifierPressed } = useModifierKeys();
   useEdgeInteractions();
 
-  const isEffectiveSelectMode = isSelectMode || isSelectionModifierPressed;
+  // A Flowpilot turn leaves the user pan and zoom only, so dragging always pans.
+  const isAgentEditing = useIsAgentEditing();
+  const isEffectiveSelectMode = (isSelectMode || isSelectionModifierPressed) && !isAgentEditing;
   const { lowDetailModeActive, farZoomReductionActive } = useFlowCanvasZoomLod({
     safetyModeActive,
     largeGraphSafetyProfile,
@@ -330,7 +332,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       for (let pass = 0; pass < MAX_PASSES; pass++) {
         const state = useFlowStore.getState();
         const currentMetadata = readImportLayoutMetadata(state.nodes);
-        if (!currentMetadata || currentMetadata.signature !== signature) return;
+        // A Flowpilot turn started meanwhile owns the page.
+        if (!currentMetadata || currentMetadata.signature !== signature || state.agentTurn) return;
 
         clearLayoutCache();
         const { nodes: layoutedNodes, edges: layoutedEdges } = await composeDiagramForDisplay(
@@ -360,8 +363,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
         prevPositions = nextPositions;
 
-        const latestMetadata = readImportLayoutMetadata(useFlowStore.getState().nodes);
-        if (!latestMetadata || latestMetadata.signature !== signature) return;
+        const latest = useFlowStore.getState();
+        const latestMetadata = readImportLayoutMetadata(latest.nodes);
+        if (!latestMetadata || latestMetadata.signature !== signature || latest.agentTurn) return;
 
         const smartEdges = assignSmartHandles(layoutedNodes, layoutedEdges);
         const finalNodes = converged || pass === MAX_PASSES - 1
@@ -401,7 +405,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
   return (
     <FlowCanvasSurface
-      containerClassName={`w-full h-full relative ${isConnecting ? 'is-connecting' : ''} ${lowDetailModeActive ? 'flow-lod-low' : ''} ${interactionLowDetailModeActive ? 'flow-lod-interaction' : ''} ${farZoomReductionActive ? 'flow-lod-far' : ''}`}
+      containerClassName={`w-full h-full relative ${isConnecting ? 'is-connecting' : ''} ${lowDetailModeActive ? 'flow-lod-low' : ''} ${interactionLowDetailModeActive ? 'flow-lod-interaction' : ''} ${farZoomReductionActive ? 'flow-lod-far' : ''} ${isAgentEditing ? 'flow-agent-editing' : ''}`}
       wrapperRef={reactFlowWrapper}
       onPointerDownCapture={(event) => {
         lastInteractionScreenPositionRef.current = {
@@ -437,6 +441,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       onDragOver={onDragOver}
       onDrop={onDrop}
       fitView={true}
+      isAgentEditing={isAgentEditing}
       reactFlowConfig={reactFlowConfig}
       snapToGrid={snapToGrid}
       effectiveShowGrid={effectiveShowGrid}

@@ -41,3 +41,8 @@ export function useMermaidDiagnostics(): MermaidDiagnosticsSnapshot | null {
 export function useMermaidDiagnosticsActions(): MermaidDiagnosticsActionsSlice {
     return useFlowStore(useShallow(selectMermaidDiagnosticsActions));
 }
+
+// True while a Flowpilot turn edits the page; the user can only pan and zoom.
+export function useIsAgentEditing(): boolean {
+    return useFlowStore((state) => state.agentTurn !== null);
+}

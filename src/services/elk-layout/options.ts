@@ -218,6 +218,9 @@ export function buildResolvedLayoutConfiguration(
     'elk.spacing.componentComponent': dims.component,
     'elk.padding': `[top=${SECTION_CONTENT_PADDING_TOP},left=${SECTION_PADDING_X},bottom=${SECTION_PADDING_BOTTOM},right=${SECTION_PADDING_X}]`,
     'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+    // Nested nodes and edge routes come back in root coordinates, which the position map assumes.
+    'elk.json.shapeCoords': 'ROOT',
+    'elk.json.edgeCoords': 'ROOT',
     ...algoOptions,
     ...deterministicSeedOptions,
   };

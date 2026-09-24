@@ -37,6 +37,9 @@ describe('nodeActionPrompts', () => {
     expect(prompt).toContain('selected table "users"');
     expect(prompt).toContain('Only update the selected ER entity.');
     expect(prompt).toContain('id: UUID PK');
+    expect(prompt).toContain(
+      'Preserve all other nodes and edges exactly as they are.\n\nReturn valid OpenFlow DSL for the full updated diagram.\n\nUse concise'
+    );
   });
 
   it('builds a focused architecture suggestion prompt with infrastructure metadata', () => {
@@ -45,5 +48,16 @@ describe('nodeActionPrompts', () => {
     expect(prompt).toContain('Provider: aws');
     expect(prompt).toContain('Resource type: service');
     expect(prompt).toContain('Only update the selected architecture node');
+    expect(prompt).toContain('a short subLabel.\n\nReturn valid OpenFlow DSL for the full updated diagram.\n\nSelected architecture node label: orders');
+  });
+
+  it('leaves out the DSL instruction for a Copilot agent turn, which edits with tools', () => {
+    const entityPrompt = buildEntityFieldGenerationPrompt(createEntityNode(), true);
+    const architecturePrompt = buildArchitectureServiceSuggestionPrompt(createArchitectureNode(), true);
+
+    expect(entityPrompt).toContain('Only update the selected ER entity.');
+    expect(entityPrompt).not.toContain('OpenFlow DSL');
+    expect(architecturePrompt).toContain('Only update the selected architecture node');
+    expect(architecturePrompt).not.toContain('OpenFlow DSL');
   });
 });

@@ -4,6 +4,7 @@ import {
   createProviderIconData,
   createUploadedIconData,
   inferAssetProviderFromPackId,
+  isKnownProviderIcon,
   normalizeNodeIconData,
 } from './nodeIconState';
 
@@ -11,6 +12,12 @@ describe('nodeIconState', () => {
   it('infers provider from known pack ids', () => {
     expect(inferAssetProviderFromPackId('aws-official-starter-v1')).toBe('aws');
     expect(inferAssetProviderFromPackId('developer-icons-v1')).toBe('developer');
+  });
+
+  it('knows which provider icons the bundled catalog has', () => {
+    expect(isKnownProviderIcon('aws-official-starter-v1', 'compute-lambda')).toBe(true);
+    expect(isKnownProviderIcon('aws-official-starter-v1', 'compute-not-real')).toBe(false);
+    expect(isKnownProviderIcon('not-a-pack', 'compute-lambda')).toBe(false);
   });
 
   it('normalizes pack and shape to a canonical provider icon payload', () => {

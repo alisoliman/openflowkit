@@ -61,7 +61,7 @@ export function relayoutAllMindmapComponents(nodes: FlowNode[], edges: FlowEdge[
     };
 }
 
-function getLayoutHintsForDiagramType(diagramType: string | undefined): Partial<Pick<AutoLayoutParams, 'algorithm' | 'direction'>> {
+export function getLayoutHintsForDiagramType(diagramType: string | undefined): Partial<Pick<AutoLayoutParams, 'algorithm' | 'direction'>> {
     switch (diagramType) {
         case 'architecture':
         case 'infrastructure':
@@ -86,7 +86,9 @@ export async function getAutoLayoutResult({
     }
 
     const hints = getLayoutHintsForDiagramType(diagramType);
-    const { getElkLayout } = await import('@/services/elkLayout');
+    const { clearLayoutCache, getElkLayout } = await import('@/services/elkLayout');
+    // The layout cache keys on ids and edges only, so it would hand back nodes from before edits.
+    clearLayoutCache();
     return getElkLayout(nodes, edges, {
         direction: direction ?? hints.direction ?? 'TB',
         algorithm: algorithm ?? hints.algorithm ?? 'layered',

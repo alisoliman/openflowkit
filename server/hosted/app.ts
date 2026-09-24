@@ -2,11 +2,13 @@ import { createReadStream } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
-import { pipeline } from 'node:stream';
+import { pipeline, type Duplex } from 'node:stream';
 import { createGzip } from 'node:zlib';
 import { z } from 'zod';
+import { AGENT_API_PATH } from '../../src/services/copilot/agentProtocol';
 import { COPILOT_CLIENT_HEADER, CopilotRequestError } from '../../src/services/copilot/protocol';
-import { createCopilotMiddleware, readJsonRequest, writeJson } from '../copilotMiddleware';
+import { createCopilotAgentEndpoint, rejectUpgrade } from '../copilotAgentEndpoint';
+import { createCopilotMiddleware, readJsonRequest, writeJson, type HostedCopilotBoundary } from '../copilotMiddleware';
 import type { CopilotRuntime } from '../copilotRuntime';
 import { AuthSessions } from './authSessions';
 import type { HostedConfig } from './config';
@@ -55,6 +57,14 @@ async function authOperation<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
+export interface HostedApp {
+  request: RequestListener;
+  /** Only the agent socket upgrades; it bypasses the request listener, so it repeats the hosted checks. */
+  upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void;
+  /** Interrupts agent turns and closes their sockets. */
+  close(): Promise<void>;
+}
+
 export async function createHostedApp(options: {
   config: HostedConfig;
   store: StateStore;
@@ -62,7 +72,7 @@ export async function createHostedApp(options: {
   runtime: CopilotRuntime;
   distDirectory: string;
   revision?: string;
-}): Promise<RequestListener> {
+}): Promise<HostedApp> {
   const { config, store, github, runtime } = options;
   const sessions = new AuthSessions(config, store, github);
   const root = await realpath(options.distDirectory);
@@ -71,17 +81,19 @@ export async function createHostedApp(options: {
   );
   const index = (await readFile(resolve(root, 'index.html'), 'utf8'))
     .replace('<head>', '<head><base href="/"><meta name="flowpilot-runtime" content="hosted">');
-  const copilot = createCopilotMiddleware(runtime, {
+  const boundary: HostedCopilotBoundary = {
     authorize: (request, response) => authOperation(() => sessions.authenticate(request, response)),
     acquire: async (identity) => {
-      const release = await authOperation(() => acquireGeneration(store, identity.userId));
-      return () => authOperation(release);
+      const lease = await authOperation(() => acquireGeneration(store, identity.userId));
+      return { renew: () => authOperation(lease.renew), release: () => authOperation(lease.release) };
     },
     isActive: (identity) => authOperation(async () => {
       const record = await store.get('auth', identity.sessionKey);
       return Boolean(record && record.expiresAt > Date.now());
     }),
-  });
+  };
+  const copilot = createCopilotMiddleware(runtime, boundary);
+  const agent = createCopilotAgentEndpoint(runtime, boundary);
   let authWindow = 0;
   let authStarts = 0;
 
@@ -131,7 +143,7 @@ export async function createHostedApp(options: {
     }
   }
 
-  return (request, response) => {
+  const listener: RequestListener = (request, response) => {
     for (const [name, value] of Object.entries(headerConfig.globalHeaders)) response.setHeader(name, value);
     if (!config.development) response.setHeader('Strict-Transport-Security', 'max-age=31536000');
     response.setHeader('Cache-Control', 'no-store');
@@ -199,5 +211,24 @@ export async function createHostedApp(options: {
         writeJson(response, failure.status, { code: failure.code, message: failure.message });
       }
     });
+  };
+
+  return {
+    request: listener,
+    upgrade(request, socket, head) {
+      if (request.url?.split('?')[0] !== AGENT_API_PATH) {
+        rejectUpgrade(socket, 404);
+      } else if (
+        request.headers.host !== new URL(config.origin).host
+        || request.headers.origin !== config.origin
+        || (request.headers['sec-fetch-site'] && request.headers['sec-fetch-site'] !== 'same-origin')
+      ) {
+        console.error('[Flowpilot hosted] Copilot agent connection rejected:', 'invalid_request');
+        rejectUpgrade(socket, 403);
+      } else {
+        agent.upgrade(request, socket, head);
+      }
+    },
+    close: () => agent.close(),
   };
 }

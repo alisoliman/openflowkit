@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { WebSocket } from 'ws';
 
 if (process.env.HOSTED_EXPECTED_REVISION) {
   assert.equal(process.env.APP_REVISION, process.env.HOSTED_EXPECTED_REVISION, 'The container image does not match the expected revision.');
@@ -73,6 +74,12 @@ try {
   });
   const chat = await fetch(`${origin}/api/copilot/chat`, { method: 'POST', headers, body: '{}' });
   assert.equal(chat.status, 401);
+  const agent = new WebSocket(`${origin.replace('http', 'ws')}/api/copilot/agent`, 'flowpilot-agent.v1', { origin });
+  const upgrade = await new Promise((resolveUpgrade) => {
+    agent.once('open', () => { agent.terminate(); resolveUpgrade('Connected'); });
+    agent.once('error', (error) => resolveUpgrade(error.message));
+  });
+  assert.equal(upgrade, 'Unexpected server response: 401', 'An anonymous agent socket was not rejected before upgrading.');
   const authorization = await fetch(`${origin}/api/copilot/auth/start`, {
     method: 'POST', headers, body: JSON.stringify({ returnTo: '/#/home' }),
   });
@@ -80,7 +87,7 @@ try {
   const authorizeUrl = new URL((await authorization.json()).url);
   assert.equal(authorizeUrl.origin, 'https://github.com');
   assert.equal(authorizeUrl.searchParams.get('code_challenge_method'), 'S256');
-  console.log('Built server, bundled stdio runtime, anonymous editor, gzip assets, and OAuth initiation are responsive. No live authorization or model request was made.');
+  console.log('Built server, bundled stdio runtime, anonymous editor, gzip assets, agent socket rejection, and OAuth initiation are responsive. No live authorization or model request was made.');
 } finally {
   if (child.exitCode === null) child.kill('SIGTERM');
   const result = await Promise.race([exited, delay(20_000, 'timeout', { ref: false })]);

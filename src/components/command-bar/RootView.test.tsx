@@ -1,6 +1,7 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { useFlowStore } from '@/store';
 import { RootView } from './RootView';
 import type { CommandItem } from './types';
 
@@ -42,5 +43,36 @@ describe('RootView', () => {
 
     expect(screen.getByText('Open Flowpilot')).toBeTruthy();
     expect(screen.getByText('Edit Flow DSL')).toBeTruthy();
+  });
+
+  it('leaves Enter and the arrow keys to the chat while a Flowpilot turn runs', () => {
+    const action = vi.fn();
+    const setSelectedIndex = vi.fn();
+    render(
+      <RootView
+        commands={[{ ...commandItems[1], action }]}
+        searchQuery=""
+        setSearchQuery={vi.fn()}
+        selectedIndex={0}
+        setSelectedIndex={setSelectedIndex}
+        onClose={vi.fn()}
+        setView={vi.fn()}
+        inputRef={React.createRef<HTMLInputElement>()}
+      />
+    );
+    act(() => {
+      useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: 'tab-1' });
+    });
+
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(setSelectedIndex).not.toHaveBeenCalled();
+    expect(action).not.toHaveBeenCalled();
+
+    act(() => {
+      useFlowStore.getState().setAgentTurn(null);
+    });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(action).toHaveBeenCalledTimes(1);
   });
 });

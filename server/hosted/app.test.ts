@@ -5,10 +5,13 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { COPILOT_CLIENT_HEADER } from '../../src/services/copilot/protocol';
+import { WebSocket } from 'ws';
+import { AGENT_API_PATH, AGENT_SUBPROTOCOL, type AgentServerMessage } from '../../src/services/copilot/agentProtocol';
+import { COPILOT_CLIENT_HEADER, CopilotRequestError } from '../../src/services/copilot/protocol';
+import type { CopilotAgentRuntime } from '../copilotAgentRuntime';
 import type { CopilotRuntime } from '../copilotRuntime';
-import { createHostedApp } from './app';
-import { SESSION_LIFETIME_MS, type HostedConfig } from './config';
+import { createHostedApp, type HostedApp } from './app';
+import { GENERATION_LEASE_MS, SESSION_LIFETIME_MS, type HostedConfig } from './config';
 import { decryptState, stateKey } from './credentials';
 import type { GitHubAuth } from './githubAuth';
 import { MemoryStateStore } from './stateStore';
@@ -20,6 +23,43 @@ let config: HostedConfig;
 let store: MemoryStateStore;
 let github: GitHubAuth;
 let runtime: CopilotRuntime;
+let app: HostedApp;
+
+const AGENT_START = {
+  v: 1, type: 'start', turnId: 'turn-1', prompt: 'Draw a login flow', model: 'auto', history: [],
+  canvas: { pageName: 'Page 1', nodeCount: 0, edgeCount: 0, selectedIds: [] },
+};
+
+// Ends an aborted turn as turnError does: an AbortError interrupts it, a CopilotRequestError keeps its code, and
+// anything else fails it.
+function abortedTurnError(reason: unknown): CopilotRequestError {
+  if (reason instanceof CopilotRequestError) return reason;
+  if (reason instanceof Error && reason.name === 'AbortError') return new CopilotRequestError('interrupted', 'Interrupted.');
+  return new CopilotRequestError('request_failed', 'Copilot could not finish this turn.', 502);
+}
+
+// Accepts the turn and holds it until the browser cancels or the turn is aborted.
+function fakeAgent(): CopilotAgentRuntime {
+  return {
+    startTurn: vi.fn<CopilotAgentRuntime['startTurn']>((start, transport, signal) => {
+      let finish!: () => void;
+      const finished = new Promise<void>((resolve) => { finish = resolve; });
+      const end = (message: AgentServerMessage) => {
+        transport.send(message);
+        finish();
+      };
+      transport.send({ v: 1, type: 'accepted', turnId: start.turnId });
+      signal.addEventListener('abort', () => {
+        const failure = abortedTurnError(signal.reason);
+        end({ v: 1, type: 'error', code: failure.code, message: failure.message });
+      }, { once: true });
+      return {
+        receive: (message) => { if (message.type === 'cancel') end({ v: 1, type: 'done', reply: '' }); },
+        finished,
+      };
+    }),
+  };
+}
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'openflowkit-hosted-test-'));
@@ -52,10 +92,13 @@ beforeEach(async () => {
       models: identity ? [{ id: 'account-model', name: 'Account model' }] : [],
     })),
     generate: vi.fn(async (_input, delta) => { delta('flow: "Hosted"'); return 'flow: "Hosted"'; }),
+    agent: fakeAgent(),
     cancelConnection: vi.fn(),
     stop: vi.fn().mockResolvedValue(undefined),
   };
-  server = createServer(await createHostedApp({ config, store, github, runtime, distDirectory: directory, revision: 'test-sha' }));
+  app = await createHostedApp({ config, store, github, runtime, distDirectory: directory, revision: 'test-sha' });
+  server = createServer(app.request);
+  server.on('upgrade', app.upgrade);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Missing test server address');
@@ -65,6 +108,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  await app?.close();
   server?.closeAllConnections();
   if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
   if (directory) await rm(directory, { recursive: true, force: true });
@@ -97,6 +141,32 @@ async function signIn() {
     .reverse().find((value) => value.startsWith('__Host-ofk-session=') && value.length > '__Host-ofk-session='.length);
   if (!cookie) throw new Error('No sign-in session');
   return { flow, response, cookie, key: stateKey(cookie.split('=')[1]) };
+}
+
+function agentSocket(extra: Record<string, string> = {}, protocols = [AGENT_SUBPROTOCOL], path = AGENT_API_PATH) {
+  const socket = new WebSocket(`${origin.replace('http', 'ws')}${path}`, protocols, { headers: { Origin: config.origin, ...extra } });
+  const received: AgentServerMessage[] = [];
+  socket.on('message', (data) => received.push(JSON.parse(data.toString())));
+  const closed = new Promise<number>((resolve) => socket.on('close', resolve));
+  const opened = new Promise<void>((resolve, reject) => {
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
+  });
+  // Call right after sending: the reply needs a round trip, so it cannot arrive first.
+  const next = () => new Promise<void>((resolve) => socket.once('message', () => resolve()));
+  return { socket, received, closed, opened, next };
+}
+
+async function agentRejection(...options: Parameters<typeof agentSocket>): Promise<string> {
+  return agentSocket(...options).opened.then(() => 'Connected', (error: Error) => error.message);
+}
+
+async function agentTurn(cookie: string) {
+  const client = agentSocket({ Cookie: cookie });
+  await client.opened;
+  client.socket.send(JSON.stringify(AGENT_START));
+  await client.next();
+  return client;
 }
 
 describe('hosted GitHub authentication boundary', () => {
@@ -199,6 +269,21 @@ describe('hosted GitHub authentication boundary', () => {
     expect(decryptState(after!.value, config.encryptionKey, `auth:${key}`)).toMatchObject({ accessToken: 'ghu_renewed_test_only' });
   });
 
+  it('renews a token expiring within four hours before an agent turn, but not for a request', async () => {
+    const { cookie } = await signIn();
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 8 * 3600_000 - 3 * 3600_000);
+    expect((await fetch(`${origin}/api/copilot/status`, { headers: headers(cookie) })).status).toBe(200);
+    expect(github.refresh).not.toHaveBeenCalled();
+
+    const client = await agentTurn(cookie);
+    expect(github.refresh).toHaveBeenCalledOnce();
+    expect(runtime.agent?.startTurn).toHaveBeenCalledWith(
+      expect.anything(), expect.anything(), expect.any(AbortSignal), expect.objectContaining({ token: 'ghu_renewed_test_only' }),
+    );
+    client.socket.send(JSON.stringify({ v: 1, type: 'cancel' }));
+    expect(await client.closed).toBe(1000);
+  });
+
   it('expires sessions after seven days and never starts unauthenticated generations', async () => {
     const { cookie, key } = await signIn();
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + SESSION_LIFETIME_MS + 1);
@@ -279,5 +364,102 @@ describe('hosted GitHub authentication boundary', () => {
     });
     const events = (await response.text()).trim().split('\n').map((line) => JSON.parse(line));
     expect(events.map((event) => event.type)).toEqual(['delta', 'error']);
+  });
+
+  it('rejects agent sockets before upgrading without a session, from another site, or off the agent path', async () => {
+    const { cookie } = await signIn();
+    const rejections = await Promise.all([
+      agentRejection(),
+      agentRejection({ Cookie: '__Host-ofk-session=broken' }),
+      agentRejection({ Cookie: cookie, Origin: 'https://evil.example' }),
+      agentRejection({ Cookie: cookie, Host: 'evil.example' }),
+      agentRejection({ Cookie: cookie, 'Sec-Fetch-Site': 'cross-site' }),
+      agentRejection({ Cookie: cookie }, []),
+      agentRejection({ Cookie: cookie }, [AGENT_SUBPROTOCOL], '/api/copilot/chat'),
+    ]);
+    expect(rejections).toEqual([401, 401, 403, 403, 403, 403, 404].map((status) => `Unexpected server response: ${status}`));
+    expect(runtime.agent?.startTurn).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toMatch(/ofk-session|ghu_/);
+  });
+
+  it('runs one agent turn per account with the signed-in identity and frees the account afterwards', async () => {
+    const { cookie, key } = await signIn();
+    const first = await agentTurn(cookie);
+    expect(first.received).toEqual([{ v: 1, type: 'accepted', turnId: 'turn-1' }]);
+    expect(runtime.agent?.startTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: 'Draw a login flow' }), expect.anything(), expect.any(AbortSignal),
+      expect.objectContaining({ userId: '123', token: 'ghu_test_only', sessionKey: key }),
+    );
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const second = agentSocket({ Cookie: cookie });
+    await second.opened;
+    second.socket.send(JSON.stringify(AGENT_START));
+    await vi.waitFor(() => expect(second.received).toEqual([expect.objectContaining({ type: 'error', code: 'busy' })]));
+    // Neither socket reads the browser's answer to its close, so each is dropped after a short grace.
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(await second.closed).toBe(1000);
+    first.socket.send(JSON.stringify({ v: 1, type: 'cancel' }));
+    await vi.waitFor(() => expect(first.received.at(-1)).toEqual({ v: 1, type: 'done', reply: '' }));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(await first.closed).toBe(1000);
+    expect(await store.get('users', stateKey('123'))).toBeUndefined();
+    expect(runtime.agent?.startTurn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toMatch(/ghu_|login flow/);
+  });
+
+  it('renews the generation lease every minute and ends the turn once the sign-in is removed', async () => {
+    const { cookie, key } = await signIn();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const client = await agentTurn(cookie);
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now + 60_000);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((await store.get('users', stateKey('123')))?.expiresAt).toBe(now + 60_000 + GENERATION_LEASE_MS);
+    expect((await store.get('slots', '0'))?.expiresAt).toBe(now + 60_000 + GENERATION_LEASE_MS);
+
+    const record = await store.get('auth', key);
+    await store.delete('auth', key, record!.version);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await client.closed).toBe(1000);
+    expect(client.received.at(-1)).toMatchObject({ type: 'error', code: 'not_authenticated' });
+    expect(await store.get('users', stateKey('123'))).toBeUndefined();
+  });
+
+  it('interrupts the turn, so it can be continued, when the store cannot renew its generation lease', async () => {
+    const { cookie } = await signIn();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const client = await agentTurn(cookie);
+    vi.spyOn(store, 'put').mockRejectedValue(new Error('storage offline'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(await client.closed).toBe(1000);
+    expect(client.received.at(-1)).toMatchObject({ type: 'error', code: 'interrupted' });
+    expect(await store.get('users', stateKey('123'))).toBeUndefined();
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toMatch(/ghu_|storage offline|login flow/);
+  });
+
+  it('interrupts the turn, so it can be continued, when the store cannot check the sign-in', async () => {
+    const { cookie } = await signIn();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const client = await agentTurn(cookie);
+    vi.spyOn(store, 'get').mockRejectedValueOnce(new Error('storage offline'));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await client.closed).toBe(1000);
+    expect(client.received.at(-1)).toMatchObject({ type: 'error', code: 'interrupted' });
+    expect(await store.get('users', stateKey('123'))).toBeUndefined();
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toMatch(/ghu_|storage offline|login flow/);
+  });
+
+  it('frees the account when the browser disconnects and interrupts turns on shutdown', async () => {
+    const { cookie } = await signIn();
+    const lost = await agentTurn(cookie);
+    lost.socket.terminate();
+    await vi.waitFor(async () => expect(await store.get('users', stateKey('123'))).toBeUndefined());
+
+    const running = await agentTurn(cookie);
+    await app.close();
+    expect(await running.closed).toBe(1001);
+    expect(running.received.at(-1)).toMatchObject({ type: 'error', code: 'interrupted' });
+    expect(await store.get('users', stateKey('123'))).toBeUndefined();
+    expect(await agentRejection({ Cookie: cookie })).toBe('Unexpected server response: 503');
   });
 });

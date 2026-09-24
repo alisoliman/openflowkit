@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { ICON_NAMES, ICON_PICKER_PRIORITY_NAMES, NamedIcon, resolveIconName } from './IconMap';
+import { ICON_NAMES, ICON_PICKER_PRIORITY_NAMES, NamedIcon, findIconName, resolveIconName } from './IconMap';
 
 describe('IconMap', () => {
     it('keeps the curated icon registry intentionally small', () => {
@@ -19,6 +19,12 @@ describe('IconMap', () => {
     it('falls back to Settings for unknown or disabled icon names', () => {
         expect(resolveIconName('none')).toBe('Settings');
         expect(resolveIconName('totallyUnknownIcon')).toBe('Settings');
+    });
+
+    it('finds icon names without falling back', () => {
+        expect(findIconName('Database')).toBe('Database');
+        expect(findIconName('log-in')).toBe('LogIn');
+        expect(findIconName('totallyUnknownIcon')).toBeUndefined();
     });
 
     it('renders a named icon element', () => {

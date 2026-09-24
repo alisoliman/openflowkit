@@ -8,25 +8,30 @@ import {
   copilotRequestSchema,
   type CopilotStreamEvent,
 } from '../src/services/copilot/protocol';
+import { toRequestError } from './copilotHost';
 import { hostedCopilotError, type CopilotRuntime } from './copilotRuntime';
 import type { HostedIdentity } from './hosted/authSessions';
+import type { Lease } from './hosted/leases';
 
 const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-function isLocalRequest(request: IncomingMessage): boolean {
-  if (!LOOPBACK_ADDRESSES.has(request.socket.remoteAddress ?? '')) return false;
-  if (request.headers[COPILOT_CLIENT_HEADER] !== '1') return false;
-  if (request.headers['sec-fetch-site'] === 'cross-site') return false;
-
+/** The origin a local request was served on, or undefined unless both its socket and its exact Host are loopback. */
+export function localOrigin(request: IncomingMessage): string | undefined {
+  if (!LOOPBACK_ADDRESSES.has(request.socket.remoteAddress ?? '')) return undefined;
   try {
     const url = new URL(`http://${request.headers.host}`);
-    if (!LOOPBACK_HOSTS.has(url.hostname) || url.host !== request.headers.host) return false;
-    const origin = request.headers.origin;
-    return !origin || origin === url.origin;
+    return LOOPBACK_HOSTS.has(url.hostname) && url.host === request.headers.host ? url.origin : undefined;
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+function isLocalRequest(request: IncomingMessage): boolean {
+  const origin = localOrigin(request);
+  if (!origin || request.headers[COPILOT_CLIENT_HEADER] !== '1') return false;
+  if (request.headers['sec-fetch-site'] === 'cross-site') return false;
+  return !request.headers.origin || request.headers.origin === origin;
 }
 
 export async function readJsonRequest(request: IncomingMessage, maxBytes = COPILOT_MAX_BODY_BYTES): Promise<unknown> {
@@ -66,23 +71,16 @@ async function readRequest(request: IncomingMessage) {
   return parsed.data;
 }
 
-function toRequestError(error: unknown): CopilotRequestError {
-  if (error instanceof CopilotRequestError) return error;
-  return new CopilotRequestError(
-    'request_failed',
-    `Copilot could not complete the request: ${error instanceof Error ? error.message : 'Unknown runtime error'}`,
-    502,
-  );
-}
-
 export function writeJson(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(body));
 }
 
+/** Shared by the one-shot middleware and the agent socket endpoint. */
 export interface HostedCopilotBoundary {
-  authorize(request: IncomingMessage, response: ServerResponse): Promise<HostedIdentity | undefined>;
-  acquire(identity: HostedIdentity): Promise<() => Promise<void>>;
+  /** Agent socket upgrades pass no response, which also renews their token further ahead of expiry. */
+  authorize(request: IncomingMessage, response?: ServerResponse): Promise<HostedIdentity | undefined>;
+  acquire(identity: HostedIdentity): Promise<Lease>;
   isActive(identity: HostedIdentity): Promise<boolean>;
 }
 
@@ -154,7 +152,7 @@ export function createCopilotMiddleware(runtime: CopilotRuntime, hosted?: Hosted
             }).finally(() => { checkingAuthorization = false; });
           }, 5000);
         }
-        const release = hosted && identity ? await hosted.acquire(identity) : undefined;
+        const lease = hosted && identity ? await hosted.acquire(identity) : undefined;
         let text: string;
         try {
           controller.signal.throwIfAborted();
@@ -164,7 +162,7 @@ export function createCopilotMiddleware(runtime: CopilotRuntime, hosted?: Hosted
           text = await runtime.generate(body, (delta) => writeEvent({ type: 'delta', text: delta }), controller.signal, identity);
           await checkAuthorization();
         } finally {
-          await release?.();
+          await lease?.release();
         }
         controller.signal.throwIfAborted();
         if (!response.destroyed) {

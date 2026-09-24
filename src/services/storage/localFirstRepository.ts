@@ -4,6 +4,7 @@ import type {
   AgentPlan,
   AgentResponseMode,
   AgentThinkingState,
+  AgentTurnState,
   AssetGroundingMatch,
   AssistantThreadItem,
   DiagramChangeSummary,
@@ -85,6 +86,7 @@ export interface PersistedChatMessage {
   changes?: DiagramChangeSummary;
   plan?: AgentPlan;
   assetMatches?: AssetGroundingMatch[];
+  agentTurn?: AgentTurnState;
 }
 
 export interface PersistedAISettingsRecord {

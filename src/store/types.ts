@@ -98,6 +98,12 @@ export interface PendingNodeLabelEditRequest {
   replaceExisting?: boolean;
 }
 
+// Set while a Flowpilot agent turn edits a page; the user can only pan and zoom until it ends.
+export interface AgentTurnLock {
+  turnId: string;
+  pageId: string;
+}
+
 export interface FlowState {
   // -------------------------------------------------------------------------
   // SLICE: Canvas — active node/edge data synced with React Flow
@@ -108,6 +114,7 @@ export interface FlowState {
   onEdgesChange: OnEdgesChange;
   setNodes: (nodes: FlowNode[] | ((nodes: FlowNode[]) => FlowNode[])) => void;
   setEdges: (edges: FlowEdge[] | ((edges: FlowEdge[]) => FlowEdge[])) => void;
+  setGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void;
   onConnect: (connection: Connection) => void;
 
   // -------------------------------------------------------------------------
@@ -201,6 +208,7 @@ export interface FlowState {
   hoveredSectionId: string | null;
   pendingNodeLabelEditRequest: PendingNodeLabelEditRequest | null;
   mermaidDiagnostics: MermaidDiagnosticsSnapshot | null;
+  agentTurn: AgentTurnLock | null;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
   setHoveredSectionId: (id: string | null) => void;
@@ -208,6 +216,7 @@ export interface FlowState {
   clearPendingNodeLabelEditRequest: () => void;
   setMermaidDiagnostics: (snapshot: MermaidDiagnosticsSnapshot | null) => void;
   clearMermaidDiagnostics: () => void;
+  setAgentTurn: (turn: AgentTurnLock | null) => void;
 
   // -------------------------------------------------------------------------
   // SLICE: Persistence — save status tracking
@@ -219,7 +228,7 @@ export interface FlowState {
 export type CanvasStateSlice = Pick<FlowState, 'nodes' | 'edges'>;
 export type CanvasActionsSlice = Pick<
   FlowState,
-  'onNodesChange' | 'onEdgesChange' | 'setNodes' | 'setEdges' | 'onConnect'
+  'onNodesChange' | 'onEdgesChange' | 'setNodes' | 'setEdges' | 'setGraph' | 'onConnect'
 >;
 
 export type WorkspaceDocumentsStateSlice = Pick<

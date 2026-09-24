@@ -5,11 +5,14 @@ import {
   SECTION_MIN_WIDTH,
   SECTION_PADDING_BOTTOM,
   SECTION_PADDING_X,
+  SECTION_RENDER_MIN_HEIGHT,
+  SECTION_RENDER_MIN_WIDTH,
+  SECTION_TITLE_OFFSET,
 } from '@/hooks/node-operations/sectionBounds';
 import type { FlowNode } from '@/lib/types';
 import type { NodeBounds } from './boundaryFanout';
 import { normalizeLayoutInputsForDeterminism } from './determinism';
-import { estimateNodeSize } from './graphBuilding';
+import { estimateNodeSize, isDefaultSection } from './graphBuilding';
 import type { FlowNodeWithMeasuredDimensions, LayoutOptions } from './types';
 
 export function getNodeBoundsFromPositionMap(
@@ -100,7 +103,9 @@ export function applyRecursiveFallbackLayout(
     }
 
     let cursorX = SECTION_PADDING_X;
-    let cursorY = SECTION_CONTENT_PADDING_TOP;
+    // A default section draws its title above its border, so a node holding one leaves room for it.
+    const titleOffset = directChildren.some(isDefaultSection) ? SECTION_TITLE_OFFSET : 0;
+    let cursorY = SECTION_CONTENT_PADDING_TOP + titleOffset;
     let maxChildRight = cursorX;
     let maxChildBottom = cursorY;
 
@@ -116,19 +121,28 @@ export function applyRecursiveFallbackLayout(
       }
     }
 
-    const width = Math.max(maxChildRight + SECTION_PADDING_X, SECTION_MIN_WIDTH);
-    const height = Math.max(maxChildBottom + SECTION_PADDING_BOTTOM, SECTION_MIN_HEIGHT);
+    // SectionNode draws a default section at least this big, so the nodes after it leave room for that.
+    const [minWidth, minHeight] = isDefaultSection(node)
+      ? [SECTION_RENDER_MIN_WIDTH, SECTION_RENDER_MIN_HEIGHT]
+      : [SECTION_MIN_WIDTH, SECTION_MIN_HEIGHT];
+    const width = Math.max(maxChildRight + SECTION_PADDING_X, minWidth);
+    const height = Math.max(maxChildBottom + SECTION_PADDING_BOTTOM, minHeight);
 
+    const isContainer =
+      node.type === 'group' || node.type === 'section' || node.type === 'container';
     positionedNodes.set(node.id, {
       ...nextNode,
-      style:
-        node.type === 'group' || node.type === 'section' || node.type === 'container'
-          ? {
-              ...node.style,
-              width,
-              height,
-            }
-          : node.style,
+      style: isContainer
+        ? {
+            ...node.style,
+            width,
+            height,
+          }
+        : node.style,
+      // React Flow sizes a node the user resized by its top-level width and height.
+      ...(isContainer && typeof node.width === 'number' ? { width } : {}),
+      ...(isContainer && typeof node.height === 'number' ? { height } : {}),
+      ...(isContainer && node.measured ? { measured: { width, height } } : {}),
     });
 
     return { width, height };

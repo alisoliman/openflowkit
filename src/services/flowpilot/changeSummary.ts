@@ -81,8 +81,17 @@ export function matchDiagramEdges(before: FlowEdge[], after: FlowEdge[]) {
   return [...pairs, ...[...remaining].map((edge) => ({ before: edge, after: undefined }))];
 }
 
-export function summarizeDiagramChanges(before: DiagramGraph, after: DiagramGraph): DiagramChangeSummary {
+/**
+ * With `countMoves`, nodes that only moved count too: an agent turn moves nodes on purpose, while a
+ * generated diagram is laid out afresh, so there every node would count.
+ */
+export function summarizeDiagramChanges(
+  before: DiagramGraph,
+  after: DiagramGraph,
+  { countMoves = false }: { countMoves?: boolean } = {}
+): DiagramChangeSummary {
   const details: DiagramChange[] = [];
+  let movedCount = 0;
   const beforeById = new Map(before.nodes.map((node) => [node.id, node]));
   const afterById = new Map(after.nodes.map((node) => [node.id, node]));
   for (const node of after.nodes) {
@@ -96,6 +105,11 @@ export function summarizeDiagramChanges(before: DiagramGraph, after: DiagramGrap
         label: node.data.label,
         previousLabel: previous.data.label !== node.data.label ? previous.data.label : undefined,
       });
+    } else if (
+      countMoves &&
+      (previous.position.x !== node.position.x || previous.position.y !== node.position.y)
+    ) {
+      movedCount += 1;
     }
   }
   for (const node of before.nodes) {
@@ -123,7 +137,8 @@ export function summarizeDiagramChanges(before: DiagramGraph, after: DiagramGrap
     addedEdgeCount: count('edge', 'added'),
     removedEdgeCount: count('edge', 'removed'),
     updatedEdgeCount: count('edge', 'updated'),
-    totalChanges: details.length,
+    ...(countMoves ? { movedCount } : {}),
+    totalChanges: details.length + movedCount,
     details,
   };
 }

@@ -52,9 +52,10 @@ export function useFlowEditorScreenModel({ onGoHome }: UseFlowEditorScreenModelP
     assistantThread,
     clearChat,
     clearLastError,
+    agentTurnControls,
     canUndoLastChange,
     undoLastChange,
-  } = useAIGeneration(callbacks.handlePreparedGraphApply);
+  } = useAIGeneration(callbacks.handlePreparedGraphApply, screenState.fitView);
 
   const handleApplyDsl = useCallback(
     (dsl: string) => {
@@ -272,6 +273,7 @@ export function useFlowEditorScreenModel({ onGoHome }: UseFlowEditorScreenModelP
         onClearAIError: clearLastError,
         chatMessages,
         assistantThread,
+        agentTurnControls,
         canUndoLastChange,
         undoLastChange,
         clearChat,

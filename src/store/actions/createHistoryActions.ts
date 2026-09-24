@@ -94,7 +94,8 @@ export function createHistoryActions(set: SetFlowState, get: GetFlowState): Pick
         undoV2: () => {
             set((state) => {
                 const activeTabIndex = findActiveTabIndex(state);
-                if (activeTabIndex < 0) return {};
+                // A Flowpilot turn owns the page until it ends.
+                if (activeTabIndex < 0 || state.agentTurn) return {};
 
                 const activeTab = state.tabs[activeTabIndex];
                 if (activeTab.history.past.length === 0) return {};
@@ -125,7 +126,7 @@ export function createHistoryActions(set: SetFlowState, get: GetFlowState): Pick
         redoV2: () => {
             set((state) => {
                 const activeTabIndex = findActiveTabIndex(state);
-                if (activeTabIndex < 0) return {};
+                if (activeTabIndex < 0 || state.agentTurn) return {};
 
                 const activeTab = state.tabs[activeTabIndex];
                 if (activeTab.history.future.length === 0) return {};

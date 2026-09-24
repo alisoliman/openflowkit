@@ -10,6 +10,7 @@ import { DiagramDiffProvider } from '@/context/DiagramDiffContext';
 import { ShareEmbedModal } from '@/components/ShareEmbedModal';
 import { ImportRecoveryDialog } from '@/components/ImportRecoveryDialog';
 import { MermaidDiagnosticsBanner } from '@/components/MermaidDiagnosticsBanner';
+import { InertWhileAgentEdits } from './flow-editor/InertWhileAgentEdits';
 import { canRecoverMermaidSource as canRecoverMermaidSourceFromState } from '@/services/mermaid/recoveryPresentation';
 import { resolveCinematicExportTheme } from '@/services/export/cinematicExportTheme';
 import { useMermaidDiagnostics } from '@/store/selectionHooks';
@@ -76,7 +77,8 @@ export function FlowEditor({ onGoHome }: FlowEditorProps) {
       });
 
   const handleConvertMermaidToEditable = React.useCallback(async () => {
-    if (!mermaidRecoverySource) {
+    // A Flowpilot turn owns the page, so the conversion replaces nothing while one runs.
+    if (!mermaidRecoverySource || useFlowStore.getState().agentTurn) {
       return;
     }
 
@@ -109,6 +111,9 @@ export function FlowEditor({ onGoHome }: FlowEditorProps) {
         contentDensity: 'balanced',
       },
     });
+    if (useFlowStore.getState().agentTurn) {
+      return;
+    }
 
     recordHistory();
     setNodes(editableImport.nodes);
@@ -173,29 +178,31 @@ export function FlowEditor({ onGoHome }: FlowEditorProps) {
           }}
         >
           <CinematicExportOverlay />
-          {mermaidDiagnostics ? (
-            <div className="pointer-events-none absolute left-4 right-4 top-16 z-40 flex justify-center">
-              <div className="pointer-events-auto w-full max-w-2xl">
-                <MermaidDiagnosticsBanner
-                  snapshot={mermaidDiagnostics}
-                  actionLabel={
-                    mermaidDiagnostics.visualMode === 'renderer_exact' && canRecoverMermaidSource
-                      ? 'Convert to editable diagram'
-                      : canRecoverMermaidSource
-                        ? 'Open Mermaid code'
-                        : undefined
-                  }
-                  onAction={
-                    mermaidDiagnostics.visualMode === 'renderer_exact' && canRecoverMermaidSource
-                      ? handleConvertMermaidToEditable
-                      : canRecoverMermaidSource
-                        ? () => flowEditorController.openStudioCode('mermaid')
-                        : undefined
-                  }
-                />
+          <InertWhileAgentEdits>
+            {mermaidDiagnostics ? (
+              <div className="pointer-events-none absolute left-4 right-4 top-16 z-40 flex justify-center">
+                <div className="pointer-events-auto w-full max-w-2xl">
+                  <MermaidDiagnosticsBanner
+                    snapshot={mermaidDiagnostics}
+                    actionLabel={
+                      mermaidDiagnostics.visualMode === 'renderer_exact' && canRecoverMermaidSource
+                        ? 'Convert to editable diagram'
+                        : canRecoverMermaidSource
+                          ? 'Open Mermaid code'
+                          : undefined
+                    }
+                    onAction={
+                      mermaidDiagnostics.visualMode === 'renderer_exact' && canRecoverMermaidSource
+                        ? handleConvertMermaidToEditable
+                        : canRecoverMermaidSource
+                          ? () => flowEditorController.openStudioCode('mermaid')
+                          : undefined
+                    }
+                  />
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </InertWhileAgentEdits>
           <FlowEditorChrome
             pages={pages}
             activePageId={activePageId}

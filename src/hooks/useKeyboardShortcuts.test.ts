@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useFlowStore } from '@/store';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 
 function renderShortcuts(overrides: Partial<Parameters<typeof useKeyboardShortcuts>[0]> = {}): void {
@@ -26,6 +27,7 @@ function renderShortcuts(overrides: Partial<Parameters<typeof useKeyboardShortcu
 describe('useKeyboardShortcuts', () => {
   afterEach(() => {
     document.body.innerHTML = '';
+    useFlowStore.getState().setAgentTurn(null);
   });
 
   it('triggers duplicate when Cmd/Ctrl+D is pressed outside editable fields', () => {
@@ -244,5 +246,54 @@ describe('useKeyboardShortcuts', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p' }));
 
     expect(onTogglePinPositionShortcut).not.toHaveBeenCalled();
+  });
+
+  it('leaves only help, fit view and zoom while a Flowpilot turn edits the page', () => {
+    const handlers = {
+      deleteNode: vi.fn(),
+      undo: vi.fn(),
+      redo: vi.fn(),
+      duplicateNode: vi.fn(),
+      selectAll: vi.fn(),
+      onCommandBar: vi.fn(),
+      onSearch: vi.fn(),
+      onSelectMode: vi.fn(),
+      onTogglePinPositionShortcut: vi.fn(),
+      onShortcutsHelp: vi.fn(),
+      onFitView: vi.fn(),
+      onZoomIn: vi.fn(),
+      onZoomOut: vi.fn(),
+    };
+    renderShortcuts(handlers);
+    const labelEditRequest = vi.fn();
+    window.addEventListener('flowmind:node-label-edit-request', labelEditRequest);
+    useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: 'tab-1' });
+
+    for (const init of [
+      { key: 'Delete' },
+      { key: 'z', ctrlKey: true },
+      { key: 'y', ctrlKey: true },
+      { key: 'd', ctrlKey: true },
+      { key: 'a', ctrlKey: true },
+      { key: 'k', ctrlKey: true },
+      { key: 'f', ctrlKey: true },
+      { key: 'v' },
+      { key: 'p' },
+      { key: 'F2' },
+      { key: 'x' },
+      { key: '?' },
+      { key: '!', code: 'Digit1', shiftKey: true },
+      { key: '=', ctrlKey: true },
+      { key: '-', ctrlKey: true },
+    ]) {
+      window.dispatchEvent(new KeyboardEvent('keydown', init));
+    }
+    window.removeEventListener('flowmind:node-label-edit-request', labelEditRequest);
+
+    expect(labelEditRequest).not.toHaveBeenCalled();
+    for (const [name, handler] of Object.entries(handlers)) {
+      const allowed = ['onShortcutsHelp', 'onFitView', 'onZoomIn', 'onZoomOut'].includes(name);
+      expect(handler, name).toHaveBeenCalledTimes(allowed ? 1 : 0);
+    }
   });
 });

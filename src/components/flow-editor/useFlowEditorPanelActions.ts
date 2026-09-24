@@ -3,6 +3,7 @@ import { useFlowStore } from '@/store';
 import { buildArchitectureServiceSuggestionPrompt, buildEntityFieldGenerationPrompt } from '@/hooks/ai-generation/nodeActionPrompts';
 import type { StudioCodeMode, StudioTab } from '@/hooks/useFlowEditorUIState';
 import type { ArchitectureTemplateId } from '@/lib/architectureTemplates';
+import type { FlowNode } from '@/lib/types';
 
 interface UseFlowEditorPanelActionsParams {
     handleFocusedAIRequest: (prompt: string, selectedNodeIds?: string[]) => Promise<boolean>;
@@ -26,23 +27,31 @@ export function useFlowEditorPanelActions({
     setStudioMode,
     handleApplyArchitectureTemplate,
 }: UseFlowEditorPanelActionsParams): UseFlowEditorPanelActionsResult {
-    const handleGenerateEntityFields = useCallback(async (nodeId: string) => {
-        const node = useFlowStore.getState().nodes.find((candidate) => candidate.id === nodeId);
+    const runNodeAIRequest = useCallback(async (nodeId: string, buildPrompt: (node: FlowNode, forAgent: boolean) => string) => {
+        const { nodes, aiSettings } = useFlowStore.getState();
+        const node = nodes.find((candidate) => candidate.id === nodeId);
         if (!node) {
             return;
         }
 
-        await handleFocusedAIRequest(buildEntityFieldGenerationPrompt(node), [nodeId]);
-    }, [handleFocusedAIRequest]);
-
-    const handleSuggestArchitectureNode = useCallback(async (nodeId: string) => {
-        const node = useFlowStore.getState().nodes.find((candidate) => candidate.id === nodeId);
-        if (!node) {
-            return;
+        const isCopilot = (aiSettings.provider ?? 'copilot') === 'copilot';
+        // A Copilot turn locks the editor while it works, so show it in the studio, where it can be stopped.
+        if (isCopilot) {
+            setStudioTab('ai');
+            setStudioMode();
         }
+        await handleFocusedAIRequest(buildPrompt(node, isCopilot), [nodeId]);
+    }, [handleFocusedAIRequest, setStudioMode, setStudioTab]);
 
-        await handleFocusedAIRequest(buildArchitectureServiceSuggestionPrompt(node), [nodeId]);
-    }, [handleFocusedAIRequest]);
+    const handleGenerateEntityFields = useCallback(
+        (nodeId: string) => runNodeAIRequest(nodeId, buildEntityFieldGenerationPrompt),
+        [runNodeAIRequest]
+    );
+
+    const handleSuggestArchitectureNode = useCallback(
+        (nodeId: string) => runNodeAIRequest(nodeId, buildArchitectureServiceSuggestionPrompt),
+        [runNodeAIRequest]
+    );
 
     const handleOpenMermaidCodeEditor = useCallback(() => {
         setStudioTab('code');

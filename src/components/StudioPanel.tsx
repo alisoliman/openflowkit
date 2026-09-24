@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from 'react';
-import { ArrowRight, Code2, WandSparkles } from 'lucide-react';
+import { ArrowRight, Code2, Loader2, Square, WandSparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { FLOWPILOT_NAME } from '@/lib/brand';
 import type { FlowEdge, FlowNode } from '@/lib/types';
 import type { ChatMessage } from '@/services/aiService';
@@ -7,7 +8,10 @@ import type { AssistantThreadItem } from '@/services/flowpilot/types';
 import type { StudioCodeMode, StudioTab } from '@/hooks/useFlowEditorUIState';
 import type { AIReadinessState } from '@/hooks/ai-generation/readiness';
 import type { ImportDiff } from '@/hooks/useAIGeneration';
+import type { AgentTurnControls } from '@/hooks/ai-generation/useFlowpilotAgent';
+import { useIsAgentEditing } from '@/store/selectionHooks';
 import { SidebarBody, SidebarHeader, SidebarSegmentedTabs, SidebarShell } from './SidebarShell';
+import { InertWhileAgentEdits } from './flow-editor/InertWhileAgentEdits';
 
 const LazyStudioAIPanel = lazy(async () => {
     const module = await import('./StudioAIPanel');
@@ -55,6 +59,7 @@ interface StudioPanelProps {
     onClearAIError: () => void;
     chatMessages: ChatMessage[];
     assistantThread: AssistantThreadItem[];
+    agentTurnControls?: AgentTurnControls;
     canUndoLastChange?: boolean;
     undoLastChange?: () => void;
     onClearChat: () => void;
@@ -101,6 +106,7 @@ export function StudioPanel({
     onClearAIError,
     chatMessages,
     assistantThread,
+    agentTurnControls,
     canUndoLastChange,
     undoLastChange,
     onClearChat,
@@ -115,7 +121,9 @@ export function StudioPanel({
     initialPrompt,
     onInitialPromptConsumed,
 }: StudioPanelProps): React.ReactElement {
+    const { t } = useTranslation();
     const effectiveTab = getEffectiveStudioTab(activeTab);
+    const isAgentEditing = useIsAgentEditing();
 
     return (
         <SidebarShell>
@@ -134,18 +142,41 @@ export function StudioPanel({
                 />
             </div>
 
-            {selectedNode && (
-                <button
-                    onClick={onViewProperties}
-                    className="flex w-full items-center justify-between border-b border-[var(--color-brand-border)] bg-[var(--brand-background)] px-4 py-2 text-left transition-colors hover:bg-[var(--brand-primary-50)]"
+            {isAgentEditing && (
+                <div
+                    role="status"
+                    className="flex items-center gap-2 border-b border-[var(--color-brand-border)] bg-[var(--brand-primary-50)] px-4 py-2 text-xs text-[var(--brand-text)]"
                 >
-                    <span className="truncate text-xs font-medium text-[var(--brand-secondary)]">
-                        {(selectedNode.data as { label?: string }).label?.trim() || 'Selected node'}
+                    <Loader2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--brand-primary)]" />
+                    <span className="min-w-0 flex-1">
+                        {t('flowpilot.agent.locked', 'Copilot is editing this page. Canvas editing is paused until it finishes.')}
                     </span>
-                    <span className="ml-2 flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--brand-primary)]">
-                        Properties <ArrowRight className="h-3 w-3" />
-                    </span>
-                </button>
+                    <button
+                        type="button"
+                        onClick={cancelGeneration}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-red-600"
+                    >
+                        <Square aria-hidden="true" className="h-2.5 w-2.5 fill-current" />
+                        {t('flowpilot.agent.stop', 'Stop')}
+                    </button>
+                </div>
+            )}
+
+            {/* The properties rail is locked during a Flowpilot turn, and leaving the studio would hide Stop. */}
+            {selectedNode && (
+                <InertWhileAgentEdits>
+                    <button
+                        onClick={onViewProperties}
+                        className="flex w-full items-center justify-between border-b border-[var(--color-brand-border)] bg-[var(--brand-background)] px-4 py-2 text-left transition-colors hover:bg-[var(--brand-primary-50)]"
+                    >
+                        <span className="truncate text-xs font-medium text-[var(--brand-secondary)]">
+                            {(selectedNode.data as { label?: string }).label?.trim() || 'Selected node'}
+                        </span>
+                        <span className="ml-2 flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--brand-primary)]">
+                            Properties <ArrowRight className="h-3 w-3" />
+                        </span>
+                    </button>
+                </InertWhileAgentEdits>
             )}
 
             <SidebarBody scrollable={false} className="px-4 py-3">
@@ -165,6 +196,7 @@ export function StudioPanel({
                             onClearError={onClearAIError}
                             chatMessages={chatMessages}
                             assistantThread={assistantThread}
+                            agentTurnControls={agentTurnControls}
                             canUndoLastChange={canUndoLastChange}
                             undoLastChange={undoLastChange}
                             onClearChat={onClearChat}
@@ -175,15 +207,18 @@ export function StudioPanel({
                         />
                     </Suspense>
                 ) : effectiveTab === 'code' ? (
-                    <Suspense fallback={null}>
-                        <LazyStudioCodePanel
-                            nodes={nodes}
-                            edges={edges}
-                            onApply={onApply}
-                            mode={codeMode}
-                            onModeChange={onCodeModeChange}
-                        />
-                    </Suspense>
+                    // Applying code replaces the page, so it waits for a Flowpilot turn to end.
+                    <InertWhileAgentEdits>
+                        <Suspense fallback={null}>
+                            <LazyStudioCodePanel
+                                nodes={nodes}
+                                edges={edges}
+                                onApply={onApply}
+                                mode={codeMode}
+                                onModeChange={onCodeModeChange}
+                            />
+                        </Suspense>
+                    </InertWhileAgentEdits>
                 ) : null}
             </SidebarBody>
         </SidebarShell>

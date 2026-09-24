@@ -3,7 +3,7 @@ import { NodeChrome } from './NodeChrome';
 import { InlineTextEditSurface } from './InlineTextEditSurface';
 import MemoizedMarkdown from './MemoizedMarkdown';
 import { NamedIcon } from './IconMap';
-import { getIconAssetNodeMinSize } from './nodeHelpers';
+import { ICON_ASSET_SIDE_HANDLE_TOP, getIconAssetNodeMinSize } from './nodeHelpers';
 import { getTransformDiagnosticsAttrs } from './transformDiagnostics';
 
 interface InlineEditLike {
@@ -35,7 +35,10 @@ function toCssSize(value: number | string | undefined): string | undefined {
 }
 
 const ICON_FRAME_SIZE = 72;
-const ICON_HANDLE_STYLE_EXTRAS = { left: { top: 42 }, right: { top: 42 } };
+const ICON_HANDLE_STYLE_EXTRAS = {
+  left: { top: ICON_ASSET_SIDE_HANDLE_TOP },
+  right: { top: ICON_ASSET_SIDE_HANDLE_TOP },
+};
 
 /** Renders the compact icon-first presentation used for architecture asset nodes. */
 export function IconAssetNodeBody({

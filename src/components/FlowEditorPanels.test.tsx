@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useFlowStore } from '@/store';
 import { FlowEditorPanels } from './FlowEditorPanels';
 
 const commandBarShouldThrow = false;
@@ -181,6 +182,12 @@ const selectedNode = {
 } as const;
 
 describe('FlowEditorPanels', () => {
+  afterEach(() => {
+    act(() => {
+      useFlowStore.getState().setAgentTurn(null);
+    });
+  });
+
   it('keeps the snapshots panel isolated when the properties rail crashes', async () => {
     propertiesShouldThrow = true;
 
@@ -271,5 +278,33 @@ describe('FlowEditorPanels', () => {
     );
 
     expect(await screen.findByTestId('snapshots-panel')).not.toBeNull();
+  });
+
+  it('makes the command panel, snapshots, and properties rail inert while a Flowpilot turn edits the page', async () => {
+    render(
+      <FlowEditorPanels
+        {...baseProps}
+        editorMode="canvas"
+        isHistoryOpen={true}
+        commandBar={{ ...baseProps.commandBar, isOpen: true }}
+        properties={{ ...baseProps.properties, selectedNode }}
+      />
+    );
+    const panels = await Promise.all(
+      ['command-bar', 'snapshots-panel', 'properties-panel'].map((testId) => screen.findByTestId(testId))
+    );
+    expect(panels.map((panel) => panel.closest('[inert]'))).toEqual([null, null, null]);
+
+    act(() => {
+      useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: 'tab-1' });
+    });
+    for (const panel of panels) expect(panel.closest('[inert]')).not.toBeNull();
+  });
+
+  it('keeps the studio usable while a Flowpilot turn edits the page, so the turn can be stopped', async () => {
+    useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: 'tab-1' });
+    render(<FlowEditorPanels {...baseProps} editorMode="studio" />);
+
+    expect((await screen.findByTestId('studio-panel')).closest('[inert]')).toBeNull();
   });
 });

@@ -25,6 +25,7 @@ import {
     scheduleFitView,
 } from './flow-editor-actions/layoutHandlers';
 import { recordOnboardingEvent } from '@/services/onboarding/events';
+import { useFlowStore } from '@/store';
 
 const logger = createLogger({ scope: 'useFlowEditorActions' });
 
@@ -85,7 +86,6 @@ export function useFlowEditorActions({
     ): Promise<void> => {
         if (nodes.length === 0) return;
         setIsLayouting(true);
-        recordHistory();
 
         try {
             await new Promise<void>((resolve) => {
@@ -100,6 +100,9 @@ export function useFlowEditorActions({
                 spacing,
                 diagramType,
             });
+            // A Flowpilot turn started meanwhile owns the page, so this layout of the earlier canvas is dropped.
+            if (useFlowStore.getState().agentTurn) return;
+            recordHistory();
             startTransition(() => {
                 setNodes(layoutedNodes);
                 setEdges(layoutedEdges);

@@ -7,6 +7,7 @@ import { releaseStaleElkRoutesForNodeIds } from '@/lib/releaseStaleElkRoutes';
 import { reconcileMindmapDrop } from '@/lib/mindmapLayout';
 import { applyMindmapVisibility } from '@/lib/mindmapTree';
 import { applySectionParenting, getContainingSectionId } from './utils';
+import { getNodeAncestorIds } from './sectionBounds';
 import { getDragStopReconcileDelayMs } from './dragStopReconcilePolicy';
 import { requestNodeLabelEdit } from '../nodeLabelEditRequest';
 
@@ -143,6 +144,12 @@ export const useNodeDragOperations = (recordHistory: () => void) => {
             );
             if (effectiveDraggedNode.id) {
                 movedNodeIds.add(effectiveDraggedNode.id);
+            }
+            // React Flow moves what a section holds along with it, without selecting it.
+            for (const node of latestNodes) {
+                if (getNodeAncestorIds(node, latestNodes).some((id) => movedNodeIds.has(id))) {
+                    movedNodeIds.add(node.id);
+                }
             }
 
             const releasedEdges = releaseStaleElkRoutesForNodeIds(latestEdges, movedNodeIds);

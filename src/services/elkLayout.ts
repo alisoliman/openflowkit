@@ -99,16 +99,13 @@ export async function getElkLayout(
     ...options,
     diagramType: effectiveDiagramType,
   });
-  // Force/stress/radial crash inside elkjs (`pe` null deref) when the graph
-  // has any compound nodes + INCLUDE_CHILDREN. Coerce to layered in that case.
+  // Only layered lays out compound nodes along with the edges into them (force, stress, radial
+  // and mrtree do not), so a graph with sections is coerced to layered.
   const hasCompoundNodes = nodes.some((node) => {
     const parentId = (node as { parentId?: string | null }).parentId;
     return typeof parentId === 'string' && parentId.length > 0;
   });
-  const algorithm =
-    hasCompoundNodes && (requestedAlgorithm === 'force' || requestedAlgorithm === 'stress' || requestedAlgorithm === 'radial')
-      ? 'layered'
-      : requestedAlgorithm;
+  const algorithm = hasCompoundNodes ? 'layered' : requestedAlgorithm;
   const cacheKey = getLayoutCacheKey(nodes, edges, {
     ...options,
     algorithm,
@@ -144,41 +141,6 @@ export async function getElkLayout(
   const nodeMinWidth = isImport ? IMPORT_NODE_MIN_WIDTH : NODE_WIDTH;
   const nodeMinHeight = isImport ? IMPORT_NODE_MIN_HEIGHT : NODE_HEIGHT;
 
-  // INCLUDE_CHILDREN at root + edges nested inside compound children + the
-  // layered algorithm triggers an elkjs internal crash (`pe` null deref).
-  // Only enable INCLUDE_CHILDREN when at least one edge actually crosses the
-  // root boundary (source/target have different top-level ancestors).
-  const topLevelAncestor = new Map<string, string>();
-  for (const node of nodes) {
-    const parentId = (node as { parentId?: string | null }).parentId;
-    if (!parentId) topLevelAncestor.set(node.id, node.id);
-  }
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const node of nodes) {
-      if (topLevelAncestor.has(node.id)) continue;
-      const parentId = (node as { parentId?: string | null }).parentId ?? '';
-      const parentTop = topLevelAncestor.get(parentId);
-      if (parentTop) {
-        topLevelAncestor.set(node.id, parentTop);
-        changed = true;
-      }
-    }
-  }
-  const hasCrossHierarchyEdge = edges.some((edge) => {
-    const a = topLevelAncestor.get(edge.source);
-    const b = topLevelAncestor.get(edge.target);
-    return a && b && a !== b;
-  });
-  const effectiveLayoutOptions = hasCrossHierarchyEdge
-    ? layoutOptions
-    : (() => {
-        const next = { ...layoutOptions };
-        delete next['elk.hierarchyHandling'];
-        return next;
-      })();
-
   // Drop edges whose endpoints aren't present in the node set. elkjs crashes
   // with a null `pe` deref when an edge references a missing node (common after
   // partial Mermaid imports where a vertex failed to materialize).
@@ -193,11 +155,25 @@ export async function getElkLayout(
     });
   }
 
+  // Self-loops make ELK overlap nodes or throw, and their edges draw them without a route, so ELK
+  // lays out the rest.
+  const elkEdges = safeEdges.filter((edge) => edge.source !== edge.target);
+  // Hierarchy handling lays sections out with the nodes around them. Without sections or edges it would only
+  // keep ELK from packing the unconnected nodes into rows, leaving them in one long row, so it is left out.
+  const elkLayoutOptions =
+    hasCompoundNodes || elkEdges.length > 0
+      ? layoutOptions
+      : (() => {
+          const next = { ...layoutOptions };
+          delete next['elk.hierarchyHandling'];
+          return next;
+        })();
+
   const elkGraph = buildElkRootGraph(
     orderedTopLevelNodes,
     childrenByParent,
-    safeEdges,
-    effectiveLayoutOptions,
+    elkEdges,
+    elkLayoutOptions,
     nodeMinWidth,
     nodeMinHeight
   );

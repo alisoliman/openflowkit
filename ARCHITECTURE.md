@@ -73,44 +73,88 @@ Key area:
 ### 4. Local Copilot Runtime
 
 Flowpilot uses `@github/copilot-sdk` by default. `server/copilotPlugin.ts` mounts
-`/api/copilot/status` and `/api/copilot/chat` in the local Vite dev and preview
-servers. The SDK and CLI credentials never enter the browser bundle.
+`/api/copilot/status`, `/api/copilot/chat`, and the `/api/copilot/agent`
+WebSocket in the local Vite dev and preview servers. The SDK and CLI credentials
+never enter the browser bundle. The hosted server is described in
+`docs/hosted-copilot.md`.
 
-- `server/copilotRuntime.ts` owns SDK startup, CLI authentication, account model
-  discovery, bounded concurrent requests, streaming, cancellation, and temporary
-  session cleanup.
+- `server/copilotHost.ts` owns SDK startup, CLI authentication, the locked-down
+  session options, and fail-closed session cleanup, shared by both paths below.
+- `server/copilotRuntime.ts` owns account model discovery and one-shot requests:
+  bounded concurrency, streaming, cancellation, and temporary sessions.
+- `server/copilotAgentRuntime.ts` runs agent turns with the server-owned system
+  message in `server/flowpilotAgentPrompt.ts`. `server/copilotAgentEndpoint.ts`
+  accepts the agent socket and relays its frames.
 - `server/copilotMiddleware.ts` enforces loopback socket/Host checks, same-origin
   requests, a custom client header, JSON schema/body limits, and explicit terminal
   stream events. It does not enable CORS.
-- `src/services/copilot/` owns the shared protocol and browser transport.
-- `src/services/aiService.ts` selects this engine for generation, conversations,
-  and documentation answers. Other providers retain their existing transports.
+- `src/services/copilot/` owns the shared protocols, the agent tool registry, and
+  the browser transports (`client.ts`, `agentClient.ts`).
+- `src/services/flowpilot/agent/` validates and applies agent tool calls to the
+  live canvas. `src/hooks/ai-generation/useFlowpilotAgent.ts` drives a turn, and
+  `src/components/FlowpilotAgentTurn.tsx` shows its steps, questions, and
+  confirmations.
+- `src/services/aiService.ts` sends the LLM importers and documentation answers
+  through the one-shot endpoint; focused property edits run as agent turns. Other providers retain
+  their existing transports.
 - `src/hooks/ai-generation/` and `src/services/flowpilot/` retain intent routing,
-  local asset grounding, DSL parsing/repair, layout, history, and preview approval.
+  local asset grounding, DSL parsing/repair, layout, history, and preview approval
+  for those requests and for the other providers.
 
 SDK sessions use empty mode with no host tools, MCP servers, skills, ambient
 instructions, file hooks, or shared session store. The local CLI sign-in is
-reused; inherited automation-token variables are excluded. Each request replays
-the browser-owned history as context in one turn, then deletes only its own
-temporary session. Aborts and timeouts stop model work; a truncated stream cannot
-be applied as a successful diagram. Automatic DSL repair remains one additional
-request, but SDK transport failures are not replayed by the browser retry loop.
-The request deadline also covers startup, authentication, and session creation.
-Sessions returned after cancellation are cleaned up without sending a prompt,
-and cleanup RPCs have bounded waits so they cannot block a response indefinitely.
+reused; inherited automation-token variables are excluded. Each request or turn
+replays the browser-owned history as context in one prompt, then deletes only its
+own temporary session. Sessions returned after cancellation are cleaned up
+without sending a prompt, and cleanup RPCs have bounded waits so they cannot
+block a response indefinitely.
 
-Flowpilot conversation state is scoped to the active page. Preview records carry
-`pending`, `applied`, `discarded`, `superseded`, or `undone` state and a semantic
-change summary; their DSL is never replayed as an authoritative assistant answer.
-Both conversational and generation requests receive the live canvas. History
-writes are serialized per page and rapid turns retain an explicit sequence.
-Pending previews expire when a conversation is reopened instead of becoming
-implicit applied state. A conversational confirmation refers only to the latest
-assistant response, never an older proposal hidden behind a newer plan or answer.
-A newer unanswered or cancelled user turn also invalidates older confirmations.
-The browser sends at most 200 history entries within the bridge's 8 MiB request
-limit, dropping the oldest context and inserting an explicit omission note when
-needed. Stored conversation history and the live prompt/canvas are not truncated.
+**Copilot chat runs as agent turns.** Each Flowpilot message opens one WebSocket
+with the `flowpilot-agent.v1` subprotocol, which stands in for the custom client
+header that browsers cannot set on a socket. Locally the upgrade also requires the
+loopback Origin. The session exposes only `get_canvas`, `edit_canvas`,
+`find_icons`, `layout`, `review_architecture`, `list_templates`, `use_template`,
+and `ask_user`; every other permission request is rejected. Tool handlers are
+relays: the server sends `tool_call`, the browser runs the tool against the live
+store, and its `tool_result` goes back to the model. The server performs no
+filesystem, environment, or network work for a tool. There are no modes: the
+model decides whether to ask, propose, review, or draw, and Copilot prompts are
+sent without an edit or create prefix.
+
+While a turn runs, the page is locked for manual edits and changes appear live.
+The first edit records one history entry, so **Undo Copilot's changes** reverts
+the whole turn while that entry and the resulting canvas are still current.
+Removing three or more nodes that existed before the turn, or clearing the page,
+waits for the user's confirmation; declining changes nothing and tells the model.
+`ask_user` pauses the turn until the user answers, and a question left unanswered
+for 10 minutes ends the turn with the reply so far. Stop cancels the session and
+rejects tool calls still in flight. A dropped socket, page switch, or server
+shutdown ends the turn as interrupted with its work kept; **Continue** starts a
+new turn from the current canvas. There is no turn deadline, but startup,
+authentication, session creation, and cleanup keep bounded waits. The server
+pings every 25 seconds and drops a socket that stays silent for 60 seconds.
+Replayed history adds a short note of each earlier turn's canvas changes.
+
+The one-shot `/api/copilot/chat` path keeps its guarantees. Aborts and timeouts
+stop model work; a truncated stream cannot be applied as a successful diagram.
+Automatic DSL repair remains one additional request, but SDK transport failures
+are not replayed by the browser retry loop. The request deadline also covers
+startup, authentication, and session creation.
+
+The other providers keep the one-shot Flowpilot conversation, described in the
+rest of this section. Flowpilot conversation state is scoped to the active page.
+Preview records carry `pending`, `applied`, `discarded`, `superseded`, or `undone`
+state and a semantic change summary; their DSL is never replayed as an
+authoritative assistant answer. Both conversational and generation requests
+receive the live canvas. History writes are serialized per page and rapid turns
+retain an explicit sequence. Pending previews expire when a conversation is
+reopened instead of becoming implicit applied state. A conversational
+confirmation refers only to the latest assistant response, never an older
+proposal hidden behind a newer plan or answer. A newer unanswered or cancelled
+user turn also invalidates older confirmations. Copilot requests and turns send
+at most 200 history entries within the bridge's 8 MiB request limit, dropping the
+oldest context and inserting an explicit omission note when needed. Stored
+conversation history and the live prompt/canvas are not truncated.
 
 `src/services/flowpilot/changeSummary.ts` compares meaningful node data and
 matches edges by endpoints/content rather than regenerated IDs, reserving exact
@@ -120,13 +164,14 @@ or previews from overwriting manual changes. Selection and measurement metadata
 do not invalidate a draft. When merging a complete DSL response, omitted
 DSL-supported attributes are removed; editor-only metadata remains intact.
 
-The Flowpilot composer shares its Copilot model selector with Settings and
-persists an explicit `aiSettings.autoApply` opt-in (off when unset). Prepared AI
-graphs commit synchronously through store actions, with a single history entry;
-React Flow's queued setters are retained for the existing import path. The
-inline AI undo control is enabled only while that result and its undo snapshot
-are still current. Normal canvas Undo/Redo remains available for older or
-intervening edits. Cancellation and page switches prevent late application.
+The Flowpilot composer shares its Copilot model selector with Settings. For the
+other providers it persists an explicit `aiSettings.autoApply` opt-in (off when
+unset). Prepared AI graphs commit synchronously through store actions, with a
+single history entry; React Flow's queued setters are retained for the existing
+import path. The inline AI undo control is enabled only while that result and its
+undo snapshot are still current. Normal canvas Undo/Redo remains available for
+older or intervening edits. Cancellation and page switches prevent late
+application.
 
 New installations default to Copilot; persisted provider selections are not
 overwritten. Static deployments do not include this Node runtime and cannot read

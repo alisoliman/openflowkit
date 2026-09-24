@@ -71,6 +71,34 @@ describe('useNodeDragOperations', () => {
         expect(mockSetNodes).not.toHaveBeenCalled();
     });
 
+    it('onNodeDragStop releases stale ELK routes on edges of the nodes inside a dragged section', () => {
+        const elkRoute = { routingMode: 'elk', elkPoints: [{ x: 100, y: 40 }] };
+        const section = { id: 'section', type: 'section', position: { x: 400, y: 0 }, data: {} } as FlowNode;
+        const inner = { ...makeNode('inner'), parentId: 'section' } as FlowNode;
+        const nested = { ...makeNode('nested'), parentId: 'inner' } as FlowNode;
+        const outside = makeNode('outside');
+        const other = makeNode('other');
+        vi.mocked(useFlowStore.getState).mockReturnValue({
+            ...mockState,
+            nodes: [section, inner, nested, outside, other],
+            edges: [
+                { id: 'e-inner', source: 'outside', target: 'inner', data: elkRoute },
+                { id: 'e-nested', source: 'nested', target: 'outside', data: elkRoute },
+                { id: 'e-other', source: 'outside', target: 'other', data: elkRoute },
+            ],
+        } as never);
+        const { result } = renderHook(() => useNodeDragOperations(recordHistory));
+
+        result.current.onNodeDragStop(makeMouseEvent(), section);
+
+        const [released] = mockSetEdges.mock.calls.at(-1) ?? [];
+        expect(released.map((edge: { data: { elkPoints?: unknown } }) => edge.data.elkPoints)).toEqual([
+            undefined,
+            undefined,
+            elkRoute.elkPoints,
+        ]);
+    });
+
     it('onNodeDragStart with altKey=true creates a duplicate node (calls setNodes)', () => {
         const { result } = renderHook(() => useNodeDragOperations(recordHistory));
         result.current.onNodeDragStart(makeMouseEvent(true), makeNode());

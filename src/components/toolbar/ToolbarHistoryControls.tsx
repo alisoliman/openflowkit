@@ -27,6 +27,7 @@ export function ToolbarHistoryControls({
             <Tooltip text={t('toolbar.undo')}>
                 <Button
                     onClick={onUndo}
+                    aria-label={t('toolbar.undo')}
                     disabled={!canUndo || !isInteractive}
                     variant="ghost"
                     size="icon"
@@ -37,6 +38,7 @@ export function ToolbarHistoryControls({
             <Tooltip text={t('toolbar.redo')}>
                 <Button
                     onClick={onRedo}
+                    aria-label={t('toolbar.redo')}
                     disabled={!canRedo || !isInteractive}
                     variant="ghost"
                     size="icon"

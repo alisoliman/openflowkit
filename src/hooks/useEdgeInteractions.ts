@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useReactFlow, MarkerType } from '@/lib/reactflowCompat';
 import type { EdgeData } from '@/lib/types';
+import { useFlowStore } from '@/store';
 import {
     applyArchitectureDirection,
     getDirectionFromMarkers,
@@ -23,6 +24,8 @@ export function useEdgeInteractions() {
         // Skip if user is typing in an input/textarea
         const tag = (event.target as HTMLElement)?.tagName?.toLowerCase();
         if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        // Flowpilot owns the page while a turn runs.
+        if (useFlowStore.getState().agentTurn) return;
 
         const edges = getEdges();
         const selectedEdges = edges.filter((e) => e.selected);

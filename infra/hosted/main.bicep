@@ -18,7 +18,15 @@ param deployApplication bool = false
 param containerImage string = ''
 param managedCertificateId string = ''
 
+@description('Reach storage and Key Vault through private endpoints from a VNet-integrated environment. Required where policy disables their public network access. Cannot be changed on an existing environment.')
+param privateNetworking bool = false
+
 var suffix = uniqueString(resourceGroup().id, appName)
+var vnetName = '${appName}-vnet'
+var privateDnsZones = {
+  table: 'privatelink.table.${az.environment().suffixes.storage}'
+  vault: 'privatelink.vaultcore.azure.net'
+}
 var tableRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
 var pullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var secretRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
@@ -33,12 +41,12 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   location: location
   kind: 'StorageV2'
   sku: { name: 'Standard_LRS' }
-  properties: {
+  properties: union({
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
     allowSharedKeyAccess: false
-  }
+  }, privateNetworking ? { publicNetworkAccess: 'Disabled' } : {})
 }
 
 resource tables 'Microsoft.Storage/storageAccounts/tableServices@2023-05-01' = {
@@ -83,7 +91,7 @@ resource registryAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: 'ofk-${suffix}'
   location: location
-  properties: {
+  properties: union({
     tenantId: subscription().tenantId
     sku: { family: 'A', name: 'standard' }
     enableRbacAuthorization: true
@@ -91,7 +99,7 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
     accessPolicies: []
-  }
+  }, privateNetworking ? { publicNetworkAccess: 'Disabled' } : {})
 }
 
 resource clientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
@@ -116,6 +124,78 @@ resource secretAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+resource subnetSecurity 'Microsoft.Network/networkSecurityGroups@2023-11-01' = if (privateNetworking) {
+  name: '${appName}-nsg'
+  location: location
+  properties: { securityRules: [] }
+}
+
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = if (privateNetworking) {
+  name: vnetName
+  location: location
+  properties: {
+    addressSpace: { addressPrefixes: ['10.60.0.0/16'] }
+    subnets: [
+      {
+        name: 'apps'
+        properties: {
+          addressPrefix: '10.60.0.0/24'
+          networkSecurityGroup: { id: subnetSecurity.id }
+          delegations: [{ name: 'containerApps', properties: { serviceName: 'Microsoft.App/environments' } }]
+        }
+      }
+      {
+        name: 'endpoints'
+        properties: {
+          addressPrefix: '10.60.1.0/24'
+          networkSecurityGroup: { id: subnetSecurity.id }
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+    ]
+  }
+}
+
+var privateEndpointTargets = [
+  { name: 'table', id: storage.id }
+  { name: 'vault', id: vault.id }
+]
+
+resource dnsZones 'Microsoft.Network/privateDnsZones@2020-06-01' = [for target in privateEndpointTargets: if (privateNetworking) {
+  name: privateDnsZones[target.name]
+  location: 'global'
+}]
+
+resource dnsLinks 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = [for (target, i) in privateEndpointTargets: if (privateNetworking) {
+  parent: dnsZones[i]
+  name: vnetName
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: { id: vnet.id }
+  }
+}]
+
+resource privateEndpoints 'Microsoft.Network/privateEndpoints@2023-11-01' = [for (target, i) in privateEndpointTargets: if (privateNetworking) {
+  name: '${appName}-${target.name}'
+  location: location
+  properties: {
+    subnet: { id: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'endpoints') }
+    privateLinkServiceConnections: [
+      { name: target.name, properties: { privateLinkServiceId: target.id, groupIds: [target.name] } }
+    ]
+  }
+  dependsOn: [vnet]
+}]
+
+resource privateEndpointDns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = [for (target, i) in privateEndpointTargets: if (privateNetworking) {
+  parent: privateEndpoints[i]
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [{ name: target.name, properties: { privateDnsZoneId: dnsZones[i].id } }]
+  }
+}]
+
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: '${appName}-logs'
   location: location
@@ -129,7 +209,7 @@ resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: '${appName}-environment'
   location: location
-  properties: {
+  properties: union({
     workloadProfiles: [{ name: 'Consumption', workloadProfileType: 'Consumption' }]
     appLogsConfiguration: {
       destination: 'log-analytics'
@@ -138,7 +218,13 @@ resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
         sharedKey: logs.listKeys().primarySharedKey
       }
     }
-  }
+  }, privateNetworking ? {
+    vnetConfiguration: {
+      infrastructureSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'apps')
+      internal: false
+    }
+  } : {})
+  dependsOn: [vnet]
 }
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = if (deployApplication) {
@@ -215,7 +301,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = if (deployApplication) {
       }
     }
   }
-  dependsOn: [tableAccess, stateTable, registryAccess, secretAccess]
+  dependsOn: [tableAccess, stateTable, registryAccess, secretAccess, privateEndpointDns, dnsLinks]
 }
 
 output registryName string = registry.name

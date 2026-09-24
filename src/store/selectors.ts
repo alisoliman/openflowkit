@@ -32,6 +32,7 @@ export function selectCanvasActions(state: FlowState): CanvasActionsSlice {
     onEdgesChange: state.onEdgesChange,
     setNodes: state.setNodes,
     setEdges: state.setEdges,
+    setGraph: state.setGraph,
     onConnect: state.onConnect,
   };
 }

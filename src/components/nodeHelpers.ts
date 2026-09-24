@@ -62,6 +62,9 @@ export function getMinNodeSize(shape: NodeData['shape'] | undefined): {
   }
 }
 
+/** Icon nodes put their left and right handles this far below their top, level with the icon. */
+export const ICON_ASSET_SIDE_HANDLE_TOP = 42;
+
 export function getIconAssetNodeMinSize(hasLabel: boolean): {
   minWidth: number;
   minHeight: number;

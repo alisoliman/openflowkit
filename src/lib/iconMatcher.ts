@@ -262,7 +262,7 @@ function getByNormalized(): Map<string, IconEntry> {
   return cachedByNormalized;
 }
 
-export function matchIcon(query: string, providerHint?: string): IconMatch[] {
+export function matchIcon(query: string, providerHint?: string, limit = 5): IconMatch[] {
   const normalizedQuery = normalize(query);
   if (!normalizedQuery) return [];
   const queryTokens = tokenizeNormalized(query);
@@ -273,7 +273,7 @@ export function matchIcon(query: string, providerHint?: string): IconMatch[] {
   // 1. Exact match on shape ID or human label
   const exact = byNormalized.get(normalizedQuery);
   if (exact && (!providerHint || exact.provider === providerHint)) {
-    return finalizeMatches([toMatch(exact, 0.99, 'exact', 'exact shape or segment match', true)]);
+    return finalizeMatches([toMatch(exact, 0.99, 'exact', 'exact shape or segment match', true)], limit);
   }
 
   const exactLabel = all.find((entry) => {
@@ -285,7 +285,7 @@ export function matchIcon(query: string, providerHint?: string): IconMatch[] {
     );
   });
   if (exactLabel) {
-    return finalizeMatches([toMatch(exactLabel, 0.98, 'exact', 'exact icon label match', true)]);
+    return finalizeMatches([toMatch(exactLabel, 0.98, 'exact', 'exact icon label match', true)], limit);
   }
 
   // 2. Alias resolution
@@ -293,7 +293,7 @@ export function matchIcon(query: string, providerHint?: string): IconMatch[] {
   if (aliasTarget) {
     const aliasEntry = byNormalized.get(normalize(aliasTarget));
     if (aliasEntry && (!providerHint || aliasEntry.provider === providerHint)) {
-      return finalizeMatches([toMatch(aliasEntry, 0.97, 'alias', 'known technology alias', true)]);
+      return finalizeMatches([toMatch(aliasEntry, 0.97, 'alias', 'known technology alias', true)], limit);
     }
   }
 
@@ -358,7 +358,7 @@ export function matchIcon(query: string, providerHint?: string): IconMatch[] {
     substringMatches.push(toMatch(entry, score, 'substring', reason, wholeTokenMatch));
   }
   if (substringMatches.length > 0) {
-    return finalizeMatches(substringMatches);
+    return finalizeMatches(substringMatches, limit);
   }
 
   // 4. Category match
@@ -379,16 +379,16 @@ export function matchIcon(query: string, providerHint?: string): IconMatch[] {
     }
   }
   if (categoryMatches.length > 0) {
-    return finalizeMatches(categoryMatches);
+    return finalizeMatches(categoryMatches, limit);
   }
 
   return [];
 }
 
-function finalizeMatches(matches: IconMatch[]): IconMatch[] {
+function finalizeMatches(matches: IconMatch[], limit: number): IconMatch[] {
   const sorted = [...matches].sort(compareMatches);
 
-  return sorted.slice(0, 5).map((match, index, topMatches) => ({
+  return sorted.slice(0, limit).map((match, index, topMatches) => ({
     ...match,
     confidence: toConfidence(match.score),
     runnerUpDelta: getRunnerUpDelta(topMatches, index),

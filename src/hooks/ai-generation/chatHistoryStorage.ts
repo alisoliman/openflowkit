@@ -2,7 +2,7 @@ import type { ChatMessage } from '@/services/aiService';
 import { localFirstRepository, type PersistedChatMessage } from '@/services/storage/localFirstRepository';
 import { parseLegacyChatMessagesJson } from '@/services/storage/storageSchemas';
 import type { AssistantThreadItem } from '@/services/flowpilot/types';
-import { assistantThreadToChatMessages } from '@/services/flowpilot/thread';
+import { assistantThreadToChatMessages, upsertThreadItem } from '@/services/flowpilot/thread';
 import { createLogger } from '@/lib/logger';
 
 const STORAGE_KEY_PREFIX = 'ofk_chat_history_';
@@ -51,6 +51,7 @@ function toAssistantThreadItems(messages: PersistedChatMessage[]): AssistantThre
     changes: message.changes,
     plan: message.plan,
     assetMatches: message.assetMatches,
+    agentTurn: message.agentTurn,
   }));
 }
 
@@ -89,6 +90,7 @@ function toPersistedThreadItems(
     changes: item.changes,
     plan: item.plan,
     assetMatches: item.assetMatches,
+    agentTurn: item.agentTurn,
   }));
 }
 
@@ -161,6 +163,17 @@ export function saveAssistantThreadHistory(
       logger.warn('Conversation storage failed; saving safe conversational context locally.', { error });
       saveLegacyChatHistory(diagramId, assistantThreadToChatMessages(items));
     }
+  });
+}
+
+/**
+ * Saves one item into a page's stored thread, for a Flowpilot turn that ends after its page was left.
+ * The read and the write share the page's queue, so reopening the page waits for the item.
+ */
+export function saveAssistantThreadItem(diagramId: string, item: AssistantThreadItem): Promise<void> {
+  return enqueueWrite(diagramId, async () => {
+    const items = toAssistantThreadItems(await localFirstRepository.loadChatThread(diagramId));
+    await localFirstRepository.replaceChatThread(diagramId, toPersistedThreadItems(diagramId, upsertThreadItem(items, item)));
   });
 }
 

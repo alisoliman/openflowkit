@@ -8,6 +8,7 @@ import { ToolbarHistoryControls } from './toolbar/ToolbarHistoryControls';
 import { ToolbarModeControls } from './toolbar/ToolbarModeControls';
 import { getToolbarIconButtonClass, TOOLBAR_DIVIDER_CLASS } from './toolbar/toolbarButtonStyles';
 import { AssetsIcon } from './icons/AssetsIcon';
+import { useIsAgentEditing } from '@/store/selectionHooks';
 import {
   getDefaultToolbarAddItemId,
   type AddItemId,
@@ -89,11 +90,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Interaction guard: If command bar is open, disable all toolbar interactions
-  const isInteractive = !isCommandBarOpen;
+  // Interaction guard: If command bar is open or a Flowpilot turn edits the page, disable all toolbar
+  // interactions. The Flowpilot toggle stays live during a turn so a closed studio, and its Stop, can reopen.
+  const isAgentEditing = useIsAgentEditing();
+  const isInteractive = !isCommandBarOpen && !isAgentEditing;
   const containerClasses = [
     'flex items-center p-1.5 bg-[var(--brand-surface)]/90 backdrop-blur-xl shadow-[var(--shadow-md)] rounded-[var(--radius-lg)] border border-[var(--brand-surface)]/20 ring-1 ring-black/5 transition-all duration-300',
-    !isInteractive ? 'pointer-events-none' : '',
+    isCommandBarOpen ? 'pointer-events-none' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -177,7 +180,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             data-testid="toolbar-flowpilot-toggle"
             aria-label={t('toolbar.flowpilot', 'Flowpilot (Cmd+K)')}
             onClick={onToggleStudio}
-            disabled={!isInteractive}
+            disabled={isCommandBarOpen}
             variant="ghost"
             size="icon"
             className={`${getToolbarIconButtonClass({ active: isStudioOpen })} group relative overflow-hidden`}

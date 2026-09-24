@@ -14,6 +14,7 @@ export function createAIAndSelectionActions(set: SetFlowState): Pick<
     | 'clearPendingNodeLabelEditRequest'
     | 'setMermaidDiagnostics'
     | 'clearMermaidDiagnostics'
+    | 'setAgentTurn'
 > {
     return {
         setAISettings: (settings) => set((state) => {
@@ -31,5 +32,6 @@ export function createAIAndSelectionActions(set: SetFlowState): Pick<
         clearPendingNodeLabelEditRequest: () => set({ pendingNodeLabelEditRequest: null }),
         setMermaidDiagnostics: (snapshot) => set({ mermaidDiagnostics: snapshot }),
         clearMermaidDiagnostics: () => set({ mermaidDiagnostics: null }),
+        setAgentTurn: (turn) => set({ agentTurn: turn }),
     };
 }

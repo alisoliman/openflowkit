@@ -32,7 +32,8 @@ function setupMessage(): string {
   return isHostedCopilot() ? COPILOT_HOSTED_SETUP_MESSAGE : COPILOT_SETUP_MESSAGE;
 }
 
-function serializeCopilotRequest(input: CopilotRequest): string {
+/** Serializes a request body, dropping the oldest history messages until it fits the size limit. */
+export function serializeCopilotRequest<T extends Pick<CopilotRequest, 'history'>>(input: T): string {
   const history = input.history.slice(-COPILOT_MAX_HISTORY_MESSAGES);
   let omitted = input.history.length - history.length;
   const notice: CopilotRequest['history'][number] = {
