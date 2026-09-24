@@ -7,6 +7,7 @@
     "undo": "Annuler la modification IA",
     "nodesAdded": "Nœuds ajoutés : {{count}}",
     "nodesUpdated": "Nœuds modifiés : {{count}}",
+    "nodesMoved": "Nœuds déplacés : {{count}}",
     "nodesRemoved": "Nœuds supprimés : {{count}}",
     "edgesAdded": "Connexions ajoutées : {{count}}",
     "edgesUpdated": "Connexions modifiées : {{count}}",

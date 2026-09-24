@@ -10,6 +10,7 @@ export function FlowpilotChangeSummary({ changes, compact = false }: {
   const counts = [
     changes.addedCount ? t('flowpilot.nodesAdded', { count: changes.addedCount, defaultValue: 'Nodes added: {{count}}' }) : '',
     changes.updatedCount ? t('flowpilot.nodesUpdated', { count: changes.updatedCount, defaultValue: 'Nodes changed: {{count}}' }) : '',
+    changes.movedCount ? t('flowpilot.nodesMoved', { count: changes.movedCount, defaultValue: 'Nodes moved: {{count}}' }) : '',
     changes.removedCount ? t('flowpilot.nodesRemoved', { count: changes.removedCount, defaultValue: 'Nodes removed: {{count}}' }) : '',
     changes.addedEdgeCount ? t('flowpilot.edgesAdded', { count: changes.addedEdgeCount, defaultValue: 'Connections added: {{count}}' }) : '',
     changes.updatedEdgeCount ? t('flowpilot.edgesUpdated', { count: changes.updatedEdgeCount, defaultValue: 'Connections changed: {{count}}' }) : '',

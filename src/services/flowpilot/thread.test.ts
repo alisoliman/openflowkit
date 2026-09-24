@@ -123,6 +123,8 @@ describe('Flowpilot conversation state', () => {
     const many = Array.from({ length: 23 }, (_, index): DiagramChange => ({ kind: 'edge', status: 'removed', label: `e${index}` }));
     const note = describeCanvasChanges(changesOf(many));
     expect(note).toMatch(/^removed edge "e0"; .*removed edge "e19"; and 3 more$/);
+    const moved = { ...changesOf([{ kind: 'node', status: 'added', label: 'Cache' }]), movedCount: 2, totalChanges: 3 };
+    expect(describeCanvasChanges(moved)).toBe('added node "Cache"; moved 2 nodes');
   });
 
   it('marks turns saved mid-run as interrupted, failing their unfinished steps and closing their open questions', () => {

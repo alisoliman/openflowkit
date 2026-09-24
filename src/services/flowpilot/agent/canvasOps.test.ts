@@ -10,6 +10,7 @@ import { AGENT_NODE_TYPES, AGENT_TOOLS } from '@/services/copilot/agentTools';
 import {
   DESTRUCTIVE_REMOVAL_THRESHOLD,
   applyCanvasEdits,
+  straightenEdges,
   tidyNodes,
   type CanvasEditOptions,
   type CanvasEditResult,
@@ -300,7 +301,7 @@ describe('applyCanvasEdits icons', () => {
       { op: 'add_node', id: 'fn', type: 'custom', label: 'Handler', data },
     ];
     expect(editError(graph, add({ icon: 'not-a-real-icon' }))).toContain(
-      '"not-a-real-icon" is not a known Lucide icon'
+      '"not-a-real-icon" is not a bundled Lucide icon; use one of Activity, AlertTriangle'
     );
     expect(editError(graph, add({ archIconPackId: LAMBDA.archIconPackId }))).toContain(
       'set data.archIconPackId and data.archIconShapeId together'
@@ -1899,5 +1900,309 @@ describe('tidyNodes', () => {
     expect(byId(result, 'm')).toEqual(byId(graph, 'm'));
     expect(contains(drawnRect(result, 's'), absoluteRect(result, 'c'))).toBe(true);
     expectParentsFirst(result);
+  });
+});
+
+describe('applyCanvasEdits moves', () => {
+  it('moves an existing node to a position and reports it', () => {
+    const graph = threeNodes();
+    const result = editOk(graph, [{ op: 'move_node', id: 'c', position: { x: 600, y: 240 } }]);
+
+    expect(byId(result, 'c').position).toEqual({ x: 600, y: 240 });
+    expect(byId(result, 'a')).toEqual(byId(graph, 'a'));
+    expect(result.movedNodeIds).toEqual(['c']);
+    expect(result.summary).toBe('Moved 1 node.');
+  });
+
+  it('puts a node next to another, centred on it', () => {
+    const graph = {
+      nodes: [node('a', 0, 0), node('b', 900, 500), node('tall', 500, 500, { style: { width: 100, height: 120 } })],
+      edges: [],
+    };
+    const right = editOk(graph, [{ op: 'move_node', id: 'b', nextTo: { id: 'a', side: 'right' } }]);
+    const below = editOk(graph, [{ op: 'move_node', id: 'b', nextTo: { id: 'a', side: 'below', gap: 40 } }]);
+    const left = editOk(graph, [{ op: 'move_node', id: 'tall', nextTo: { id: 'a', side: 'left' } }]);
+
+    expect(absoluteRect(right, 'b')).toMatchObject({ x: 120 + 80, y: 0 });
+    expect(absoluteRect(below, 'b')).toMatchObject({ x: 0, y: 60 + 40 });
+    expect(absoluteRect(left, 'tall')).toMatchObject({ x: -80 - 100, y: 30 - 60 });
+  });
+
+  it('leaves room next to a node for the label of an edge between them, unless given a gap', () => {
+    const graph = { nodes: [node('a', 0, 0), node('b', 900, 500)], edges: [edge('a', 'b', { label: 'publishes jobs' })] };
+    const roomy = editOk(graph, [{ op: 'move_node', id: 'b', nextTo: { id: 'a', side: 'right' } }]);
+    const given = editOk(graph, [{ op: 'move_node', id: 'b', nextTo: { id: 'a', side: 'right', gap: 50 } }]);
+    // 14 characters draw about 114 px wide, with 16 px either side.
+    expect(absoluteRect(roomy, 'b').x).toBe(120 + 146);
+    expect(absoluteRect(given, 'b').x).toBe(120 + 50);
+  });
+
+  it('moves a section with everything it holds', () => {
+    const graph = {
+      nodes: [section('s', 0, 0, 400, 300), child('s', node('in', 40, 60)), node('out', 600, 0)],
+      edges: [],
+    };
+    const result = editOk(graph, [{ op: 'move_node', id: 's', position: { x: 0, y: 500 } }]);
+
+    expect(byId(result, 's').position).toEqual({ x: 0, y: 500 });
+    expect(byId(result, 'in').position).toEqual({ x: 40, y: 60 });
+    expect(absoluteRect(result, 'in')).toMatchObject({ x: 40, y: 560 });
+    expect(result.movedNodeIds).toEqual(['s']);
+  });
+
+  it('grows the section of a moved node to keep it inside, on any side', () => {
+    const graph = {
+      nodes: [section('s', 0, 0, 400, 300), child('s', node('in', 40, 60)), child('s', node('stay', 200, 60))],
+      edges: [],
+    };
+    const down = editOk(graph, [{ op: 'move_node', id: 'in', position: { x: 500, y: 400 } }]);
+    const left = editOk(graph, [{ op: 'move_node', id: 'in', position: { x: -300, y: -200 } }]);
+
+    expect(absoluteRect(down, 'in')).toMatchObject({ x: 500, y: 400 });
+    expect(byId(down, 's').position).toEqual({ x: 0, y: 0 });
+    expect(contains(drawnRect(down, 's'), absoluteRect(down, 'in'))).toBe(true);
+    // The section's corner moves out to the node, and what else it holds stays where it was.
+    expect(absoluteRect(left, 'in')).toMatchObject({ x: -300, y: -200 });
+    expect(absoluteRect(left, 'stay')).toMatchObject({ x: 200, y: 60 });
+    expect(byId(left, 's').position.x).toBeLessThan(-300);
+    expect(contains(drawnRect(left, 's'), absoluteRect(left, 'in'))).toBe(true);
+    expect(contains(drawnRect(left, 's'), absoluteRect(left, 'stay'))).toBe(true);
+    expectParentsFirst(left);
+  });
+
+  it('wraps a section the agent added earlier in the turn closely around what it holds', () => {
+    const graph = { nodes: [section('s', 0, 0, 900, 700), child('s', node('in', 40, 60))], edges: [] };
+    const ops = [{ op: 'move_node', id: 'in', position: { x: 300, y: 300 } }];
+    const own = editOk(graph, ops, { ownSectionIds: new Set(['s']) });
+    const users = editOk(graph, ops);
+
+    expect(absoluteRect(own, 'in')).toMatchObject({ x: 300, y: 300 });
+    expect(contains(drawnRect(own, 's'), absoluteRect(own, 'in'))).toBe(true);
+    expect(drawnRect(own, 's').width).toBeLessThan(900);
+    expect(byId(own, 's').position.x).toBeGreaterThan(0);
+    // The user's own sections keep their size.
+    expect(absoluteRect(users, 's')).toMatchObject({ x: 0, y: 0, width: 900, height: 700 });
+  });
+
+  it('places a new node where its move puts it, next to a node placed in the same call', () => {
+    const result = editOk(threeNodes(), [
+      { op: 'add_node', id: 'cache', type: 'process', label: 'Cache' },
+      { op: 'add_node', id: 'note', type: 'process', label: 'Note' },
+      { op: 'add_edge', source: 'b', target: 'cache' },
+      { op: 'move_node', id: 'note', nextTo: { id: 'cache', side: 'below' } },
+    ]);
+    const cache = absoluteRect(result, 'cache');
+
+    expect(absoluteRect(result, 'note')).toMatchObject({ x: cache.x, y: cache.y + cache.height + 80 });
+    expect(result.movedNodeIds).toEqual([]);
+    expect(result.summary).toBe('Added 2 nodes and 1 edge.');
+  });
+
+  it('runs moves in call order', () => {
+    const graph = { nodes: [node('a', 0, 0), node('b', 300, 0)], edges: [] };
+    const result = editOk(graph, [
+      { op: 'move_node', id: 'a', position: { x: 0, y: 400 } },
+      { op: 'move_node', id: 'b', nextTo: { id: 'a', side: 'right' } },
+    ]);
+
+    expect(byId(result, 'b').position).toEqual({ x: 200, y: 400 });
+    expect(result.summary).toBe('Moved 2 nodes.');
+  });
+
+  it('rejects moves it cannot make', () => {
+    const graph = {
+      nodes: [
+        node('a', 0, 0),
+        node('m', 0, 300, { type: 'mindmap' }),
+        section('s', 600, 0, 400, 300),
+        child('s', node('in', 40, 60)),
+      ],
+      edges: [],
+    };
+
+    expect(editError(graph, [{ op: 'move_node', id: 'a' }])).toBe(
+      'ops[0] (move_node): give either position or nextTo'
+    );
+    expect(
+      editError(graph, [
+        { op: 'move_node', id: 'a', position: { x: 1, y: 1 }, nextTo: { id: 'in', side: 'left' } },
+      ])
+    ).toBe('ops[0] (move_node): give either position or nextTo');
+    expect(editError(graph, [{ op: 'move_node', id: 'm', position: { x: 1, y: 1 } }])).toMatch(
+      /mindmap nodes are placed by their structure/
+    );
+    expect(editError(graph, [{ op: 'move_node', id: 'in', nextTo: { id: 's', side: 'left' } }])).toMatch(
+      /cannot go next to itself, a section it is in or a node it holds/
+    );
+    expect(editError(graph, [{ op: 'move_node', id: 'ghost', position: { x: 1, y: 1 } }])).toMatch(
+      /node "ghost" does not exist/
+    );
+    // A new node that a later op moves has no place yet.
+    expect(
+      editError(graph, [
+        { op: 'add_node', id: 'x', type: 'process', label: 'X' },
+        { op: 'add_node', id: 'y', type: 'process', label: 'Y' },
+        { op: 'move_node', id: 'y', nextTo: { id: 'x', side: 'right' } },
+        { op: 'move_node', id: 'x', position: { x: 0, y: 900 } },
+      ])
+    ).toBe('ops[2] (move_node): "x" has no place yet; move it first or place this node in a later call');
+    expect(
+      AGENT_TOOLS.edit_canvas.parameters.safeParse({
+        ops: [{ op: 'move_node', id: 'a', position: { x: 1e9, y: 0 } }],
+      }).success
+    ).toBe(false);
+  });
+
+  it('skips the move of a node removed later in the call', () => {
+    const result = editOk(threeNodes(), [
+      { op: 'move_node', id: 'c', position: { x: 0, y: 900 } },
+      { op: 'remove_node', id: 'c' },
+    ]);
+    expect(result.nodes.map((candidate) => candidate.id)).toEqual(['a', 'b']);
+    expect(result.movedNodeIds).toEqual([]);
+  });
+});
+
+describe('applyCanvasEdits flow', () => {
+  it('places new nodes along the way the page flows, whatever its shape', () => {
+    // Taller than wide, but its edge runs left to right.
+    const graph = {
+      nodes: [node('a', 0, 0), node('b', 200, 0), node('tall', 0, 200, { style: { width: 120, height: 900 } })],
+      edges: [edge('a', 'b')],
+    };
+    const result = editOk(graph, [
+      { op: 'add_node', id: 'c', type: 'process', label: 'C' },
+      { op: 'add_edge', source: 'b', target: 'c' },
+    ]);
+    expect(absoluteRect(result, 'c')).toMatchObject({ x: 200 + 120 + 60, y: 0 });
+  });
+
+  it('lines the side handles of icon nodes up with their neighbours, so edges run straight', () => {
+    const graph = { nodes: [node('a', 0, 0)], edges: [] };
+    const result = editOk(graph, [
+      { op: 'add_node', id: 'fn', type: 'custom', label: 'Function', data: LAMBDA },
+      { op: 'add_edge', source: 'a', target: 'fn' },
+      { op: 'add_node', id: 'next', type: 'process', label: 'Next' },
+      { op: 'move_node', id: 'next', nextTo: { id: 'fn', side: 'right' } },
+    ]);
+    // a's handles sit halfway down its 60 px; an icon node's sit 42 px below its top.
+    expect(absoluteRect(result, 'fn').y).toBe(30 - 42);
+    expect(absoluteRect(result, 'next').y).toBe(0);
+  });
+
+  it('leaves room for the label of the edge to a new node', () => {
+    const result = editOk({ nodes: [node('a', 0, 0)], edges: [] }, [
+      { op: 'add_node', id: 'b', type: 'process', label: 'B' },
+      { op: 'add_edge', source: 'a', target: 'b', label: 'reads from cache' },
+    ]);
+    // 16 characters draw about 128 px wide, with 16 px either side.
+    expect(absoluteRect(result, 'b').x).toBe(120 + 160);
+  });
+
+  it('tidies along a given flow', () => {
+    const graph = { nodes: [node('a', 0, 0), node('x', 5000, 5000)], edges: [edge('a', 'x')] };
+    expect(absoluteRect(tidyNodes(graph, ['x'], { flow: 'down' }), 'x')).toMatchObject({ x: 0, y: 120 });
+    expect(absoluteRect(tidyNodes(graph, ['x'], { flow: 'right' }), 'x')).toMatchObject({ x: 180, y: 0 });
+  });
+});
+
+describe('applyCanvasEdits edge routing', () => {
+  const routing = { profile: 'standard' as const, bundlingEnabled: false };
+  const elkRoute = {
+    routingMode: 'elk' as const,
+    elkPoints: [
+      { x: 60, y: 30 },
+      { x: 460, y: 30 },
+    ],
+  };
+
+  it('turns the handles of new edges and of edges around moved nodes toward the other end', () => {
+    const graph = {
+      nodes: [node('a', 0, 0), node('b', 400, 0), node('c', 0, 400)],
+      edges: [edge('a', 'b', { sourceHandle: 'right', targetHandle: 'left', data: elkRoute })],
+    };
+    const result = editOk(
+      graph,
+      [
+        { op: 'add_edge', source: 'a', target: 'c' },
+        { op: 'move_node', id: 'b', position: { x: 0, y: -400 } },
+      ],
+      { routing }
+    );
+
+    expect(edgeById(result, 'e-a-c')).toMatchObject({ sourceHandle: 'bottom', targetHandle: 'top' });
+    expect(edgeById(result, 'e-a-b')).toMatchObject({ sourceHandle: 'top', targetHandle: 'bottom' });
+    // Its old layout route would still run to where b was.
+    expect(edgeById(result, 'e-a-b').data).toMatchObject({ routingMode: 'auto', elkPoints: undefined });
+  });
+
+  it('keeps handles the user fixed and edges away from the change as they are', () => {
+    const fixed = edge('a', 'b', { sourceHandle: 'top', targetHandle: 'top', data: { connectionType: 'fixed' } });
+    const away = edge('c', 'd', { sourceHandle: 'right', targetHandle: 'left', data: elkRoute });
+    const graph = {
+      nodes: [node('a', 0, 0), node('b', 400, 0), node('c', 0, 400), node('d', 400, 400)],
+      edges: [fixed, away],
+    };
+    const result = editOk(graph, [{ op: 'move_node', id: 'b', position: { x: 400, y: 100 } }], { routing });
+
+    expect(edgeById(result, 'e-a-b')).toMatchObject({ sourceHandle: 'top', targetHandle: 'top' });
+    expect(edgeById(result, 'e-c-d')).toEqual(away);
+  });
+
+  it('only drops the stale routes when smart routing is off', () => {
+    const graph = {
+      nodes: [node('a', 0, 0), node('b', 400, 0)],
+      edges: [edge('a', 'b', { sourceHandle: 'right', targetHandle: 'left', data: elkRoute })],
+    };
+    const result = editOk(graph, [{ op: 'move_node', id: 'b', position: { x: 0, y: 400 } }]);
+
+    expect(edgeById(result, 'e-a-b')).toMatchObject({ sourceHandle: 'right', targetHandle: 'left' });
+    expect(edgeById(result, 'e-a-b').data).toMatchObject({ routingMode: 'auto', elkPoints: undefined });
+  });
+
+  it('turns handles when tidying', () => {
+    const graph = {
+      nodes: [node('a', 0, 0), node('x', 5000, 5000)],
+      edges: [edge('a', 'x', { sourceHandle: 'top', targetHandle: 'top' })],
+    };
+    expect(edgeById(tidyNodes(graph, ['x'], { flow: 'down', routing }), 'e-a-x')).toMatchObject({
+      sourceHandle: 'bottom',
+      targetHandle: 'top',
+    });
+  });
+});
+
+describe('straightenEdges', () => {
+  const icon = (id: string, x: number, y: number) =>
+    node(id, x, y, { type: 'custom', data: { label: id, assetPresentation: 'icon', ...LAMBDA } });
+
+  it('nudges a node to line its handles up with the node its edge comes from', () => {
+    const graph = {
+      nodes: [node('a', 0, 0), icon('fn', 200, 0)],
+      edges: [edge('a', 'fn', { data: { routingMode: 'elk', elkPoints: [{ x: 120, y: 30 }, { x: 200, y: 42 }] } })],
+    };
+    const result = straightenEdges(graph, 'right');
+
+    // a's handles sit 30 px down, the icon node's 42 px, so it moves up 12 px.
+    expect(byId(result, 'fn').position).toEqual({ x: 200, y: -12 });
+    expect(edgeById(result, 'e-a-fn').data).toMatchObject({ routingMode: 'auto', elkPoints: undefined });
+  });
+
+  it('leaves nodes that are far out of line, or would land on another node, where they are', () => {
+    const far = { nodes: [node('a', 0, 0), node('b', 200, 50)], edges: [edge('a', 'b')] };
+    expect(byId(straightenEdges(far, 'right'), 'b').position).toEqual({ x: 200, y: 50 });
+
+    const blocked = {
+      nodes: [node('a', 0, 0), node('b', 200, 20), node('c', 200, -70)],
+      edges: [edge('a', 'b')],
+    };
+    expect(byId(straightenEdges(blocked, 'right'), 'b').position).toEqual({ x: 200, y: 20 });
+  });
+
+  it('lines columns up by their middles in a downward flow', () => {
+    const graph = { nodes: [node('a', 0, 0), node('b', 10, 200, { style: { width: 100, height: 60 } })], edges: [edge('a', 'b')] };
+    expect(byId(straightenEdges(graph, 'down'), 'b').position).toEqual({ x: 10, y: 200 });
+    const wide = { nodes: [node('a', 0, 0), node('b', 20, 200)], edges: [edge('a', 'b')] };
+    expect(byId(straightenEdges(wide, 'down'), 'b').position).toEqual({ x: 0, y: 200 });
   });
 });

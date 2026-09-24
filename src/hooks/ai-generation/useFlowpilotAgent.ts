@@ -109,7 +109,9 @@ function turnChanges(turn: ActiveTurn): DiagramChangeSummary | undefined {
     ? store
     : store.tabs.find((tab) => tab.id === turnPageId)
       ?? store.documents.flatMap((document) => document.pages).find((candidate) => candidate.id === turnPageId);
-  const changes = page ? summarizeDiagramChanges(turn.executor.startGraph, page) : undefined;
+  const changes = page
+    ? summarizeDiagramChanges(turn.executor.startGraph, page, { countMoves: true })
+    : undefined;
   return changes && changes.totalChanges > 0 ? changes : undefined;
 }
 

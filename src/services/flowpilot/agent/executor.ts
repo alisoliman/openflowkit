@@ -4,7 +4,7 @@ import {
   buildTemplateInsertionResult,
   getLayoutHintsForDiagramType,
 } from '@/hooks/flow-editor-actions/layoutHandlers';
-import { getAbsoluteNodeBounds } from '@/hooks/node-operations/sectionBounds';
+import type { NodeBounds } from '@/hooks/node-operations/sectionBounds';
 import { matchIcon } from '@/lib/iconMatcher';
 import { getNodeParentId } from '@/lib/nodeParent';
 import type { EdgeData, FlowEdge, FlowHistoryState, FlowNode } from '@/lib/types';
@@ -15,18 +15,37 @@ import {
   AGENT_MAX_SELECTED_IDS,
   AGENT_MAX_TOOL_ERROR_CHARS,
 } from '@/services/copilot/agentProtocol';
-import { AGENT_TOOLS, type AgentToolArgs, type AgentToolName } from '@/services/copilot/agentTools';
+import {
+  AGENT_TOOLS,
+  type AgentToolArgs,
+  type AgentToolName,
+  type EditCanvasOp,
+} from '@/services/copilot/agentTools';
 import { getCanvasFingerprint } from '@/services/flowpilot/changeSummary';
+import {
+  getSmartRoutingOptionsFromViewSettings,
+  type SmartRoutingOptions,
+} from '@/services/smartEdgeRouting';
 import { getFlowTemplates } from '@/services/templates';
 import { useFlowStore } from '@/store';
 import type { AgentTurnLock, FlowState } from '@/store/types';
 import {
   NODE_DATA_FIELDS,
   applyCanvasEdits,
+  straightenEdges,
   tidyNodes,
   type CanvasEditDestructiveInfo,
+  type CanvasEditResult,
   type CanvasGraph,
 } from './canvasOps';
+import {
+  flowDirection,
+  isHorizontal,
+  nodeRects,
+  nodeSize,
+  type FlowDirection,
+} from './canvasGeometry';
+import { FLOW_NAMES, reviewLayout, type LayoutReview } from './layoutReview';
 
 // Keeps get_canvas well inside the tool_result frame and the model's context.
 const MAX_NODE_OUTPUT_CHARS = 40_000;
@@ -39,6 +58,17 @@ const MAX_TEXT_OUTPUT_CHARS = 2_000;
 const ENTRY_STAGGER_MS = 20;
 const ENTRY_MAX_DELAY_MS = 400;
 const ENTRY_ANIMATION_MS = 180;
+// How long a call waits for the canvas to measure the nodes it placed, and how far a guessed size may be off.
+const MEASURE_TIMEOUT_MS = 600;
+const MEASURE_POLL_MS = 16;
+const SIZE_TOLERANCE = 2;
+// ELK's names for the ways a page can flow.
+const ELK_DIRECTIONS: Record<FlowDirection, 'LR' | 'TB' | 'RL' | 'BT'> = {
+  right: 'LR',
+  down: 'TB',
+  left: 'RL',
+  up: 'BT',
+};
 const EDGE_DATA_FIELDS = [
   'dashPattern',
   'classRelation',
@@ -135,11 +165,14 @@ function pickDefined(source: object, keys: readonly string[]): Record<string, un
   return Object.keys(picked).length > 0 ? picked : undefined;
 }
 
-function describeNode(
-  node: FlowNode,
-  allNodes: FlowNode[],
-  full: boolean
-): Record<string, unknown> {
+function describeBounds(rect: NodeBounds): Record<string, unknown> {
+  return {
+    position: { x: Math.round(rect.x), y: Math.round(rect.y) },
+    size: { width: Math.round(rect.width), height: Math.round(rect.height) },
+  };
+}
+
+function describeNode(node: FlowNode, rect: NodeBounds, full: boolean): Record<string, unknown> {
   const parentId = getNodeParentId(node);
   const entry: Record<string, unknown> = {
     id: node.id,
@@ -147,19 +180,60 @@ function describeNode(
     label: clipText(node.data.label ?? ''),
   };
   if (parentId) entry.parentId = parentId;
-  if (!full) return entry;
+  const data = full
+    ? pickDefined(node.data, NODE_DATA_FIELDS[node.type as keyof typeof NODE_DATA_FIELDS] ?? [])
+    : undefined;
+  return { ...entry, ...(data ? { data } : {}), ...describeBounds(rect) };
+}
 
-  const data = pickDefined(
-    node.data,
-    NODE_DATA_FIELDS[node.type as keyof typeof NODE_DATA_FIELDS] ?? []
-  );
-  const bounds = getAbsoluteNodeBounds(node, allNodes);
+function describeLayout(review: LayoutReview, overview: boolean): Record<string, unknown> {
+  const more = review.issueCount - review.issues.length;
   return {
-    ...entry,
-    ...(data ? { data } : {}),
-    position: { x: Math.round(bounds.x), y: Math.round(bounds.y) },
-    size: { width: Math.round(bounds.width), height: Math.round(bounds.height) },
+    ...(overview && review.flow ? { flow: FLOW_NAMES[review.flow] } : {}),
+    ...(overview && review.bounds ? { bounds: describeBounds(review.bounds) } : {}),
+    issues: review.issues,
+    ...(more > 0 ? { moreIssues: more } : {}),
+    ...(review.note ? { note: review.note } : {}),
   };
+}
+
+// Where the nodes a call placed or moved ended up, so the agent need not read the canvas again.
+function describePlaced(graph: CanvasGraph, ids: readonly string[]): Record<string, unknown>[] {
+  const rects = nodeRects(new Map(graph.nodes.map((node) => [node.id, node])));
+  const placed = [...new Set(ids)].filter((id) => rects.has(id));
+  return takeWithin(
+    placed,
+    (id) => ({ id, ...describeBounds(rects.get(id)) }),
+    MAX_NODE_OUTPUT_CHARS
+  );
+}
+
+// Resolves once the canvas has measured these nodes, or after a short wait: nodes out of view or on a canvas
+// that is not showing are never measured. False when there is no canvas to wait for.
+function waitForMeasurement(ids: readonly string[]): Promise<boolean> {
+  if (ids.length === 0 || typeof document === 'undefined' || !document.querySelector('.react-flow__renderer')) {
+    return Promise.resolve(false);
+  }
+  const deadline = Date.now() + MEASURE_TIMEOUT_MS;
+  return new Promise((resolve) => {
+    const check = () => {
+      const { nodes } = useFlowStore.getState();
+      const measured = ids.every((id) => {
+        const node = nodes.find((candidate) => candidate.id === id);
+        return !node || node.hidden || Boolean(node.measured?.width && node.measured.height);
+      });
+      if (measured || Date.now() >= deadline) resolve(true);
+      else setTimeout(check, MEASURE_POLL_MS);
+    };
+    check();
+  });
+}
+
+// Edges around nodes the agent places follow them the way they follow a drag.
+function routingOptions(state: FlowState): SmartRoutingOptions | undefined {
+  return state.viewSettings.smartRoutingEnabled
+    ? getSmartRoutingOptionsFromViewSettings(state.viewSettings)
+    : undefined;
 }
 
 function describeEdge(edge: FlowEdge, full: boolean): Record<string, unknown> {
@@ -180,9 +254,10 @@ function readCanvas(
   const edges = requested
     ? state.edges.filter((edge) => requested.has(edge.source) && requested.has(edge.target))
     : state.edges;
+  const rects = nodeRects(new Map(state.nodes.map((node) => [node.id, node])));
   const nodeEntries = takeWithin(
     nodes,
-    (node) => describeNode(node, state.nodes, full),
+    (node) => describeNode(node, rects.get(node.id), full),
     MAX_NODE_OUTPUT_CHARS
   );
   const edgeEntries = takeWithin(edges, (edge) => describeEdge(edge, full), MAX_EDGE_OUTPUT_CHARS);
@@ -202,6 +277,7 @@ function readCanvas(
     edges: edgeEntries,
     ...(selectedIds.length > 0 ? { selectedIds } : {}),
     ...(notFound.length > 0 ? { notFound } : {}),
+    layout: describeLayout(reviewLayout(state, { focusIds: requested }), true),
     ...(truncated
       ? {
           note: `Truncated: showing ${nodeEntries.length} of ${nodes.length} nodes and ${edgeEntries.length} of ${edges.length} edges. Pass nodeIds to read the others.`,
@@ -292,6 +368,48 @@ export function createAgentTurnExecutor({
     }
   };
 
+  // Placement guesses the size of nodes the canvas has not drawn yet. Once they are drawn, nodes placed on a
+  // wrong guess are placed again at their real size, so rows line up and gaps come out as intended.
+  // Waits for every node the call added, so the result reports real sizes. Nodes it placed are placed again
+  // and moves next to other nodes are worked out again; moves to a position stand.
+  const settle = async (outcome: CanvasEditResult, ops: readonly EditCanvasOp[]) => {
+    if (!(await waitForMeasurement(outcome.addedNodeIds))) return;
+    try {
+      const state = requireTurn();
+      const guessed = new Map(outcome.nodes.map((node) => [node.id, node]));
+      const misjudged = outcome.addedNodeIds.some((id) => {
+        const measured = state.nodes.find((node) => node.id === id)?.measured;
+        const guess = guessed.get(id);
+        if (!measured?.width || !measured.height || !guess) return false;
+        const size = nodeSize({ ...guess, measured: undefined });
+        return (
+          Math.abs(size.width - measured.width) > SIZE_TOLERANCE ||
+          Math.abs(size.height - measured.height) > SIZE_TOLERANCE
+        );
+      });
+      if (!misjudged) return;
+      const before = { nodes: state.nodes, edges: state.edges };
+      const routing = routingOptions(state);
+      const ownSectionIds = new Set(addedNodeIds);
+      let after: CanvasGraph = outcome.placedNodeIds.length > 0
+        ? tidyNodes(before, outcome.placedNodeIds, { flow: outcome.placementFlow, routing, ownSectionIds })
+        : before;
+      const real = (ref: string) => outcome.idMap[ref] ?? ref;
+      const moves = ops.flatMap((op) =>
+        op.op === 'move_node' && op.nextTo
+          ? [{ ...op, id: real(op.id), nextTo: { ...op.nextTo, id: real(op.nextTo.id) } }]
+          : []
+      );
+      if (moves.length > 0) {
+        const moved = applyCanvasEdits(after, moves, { routing, ownSectionIds });
+        if (moved.ok === true) after = moved;
+      }
+      commit(before, after);
+    } catch {
+      // The turn is ending or the page moved on; the first placement stands.
+    }
+  };
+
   const handlers: ToolHandlers = {
     get_canvas: (args) => readCanvas(requireTurn(), args),
 
@@ -302,6 +420,8 @@ export function createAgentTurnExecutor({
         startNodeIds,
         removedStartNodeIds,
         layerId: state.activeLayerId,
+        routing: routingOptions(state),
+        ownSectionIds: new Set(addedNodeIds),
       });
       if (outcome.ok === false) throw new Error(outcome.error);
       // A plain failure, not a rejected result, so the agent carries on without the removal.
@@ -312,7 +432,23 @@ export function createAgentTurnExecutor({
       }
       commit(before, outcome, outcome.addedNodeIds);
       removedStartNodeIds = outcome.destructive.removedStartNodeIds;
-      return { summary: outcome.summary, idMap: outcome.idMap };
+      // Moves put nodes where the agent said, so only the nodes placed automatically are placed again.
+      await settle(outcome, ops);
+      const after = useFlowStore.getState();
+      const changedIds = [...outcome.addedNodeIds, ...outcome.movedNodeIds];
+      // New edges between nodes already there count too, as they can cross or run through others.
+      const focusIds = new Set([
+        ...changedIds,
+        ...outcome.edges
+          .filter((edge) => outcome.addedEdgeIds.includes(edge.id))
+          .flatMap((edge) => [edge.source, edge.target]),
+      ]);
+      return {
+        summary: outcome.summary,
+        idMap: outcome.idMap,
+        ...(changedIds.length > 0 ? { placed: describePlaced(after, changedIds) } : {}),
+        layout: describeLayout(reviewLayout(after, { focusIds }), false),
+      };
     },
 
     find_icons: ({ query, provider, limit }) => {
@@ -331,7 +467,7 @@ export function createAgentTurnExecutor({
         : { icons, note: 'No icons matched. Try a shorter or more common name, or a Lucide icon.' };
     },
 
-    layout: async ({ scope }) => {
+    layout: async ({ scope, direction }) => {
       const state = requireTurn();
       const before = { nodes: state.nodes, edges: state.edges };
       if (scope === 'new') {
@@ -339,9 +475,15 @@ export function createAgentTurnExecutor({
         if (ids.length === 0) {
           return { summary: 'No nodes were added in this turn, so nothing moved.' };
         }
-        commit(before, tidyNodes(before, ids));
+        const after = tidyNodes(before, ids, {
+          flow: direction,
+          routing: routingOptions(state),
+          ownSectionIds: new Set(addedNodeIds),
+        });
+        commit(before, after);
         return {
           summary: `Tidied ${ids.length} node${ids.length === 1 ? '' : 's'} added in this turn.`,
+          layout: describeLayout(reviewLayout(after, { focusIds: new Set(ids) }), false),
         };
       }
 
@@ -349,12 +491,26 @@ export function createAgentTurnExecutor({
       const { clearLayoutCache } = await import('@/services/elkLayout');
       clearLayoutCache();
       const diagramType = state.tabs.find((tab) => tab.id === state.activeTabId)?.diagramType;
-      const { nodes, edges } = await composeDiagramForDisplay(before.nodes, before.edges, {
+      const hints = getLayoutHintsForDiagramType(diagramType);
+      const byId = new Map(before.nodes.map((node) => [node.id, node]));
+      // A page that happens to run backwards is laid out forwards on the same axis.
+      const current = flowDirection(byId, before.edges, nodeRects(byId));
+      const pageFlow: FlowDirection | undefined = current
+        ? isHorizontal(current) ? 'right' : 'down'
+        : hints.direction === 'LR' ? 'right' : hints.direction === 'TB' ? 'down' : undefined;
+      const flow = direction ?? pageFlow ?? 'down';
+      // Layered like the toolbar's auto-layout: left to choose, ELK lays small, dense graphs out by force.
+      const laidOut = await composeDiagramForDisplay(before.nodes, before.edges, {
         diagramType,
-        ...getLayoutHintsForDiagramType(diagramType),
+        algorithm: hints.algorithm ?? 'layered',
+        direction: ELK_DIRECTIONS[flow],
       });
-      commit(before, { nodes, edges });
-      return { summary: 'Re-laid out the whole page.' };
+      const after = straightenEdges(laidOut, flow, routingOptions(requireTurn()));
+      commit(before, after);
+      return {
+        summary: 'Re-laid out the whole page.',
+        layout: describeLayout(reviewLayout(after), false),
+      };
     },
 
     review_architecture: () => {

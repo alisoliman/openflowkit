@@ -292,7 +292,10 @@ describe('Flowpilot agent scenarios', () => {
           { op: 'add_edge', source: 'aks', target: 'key-vault', label: 'secrets', data: { dashPattern: 'dashed' } },
         ],
       });
-      expect(await copilot.call('layout', { scope: 'all' })).toEqual({ summary: 'Re-laid out the whole page.' });
+      expect(await copilot.call('layout', { scope: 'all' })).toMatchObject({
+        summary: 'Re-laid out the whole page.',
+        layout: { issues: expect.any(Array) },
+      });
       copilot.say('Front Door terminates TLS, the Application Gateway routes into AKS, and the cluster reads secrets from Key Vault.');
     });
 
@@ -379,7 +382,10 @@ describe('Flowpilot agent scenarios', () => {
           { op: 'add_edge', source: selectedId, target: 'cache', label: 'cache-aside reads' },
         ],
       });
-      expect(await copilot.call('layout', { scope: 'new' })).toEqual({ summary: 'Tidied 1 node added in this turn.' });
+      expect(await copilot.call('layout', { scope: 'new' })).toMatchObject({
+        summary: 'Tidied 1 node added in this turn.',
+        layout: { issues: expect.any(Array) },
+      });
       copilot.say('Added a Redis cache next to the Orders API for cache-aside reads.');
     });
 

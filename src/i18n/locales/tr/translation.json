@@ -7,6 +7,7 @@
     "undo": "AI düzenlemesini geri al",
     "nodesAdded": "Eklenen düğüm: {{count}}",
     "nodesUpdated": "Değişen düğüm: {{count}}",
+    "nodesMoved": "Taşınan düğüm: {{count}}",
     "nodesRemoved": "Kaldırılan düğüm: {{count}}",
     "edgesAdded": "Eklenen bağlantı: {{count}}",
     "edgesUpdated": "Değişen bağlantı: {{count}}",

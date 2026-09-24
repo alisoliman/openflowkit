@@ -27,6 +27,19 @@ describe('semantic Flowpilot change summaries', () => {
     expect(summarizeDiagramChanges({ nodes: [before], edges: [edge('a')] }, { nodes: [after], edges: [edge('b')] }).totalChanges).toBe(0);
   });
 
+  it('counts nodes that only moved when asked, as agent turns move nodes on purpose', () => {
+    const nodes = [node('api'), node('db')];
+    const after = {
+      nodes: [{ ...nodes[0], position: { x: 400, y: 200 } }, { ...nodes[1], data: { label: 'Orders DB' }, position: { x: 0, y: 0 } }],
+      edges: [],
+    };
+    expect(summarizeDiagramChanges({ nodes, edges: [] }, after)).toMatchObject({ updatedCount: 1, totalChanges: 1 });
+    expect(summarizeDiagramChanges({ nodes, edges: [] }, after).movedCount).toBeUndefined();
+    // A node that changed and moved counts once, as changed.
+    expect(summarizeDiagramChanges({ nodes, edges: [] }, after, { countMoves: true }))
+      .toMatchObject({ updatedCount: 1, movedCount: 1, totalChanges: 2 });
+  });
+
   it('detects visual and structural node edits without counting implicit default values as changes', () => {
     const original = node('api');
     expect(summarizeDiagramChanges({ nodes: [original], edges: [] }, {

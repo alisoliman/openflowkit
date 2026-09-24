@@ -7,6 +7,7 @@
     "undo": "AI の編集を元に戻す",
     "nodesAdded": "追加されたノード: {{count}}",
     "nodesUpdated": "変更されたノード: {{count}}",
+    "nodesMoved": "移動したノード: {{count}}",
     "nodesRemoved": "削除されたノード: {{count}}",
     "edgesAdded": "追加された接続: {{count}}",
     "edgesUpdated": "変更された接続: {{count}}",

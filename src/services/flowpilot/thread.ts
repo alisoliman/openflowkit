@@ -110,7 +110,8 @@ export function describeCanvasChanges(changes: DiagramChangeSummary | undefined)
     ? `renamed ${change.kind} "${change.previousLabel}" to "${change.label}"`
     : `${change.status} ${change.kind} "${change.label}"`);
   const more = changes.details.length - entries.length;
-  return more > 0 ? `${entries.join('; ')}; and ${more} more` : entries.join('; ');
+  const moved = changes.movedCount ? [`moved ${changes.movedCount} node${changes.movedCount === 1 ? '' : 's'}`] : [];
+  return [...entries, ...(more > 0 ? [`and ${more} more`] : []), ...moved].join('; ');
 }
 
 /** The user's answers replayed with a Copilot turn, including an answer given after the turn ended. */

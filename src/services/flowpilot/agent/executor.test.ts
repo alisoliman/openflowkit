@@ -43,7 +43,7 @@ function setCanvas(nodes: FlowNode[], edges: FlowEdge[] = []): void {
     ],
     activeTabId: 'tab-1',
     agentTurn: TURN,
-    viewSettings: { ...state.viewSettings, lintRules: '' },
+    viewSettings: { ...state.viewSettings, lintRules: '', smartRoutingEnabled: true },
   }));
 }
 
@@ -96,8 +96,12 @@ afterEach(() => {
 });
 
 describe('agent executor get_canvas', () => {
-  it('summarises the page with ids, types, labels, sections and the selection', async () => {
+  it('summarises the page with ids, types, labels, sections, absolute bounds, the selection and the layout', async () => {
     const result = await createExecutor().execute('get_canvas', {});
+    const box = (x: number, y: number, width = 120, height = 60) => ({
+      position: { x, y },
+      size: { width, height },
+    });
 
     expect(result).toEqual({
       ok: true,
@@ -106,13 +110,14 @@ describe('agent executor get_canvas', () => {
         nodeCount: 4,
         edgeCount: 1,
         nodes: [
-          { id: 'api', type: 'process', label: 'API' },
-          { id: 'web', type: 'process', label: 'WEB' },
-          { id: 'zone', type: 'section', label: 'ZONE' },
-          { id: 'worker', type: 'process', label: 'WORKER', parentId: 'zone' },
+          { id: 'api', type: 'process', label: 'API', ...box(0, 0) },
+          { id: 'web', type: 'process', label: 'WEB', ...box(300, 0) },
+          { id: 'zone', type: 'section', label: 'ZONE', ...box(0, 300, 400, 300) },
+          { id: 'worker', type: 'process', label: 'WORKER', parentId: 'zone', ...box(40, 360) },
         ],
         edges: [{ id: 'e-web-api', source: 'web', target: 'api', label: 'calls' }],
         selectedIds: ['api'],
+        layout: { flow: 'right to left', bounds: box(0, 0, 420, 600), issues: [] },
       },
     });
   });
@@ -183,8 +188,8 @@ describe('agent executor get_canvas', () => {
     if (requested.ok === false) throw new Error(requested.error);
 
     expect(summary.result.nodes).toEqual([
-      { id: 'api', type: 'process', label: clipped },
-      { id: 'web', type: 'process', label: 'WEB' },
+      expect.objectContaining({ id: 'api', type: 'process', label: clipped }),
+      expect.objectContaining({ id: 'web', type: 'process', label: 'WEB' }),
     ]);
     expect(summary.result.note).toBeUndefined();
     expect(requested.result.nodes).toEqual([
@@ -215,6 +220,112 @@ describe('agent executor edit_canvas', () => {
     expect(state.tabs[0].edges).toBe(state.edges);
     expect(historyLength()).toBe(1);
     expect(state.tabs[0].history.past[0].nodes).toBe(executor.startGraph.nodes);
+  });
+
+  it('says where the nodes it moved landed, the layout issues around them, and turns their edges', async () => {
+    const result = await createExecutor().execute('edit_canvas', {
+      ops: [{ op: 'move_node', id: 'web', position: { x: 60, y: 20 } }],
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      result: {
+        summary: 'Moved 1 node.',
+        idMap: {},
+        placed: [{ id: 'web', position: { x: 60, y: 20 }, size: { width: 120, height: 60 } }],
+        layout: {
+          issues: [
+            '"api" and "web" overlap by 60 px x 40 px.',
+            '"web" and "api" are 20 px out of line; for a straight edge, move "web" to y = 0 (or the other node to match).',
+          ],
+        },
+      },
+    });
+    expect(useFlowStore.getState().edges[0]).toMatchObject({ sourceHandle: 'left', targetHandle: 'right' });
+  });
+
+  it('places nodes again at the size the canvas measures, except those a move placed', async () => {
+    setCanvas([node('api', 0, 0)]);
+    const renderer = document.createElement('div');
+    renderer.className = 'react-flow__renderer';
+    document.body.append(renderer);
+    try {
+      const pending = createExecutor().execute('edit_canvas', {
+        ops: [
+          { op: 'add_node', id: 'db', type: 'process', label: 'DB' },
+          { op: 'add_edge', source: 'api', target: 'db' },
+          { op: 'add_node', id: 'note', type: 'process', label: 'Note' },
+          { op: 'move_node', id: 'note', position: { x: 0, y: 400 } },
+        ],
+      });
+      // What React Flow does once it has drawn the new nodes.
+      await vi.waitFor(() => expect(storeNode('db')).toBeDefined());
+      useFlowStore.getState().setNodes((nodes) =>
+        nodes.map((candidate) =>
+          candidate.id === 'api' ? candidate : { ...candidate, measured: { width: 120, height: 140 } }
+        )
+      );
+      const result = await pending;
+
+      // Beside the api node and centred on it, now that its real height is known; the move stands.
+      expect(result).toMatchObject({
+        ok: true,
+        result: {
+          placed: [
+            { id: 'db', position: { x: 180, y: -40 }, size: { width: 120, height: 140 } },
+            { id: 'note', position: { x: 0, y: 400 }, size: { width: 120, height: 140 } },
+          ],
+        },
+      });
+      expect(historyLength()).toBe(1);
+    } finally {
+      renderer.remove();
+    }
+  });
+
+  it('works moves next to other nodes out again at the measured sizes', async () => {
+    setCanvas([node('api', 0, 0)]);
+    const renderer = document.createElement('div');
+    renderer.className = 'react-flow__renderer';
+    document.body.append(renderer);
+    try {
+      const pending = createExecutor().execute('edit_canvas', {
+        ops: [
+          { op: 'add_node', id: 'queue', type: 'process', label: 'Queue' },
+          { op: 'move_node', id: 'queue', nextTo: { id: 'api', side: 'below' } },
+          { op: 'add_node', id: 'worker', type: 'process', label: 'Worker' },
+          { op: 'move_node', id: 'worker', nextTo: { id: 'queue', side: 'right' } },
+        ],
+      });
+      await vi.waitFor(() => expect(storeNode('worker')).toBeDefined());
+      useFlowStore.getState().setNodes((nodes) =>
+        nodes.map((candidate) =>
+          candidate.id === 'queue' ? { ...candidate, measured: { width: 120, height: 140 } }
+            : candidate.id === 'worker' ? { ...candidate, measured: { width: 120, height: 100 } }
+              : candidate
+        )
+      );
+      const result = await pending;
+
+      // Below the api node, and the worker level with the queue's middle at their real heights.
+      expect(result).toMatchObject({
+        ok: true,
+        result: {
+          placed: [
+            { id: 'queue', position: { x: 0, y: 140 } },
+            { id: 'worker', position: { x: 200, y: 160 } },
+          ],
+        },
+      });
+    } finally {
+      renderer.remove();
+    }
+  });
+
+  it('leaves edge handles alone when smart routing is off', async () => {
+    useFlowStore.setState((state) => ({ viewSettings: { ...state.viewSettings, smartRoutingEnabled: false } }));
+    await createExecutor().execute('edit_canvas', { ops: [{ op: 'move_node', id: 'web', position: { x: 60, y: 200 } }] });
+    expect(useFlowStore.getState().edges[0].sourceHandle).toBeUndefined();
   });
 
   it('returns the real ids when a chosen id is taken', async () => {
@@ -526,7 +637,10 @@ describe('agent executor layout', () => {
       ok: true,
       result: { summary: 'No nodes were added in this turn, so nothing moved.' },
     });
-    expect(tidied).toEqual({ ok: true, result: { summary: 'Tidied 1 node added in this turn.' } });
+    expect(tidied).toEqual({
+      ok: true,
+      result: { summary: 'Tidied 1 node added in this turn.', layout: { issues: [] } },
+    });
     // It moves next to the api node it now connects to, which sits at the origin.
     const moved = storeNode('db')!.position;
     expect(moved).not.toEqual(unconnected);
@@ -548,15 +662,29 @@ describe('agent executor layout', () => {
 
     const result = await createExecutor().execute('layout', { scope: 'all' });
 
-    expect(result).toEqual({ ok: true, result: { summary: 'Re-laid out the whole page.' } });
+    expect(result).toEqual({
+      ok: true,
+      result: { summary: 'Re-laid out the whole page.', layout: { issues: [] } },
+    });
     expect(clearLayoutCache).toHaveBeenCalledTimes(1);
-    // Same direction as the toolbar's auto-layout for architecture diagrams.
+    // Layered like the toolbar's auto-layout, forwards along the page's axis: its one edge runs right to left.
     expect(composeDiagramForDisplay).toHaveBeenCalledWith(before.nodes, before.edges, {
       diagramType: 'architecture',
+      algorithm: 'layered',
       direction: 'LR',
     });
     expect(storeNode('web')?.position).toEqual({ x: 500, y: 900 });
     expect(historyLength()).toBe(1);
+  });
+
+  it('lays the page out the way the agent asks it to flow', async () => {
+    vi.mocked(composeDiagramForDisplay).mockImplementation(async (nodes, edges) => ({ nodes, edges }));
+    await createExecutor().execute('layout', { scope: 'all', direction: 'down' });
+    expect(composeDiagramForDisplay).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      diagramType: 'architecture',
+      algorithm: 'layered',
+      direction: 'TB',
+    });
   });
 
   it('drops a whole-page layout that finishes after the turn started ending', async () => {

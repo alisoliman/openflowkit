@@ -148,6 +148,8 @@ export interface DiagramChangeSummary {
   addedEdgeCount: number;
   removedEdgeCount: number;
   updatedEdgeCount: number;
+  /** Nodes that only moved; counted for agent turns. */
+  movedCount?: number;
   totalChanges: number;
   details: DiagramChange[];
 }

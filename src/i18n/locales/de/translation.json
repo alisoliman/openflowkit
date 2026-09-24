@@ -7,6 +7,7 @@
     "undo": "KI-Änderung rückgängig",
     "nodesAdded": "Hinzugefügte Knoten: {{count}}",
     "nodesUpdated": "Geänderte Knoten: {{count}}",
+    "nodesMoved": "Verschobene Knoten: {{count}}",
     "nodesRemoved": "Entfernte Knoten: {{count}}",
     "edgesAdded": "Hinzugefügte Verbindungen: {{count}}",
     "edgesUpdated": "Geänderte Verbindungen: {{count}}",

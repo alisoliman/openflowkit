@@ -1,11 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
+import { ICON_NAMES } from '@/components/IconMap';
 import { flowCanvasNodeTypes } from '@/components/flow-canvas/flowCanvasTypes';
 import { CLASS_RELATION_TOKENS, ER_RELATION_TOKENS } from '@/lib/relationSemantics';
 import type { EdgeData, ErField, NodeData } from '@/lib/types';
 import { KNOWN_PROVIDER_PACK_IDS } from '@/services/shapeLibrary/providerCatalog';
 import { NODE_COLOR_PALETTE } from '@/theme/palettes';
 import {
-  AGENT_ICON_PROVIDERS, AGENT_MAX_EDIT_OPS, AGENT_MAX_ICON_RESULTS, AGENT_NODE_COLORS, AGENT_NODE_SHAPES,
+  AGENT_ICON_PROVIDERS, AGENT_LUCIDE_ICONS, AGENT_MAX_EDIT_OPS, AGENT_MAX_ICON_RESULTS, AGENT_NODE_COLORS, AGENT_NODE_SHAPES,
   AGENT_NODE_TYPES, AGENT_TOOL_NAMES, AGENT_TOOLS, agentToolJsonSchema, type AgentToolName, type EditCanvasOp,
 } from './agentTools';
 
@@ -28,6 +29,10 @@ describe('agent tool registry', () => {
     }
   });
 
+  it('offers the agent exactly the Lucide icons the canvas bundles', () => {
+    expect([...AGENT_LUCIDE_ICONS].sort()).toEqual([...ICON_NAMES].sort());
+  });
+
   it.each(AGENT_TOOL_NAMES)('exports %s as SDK-ready JSON Schema', (name) => {
     const schema = agentToolJsonSchema(name);
     expect(schema).toMatchObject({ type: 'object', additionalProperties: false });
@@ -42,7 +47,7 @@ describe('agent tool registry', () => {
     });
     expect(agentToolJsonSchema('layout')).toMatchObject({ required: ['scope'], properties: { scope: { enum: ['new', 'all'] } } });
     expect(agentToolJsonSchema('edit_canvas')).toMatchObject({ required: ['ops'], properties: { ops: { minItems: 1, maxItems: AGENT_MAX_EDIT_OPS } } });
-    expect(JSON.stringify(agentToolJsonSchema('edit_canvas')).length).toBeLessThan(12_000);
+    expect(JSON.stringify(agentToolJsonSchema('edit_canvas')).length).toBeLessThan(14_000);
   });
 
   it('matches the app registries it mirrors', () => {

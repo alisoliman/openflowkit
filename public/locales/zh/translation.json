@@ -7,6 +7,7 @@
     "undo": "撤销 AI 编辑",
     "nodesAdded": "新增节点：{{count}}",
     "nodesUpdated": "修改节点：{{count}}",
+    "nodesMoved": "移动节点：{{count}}",
     "nodesRemoved": "移除节点：{{count}}",
     "edgesAdded": "新增连接：{{count}}",
     "edgesUpdated": "修改连接：{{count}}",

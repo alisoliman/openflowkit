@@ -7,6 +7,7 @@
     "undo": "Undo AI edit",
     "nodesAdded": "Nodes added: {{count}}",
     "nodesUpdated": "Nodes changed: {{count}}",
+    "nodesMoved": "Nodes moved: {{count}}",
     "nodesRemoved": "Nodes removed: {{count}}",
     "edgesAdded": "Connections added: {{count}}",
     "edgesUpdated": "Connections changed: {{count}}",
