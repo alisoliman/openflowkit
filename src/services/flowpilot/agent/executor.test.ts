@@ -4,11 +4,13 @@ import { composeDiagramForDisplay } from '@/services/composeDiagramForDisplay';
 import { clearLayoutCache } from '@/services/elkLayout';
 import { getFlowTemplates } from '@/services/templates';
 import { useFlowStore } from '@/store';
+import { INITIAL_GLOBAL_EDGE_OPTIONS } from '@/store/defaults';
 import type { CanvasEditDestructiveInfo } from './canvasOps';
 import { canUndoAgentTurn, createAgentTurnExecutor, undoAgentTurn } from './executor';
 
 vi.mock('@/services/composeDiagramForDisplay', () => ({ composeDiagramForDisplay: vi.fn() }));
 vi.mock('@/services/elkLayout', () => ({ clearLayoutCache: vi.fn() }));
+vi.mock('./canvasCapture', () => ({ captureCanvasRegion: vi.fn() }));
 
 const TURN = { turnId: 'turn-1', pageId: 'tab-1' };
 const WORKSPACE_RULES_KEY = 'openflowkit:workspace-lint-rules';
@@ -85,7 +87,7 @@ beforeEach(() => {
       { ...node('zone', 0, 300), type: 'section', style: { width: 400, height: 300 } },
       node('worker', 40, 60, { parentId: 'zone' }),
     ],
-    [edge('web', 'api', { label: 'calls', data: { dashPattern: 'dashed' } })]
+    [edge('web', 'api', { label: 'calls', style: { strokeDasharray: '8 4' }, data: { dashPattern: 'dashed' } })]
   );
 });
 
@@ -110,14 +112,15 @@ describe('agent executor get_canvas', () => {
         nodeCount: 4,
         edgeCount: 1,
         nodes: [
-          { id: 'api', type: 'process', label: 'API', ...box(0, 0) },
-          { id: 'web', type: 'process', label: 'WEB', ...box(300, 0) },
-          { id: 'zone', type: 'section', label: 'ZONE', ...box(0, 300, 400, 300) },
-          { id: 'worker', type: 'process', label: 'WORKER', parentId: 'zone', ...box(40, 360) },
+          { id: 'api', type: 'process', label: 'API', color: 'white', ...box(0, 0) },
+          { id: 'web', type: 'process', label: 'WEB', color: 'white', ...box(300, 0) },
+          { id: 'zone', type: 'section', label: 'ZONE', color: 'white', ...box(0, 300, 400, 300) },
+          { id: 'worker', type: 'process', label: 'WORKER', color: 'white', parentId: 'zone', ...box(40, 360) },
         ],
-        edges: [{ id: 'e-web-api', source: 'web', target: 'api', label: 'calls' }],
+        edges: [{ id: 'e-web-api', source: 'web', target: 'api', label: 'calls', style: { arrowheads: 'none', dashPattern: 'dashed' } }],
         selectedIds: ['api'],
         layout: { flow: 'right to left', bounds: box(0, 0, 420, 600), issues: [] },
+        style: expect.objectContaining({ appearance: 'light' }),
       },
     });
   });
@@ -132,7 +135,7 @@ describe('agent executor get_canvas', () => {
     const nodes = result.result.nodes as Array<Record<string, unknown>>;
     expect(nodes.map((entry) => entry.id)).toEqual(['api', 'web', 'worker']);
     expect(nodes[2]).toMatchObject({
-      data: { color: 'white', shape: 'rounded' },
+      style: { color: 'white', shape: 'rounded' },
       position: { x: 40, y: 360 },
       size: { width: expect.any(Number), height: expect.any(Number) },
     });
@@ -142,7 +145,18 @@ describe('agent executor get_canvas', () => {
         source: 'web',
         target: 'api',
         label: 'calls',
-        data: { dashPattern: 'dashed' },
+        style: {
+          color: 'default',
+          arrowheads: 'none',
+          arrowStyle: 'filled',
+          path: 'default',
+          width: 2,
+          dashPattern: 'dashed',
+          animated: false,
+          labelPosition: 0.5,
+          sourceSide: 'auto',
+          targetSide: 'auto',
+        },
       },
     ]);
     expect(result.result.notFound).toEqual(['ghost']);
@@ -196,7 +210,8 @@ describe('agent executor get_canvas', () => {
       expect.objectContaining({
         id: 'api',
         label: clipped,
-        data: { subLabel: clipped, color: 'white' },
+        style: { color: 'white' },
+        data: { subLabel: clipped },
       }),
     ]);
   });
@@ -805,5 +820,120 @@ describe('agent executor templates', () => {
     expect(nodes).toHaveLength(template.nodes.length);
     expect(nodes.every((candidate) => candidate.data.freshlyAdded)).toBe(true);
     expect(historyLength()).toBe(1);
+  });
+});
+
+describe('agent executor page style', () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute('data-theme');
+    useFlowStore.setState({ globalEdgeOptions: INITIAL_GLOBAL_EDGE_OPTIONS });
+  });
+
+  it('reports the appearance, design system, edge defaults and colors in use', async () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    useFlowStore.setState({ globalEdgeOptions: { type: 'step', curve: 'step', animated: false, strokeWidth: 2 } });
+    setCanvas(
+      [node('api', 0, 0, { data: { label: 'API', color: 'blue' } }), node('web', 300, 0, { data: { label: 'WEB', color: 'blue' } }), node('db', 0, 200)],
+      [edge('web', 'api', { style: { stroke: '#f87171' } }), edge('api', 'db')]
+    );
+
+    const result = await createExecutor().execute('get_canvas', {});
+    if (result.ok === false) throw new Error(result.error);
+
+    expect(result.result.style).toMatchObject({
+      appearance: 'dark',
+      canvasBackground: '#0a0a0a',
+      designSystem: { name: expect.any(String), edgeColor: expect.any(String) },
+      edgeDefaults: { path: 'sharp', width: 2, animated: false },
+      nodeColors: [
+        { color: 'blue', colorMode: 'subtle', count: 2, types: ['process'] },
+        { color: 'white', colorMode: 'subtle', count: 1, types: ['process'] },
+      ],
+      edgeColors: [{ color: 'red', count: 1 }, { color: 'default', count: 1 }],
+    });
+  });
+
+  it('gives new edges the diagram-wide edge style', async () => {
+    useFlowStore.setState({ globalEdgeOptions: { type: 'straight', curve: 'linear', animated: true, strokeWidth: 3 } });
+    await createExecutor().execute('edit_canvas', addDatabase);
+    expect(useFlowStore.getState().edges.at(-1)).toMatchObject({ type: 'straight', animated: true, style: { strokeWidth: 3 } });
+  });
+});
+
+describe('agent executor capture_canvas and focus_canvas', () => {
+  it('shows the requested area and returns its picture as an image', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'requestAnimationFrame'] });
+    const { captureCanvasRegion } = await import('./canvasCapture');
+    const capture = vi.mocked(captureCanvasRegion);
+    capture.mockResolvedValue({ data: 'aGk=', mimeType: 'image/jpeg', width: 400, height: 200, scale: 1 });
+    const setViewport = vi.fn(async () => true);
+    const container = document.createElement('div');
+    container.className = 'react-flow';
+    container.getBoundingClientRect = () => ({ width: 800, height: 600 }) as DOMRect;
+    document.body.appendChild(container);
+
+    try {
+      const pending = createAgentTurnExecutor({
+        turn: TURN, confirmRemoval: vi.fn(async () => true), endingReason: () => undefined, view: () => ({ setViewport }),
+      }).execute('capture_canvas', { nodeIds: ['api', 'web'] });
+      await vi.runAllTimersAsync();
+      const result = await pending;
+
+      // api and web span 0..420 x 0..60; the picture adds 40 px around them.
+      expect(capture).toHaveBeenCalledWith({ x: -40, y: -40, width: 500, height: 140 }, '#f8fafc');
+      expect(setViewport).toHaveBeenCalledWith(expect.objectContaining({ zoom: 1.25 }), { duration: 250 });
+      expect(result).toEqual({
+        ok: true,
+        result: {
+          area: { position: { x: -40, y: -40 }, size: { width: 500, height: 140 } },
+          image: { width: 400, height: 200, note: 'Image px = (canvas px - area.position) x 1.' },
+        },
+        images: [{ data: 'aGk=', mimeType: 'image/jpeg' }],
+      });
+    } finally {
+      container.remove();
+      capture.mockReset();
+    }
+  });
+
+  it('says so when there is nothing to show or no picture could be taken', async () => {
+    const { captureCanvasRegion } = await import('./canvasCapture');
+    vi.mocked(captureCanvasRegion).mockResolvedValue(null);
+    const executor = createExecutor();
+
+    expect(await executor.execute('capture_canvas', { nodeIds: ['ghost'] })).toMatchObject({ ok: false, error: expect.stringContaining('"ghost" do not exist') });
+    expect(await executor.execute('capture_canvas', {})).toEqual({
+      ok: true,
+      result: { note: 'The canvas is not showing, so no picture could be taken. Rely on get_canvas.' },
+    });
+    setCanvas([]);
+    expect(await executor.execute('capture_canvas', {})).toEqual({ ok: true, result: { note: 'The canvas is empty, so there is nothing to look at.' } });
+  });
+
+  it('selects the nodes it points the user at without changing the page', async () => {
+    const executor = createExecutor();
+    const result = await executor.execute('focus_canvas', { nodeIds: ['web', 'worker'], select: true });
+
+    expect(result).toMatchObject({ ok: true, result: { summary: expect.stringContaining('Selected 2 node(s).') } });
+    expect(useFlowStore.getState().nodes.filter((candidate) => candidate.selected).map((candidate) => candidate.id)).toEqual(['web', 'worker']);
+    expect(historyLength()).toBe(0);
+    expect(executor.getUndo()).toBeNull();
+
+    await executor.execute('focus_canvas', { select: false });
+    expect(useFlowStore.getState().nodes.some((candidate) => candidate.selected)).toBe(false);
+  });
+});
+
+describe('agent executor capture regions', () => {
+  it('leaves nodes the user cannot see out of the whole-page picture', async () => {
+    const { captureCanvasRegion } = await import('./canvasCapture');
+    const capture = vi.mocked(captureCanvasRegion);
+    capture.mockResolvedValue(null);
+    useFlowStore.setState({ layers: [{ id: 'default', name: 'Default', visible: true, locked: false }, { id: 'off', name: 'Off', visible: false, locked: false }] });
+    setCanvas([node('api', 0, 0), node('ghost', 2000, 2000, { data: { label: 'G', layerId: 'off' } })]);
+
+    await createExecutor().execute('capture_canvas', {});
+    expect(capture).toHaveBeenCalledWith({ x: -40, y: -40, width: 200, height: 140 }, expect.any(String));
+    capture.mockReset();
   });
 });

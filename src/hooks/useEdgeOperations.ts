@@ -8,9 +8,15 @@ import type { DomainLibraryItem } from '@/services/domainLibrary';
 import { createDomainLibraryNode } from '@/services/domainLibrary';
 import { createId } from '@/lib/id';
 import { assignSmartHandlesWithOptions, getSmartRoutingOptionsFromViewSettings } from '../services/smartEdgeRouting';
-import { getPointerClientPosition, isPaneTarget, normalizeConnectionFromDragStart } from './edgeConnectInteractions';
+import {
+    getPointerClientPosition,
+    isEdgeReconnectTarget,
+    isPaneTarget,
+    normalizeConnectionFromDragStart,
+} from './edgeConnectInteractions';
 import { normalizeNodeHandleId } from '@/lib/nodeHandles';
 import { buildReconnectedEdge, shouldRespectExplicitReconnectHandles } from '@/lib/reconnectEdge';
+import { buildReversedEdgeUpdates, canReverseEdge } from '@/components/properties/edge/reverseEdge';
 import { queueNodeLabelEditRequest } from './nodeLabelEditRequest';
 import { isMindmapConnectorSource } from '@/lib/connectCreationPolicy';
 import { resolveMindmapBranchStyleForNode, syncMindmapEdges } from '@/lib/mindmapLayout';
@@ -72,7 +78,16 @@ export const useEdgeOperations = (
         });
     }, [setEdges, recordHistory]);
 
+    const reverseEdge = useCallback((id: string) => {
+        const state = useFlowStore.getState();
+        const edge = state.edges.find((candidate) => candidate.id === id);
+        if (!edge || !canReverseEdge(edge, state.nodes)) return;
+        recordHistory();
+        setEdges((eds) => eds.map((candidate) => candidate.id === id ? { ...candidate, ...buildReversedEdgeUpdates(candidate) } : candidate));
+    }, [setEdges, recordHistory]);
+
     const deleteEdge = useCallback((id: string) => {
+        if (!useFlowStore.getState().edges.some((edge) => edge.id === id)) return;
         recordHistory();
         setEdges((eds) => eds.filter((e) => e.id !== id));
         setSelectedEdgeId(null);
@@ -144,8 +159,11 @@ export const useEdgeOperations = (
         });
     }, [edges, nodes, recordHistory, setEdges, t]);
 
-    const onConnectStart = useCallback((_, { nodeId, handleId }: { nodeId: string | null; handleId: string | null }) => {
-        connectingNodeId.current = nodeId;
+    const onConnectStart = useCallback((event: unknown, { nodeId, handleId }: { nodeId: string | null; handleId: string | null }) => {
+        // A dragged edge end is handled by onReconnect. Tracked as a new connection, a drop on the
+        // pane would add a node and a drop near a handle would record a second undo step.
+        const isReconnect = isEdgeReconnectTarget((event as { target?: EventTarget | null } | null)?.target ?? null);
+        connectingNodeId.current = isReconnect ? null : nodeId;
         connectingHandleId.current = handleId;
         isConnectionValid.current = false;
     }, []);
@@ -327,6 +345,7 @@ export const useEdgeOperations = (
 
     return {
         updateEdge,
+        reverseEdge,
         deleteEdge,
         onConnect,
         onConnectStart,

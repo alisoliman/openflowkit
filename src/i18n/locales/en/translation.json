@@ -31,6 +31,8 @@
       "tools": {
         "get_canvas": "Read the canvas",
         "edit_canvas": "Edited the canvas",
+        "capture_canvas": "Looked at the canvas",
+        "focus_canvas": "Moved the view",
         "find_icons": "Looked up icons",
         "layout": "Arranged the layout",
         "review_architecture": "Reviewed the architecture",

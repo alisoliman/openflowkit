@@ -116,6 +116,26 @@ describe('CustomNode handle interaction policy', () => {
     }
   });
 
+  it('stretches non-square shapes to the node box, where their handles sit', () => {
+    const { container } = render(
+      <CustomNode
+        id="db"
+        type="process"
+        selected={false}
+        dragging={false}
+        zIndex={1}
+        data={{ label: 'Orders DB', shape: 'cylinder' }}
+        isConnectable={true}
+        xPos={0}
+        yPos={0}
+        sourcePosition={Position.Right}
+        targetPosition={Position.Left}
+      />
+    );
+
+    expect(container.querySelector('svg[viewBox="0 0 100 100"]')?.getAttribute('preserveAspectRatio')).toBe('none');
+  });
+
   it('exposes transform diagnostics attributes in test mode', () => {
     const { container } = render(
       <CustomNode

@@ -43,9 +43,13 @@ import {
   isHorizontal,
   nodeRects,
   nodeSize,
+  unionBounds,
+  visualRect,
   type FlowDirection,
 } from './canvasGeometry';
 import { FLOW_NAMES, reviewLayout, type LayoutReview } from './layoutReview';
+import { describeEdgeStyle, describeNodeColor, describeNodeStyle } from './canvasStyle';
+import { canvasBackground, describeCanvasStyle } from './canvasTheme';
 
 // Keeps get_canvas well inside the tool_result frame and the model's context.
 const MAX_NODE_OUTPUT_CHARS = 40_000;
@@ -69,17 +73,53 @@ const ELK_DIRECTIONS: Record<FlowDirection, 'LR' | 'TB' | 'RL' | 'BT'> = {
   left: 'RL',
   up: 'BT',
 };
+// Style fields get_canvas reports through describeNodeStyle, in the words edit_canvas takes.
+const NODE_STYLE_FIELDS: readonly string[] = [
+  'color',
+  'colorMode',
+  'shape',
+  'fontSize',
+  'fontFamily',
+  'fontWeight',
+  'fontStyle',
+  'align',
+  'variant',
+];
+// Room around what capture_canvas shows, in canvas px, and how far the view may zoom to show it.
+const CAPTURE_PADDING = 40;
+const VIEW_PADDING = 0.08;
+const VIEW_MIN_ZOOM = 0.1;
+const VIEW_MAX_ZOOM = 1.25;
+const VIEW_DURATION_MS = 250;
+// After the view moves, the canvas renders the nodes that came into view.
+const VIEW_SETTLE_MS = 80;
 const EDGE_DATA_FIELDS = [
-  'dashPattern',
   'classRelation',
   'erRelation',
   'seqMessageKind',
   'seqMessageOrder',
 ] as const satisfies readonly (keyof EdgeData)[];
 
+export interface AgentToolImage {
+  /** Base64 data without the data: prefix. */
+  data: string;
+  mimeType: 'image/jpeg' | 'image/png';
+}
+
 export type AgentToolResult =
-  | { ok: true; result: Record<string, unknown> }
+  | { ok: true; result: Record<string, unknown>; images?: AgentToolImage[] }
   | { ok: false; error: string; resultType?: 'failure' | 'rejected' };
+
+export interface Viewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** The user's view of the canvas, from React Flow. */
+export interface AgentCanvasView {
+  setViewport: (viewport: Viewport, options?: { duration?: number }) => unknown;
+}
 
 /** What "Undo Copilot's changes" restores: the history entry recorded before the turn's first edit. */
 export interface AgentTurnUndo {
@@ -103,12 +143,16 @@ interface AgentTurnExecutorOptions {
   confirmRemoval: (removal: CanvasEditDestructiveInfo) => Promise<boolean>;
   /** Why the turn is ending early, such as Stop. Calls fail once it is set, so nothing more is committed. */
   endingReason: () => string | undefined;
+  /** Moves the user's view; without it, capture_canvas draws only what is already on screen. */
+  view?: () => AgentCanvasView | undefined;
 }
 
+// Images a handler returns next to its result; a symbol keeps them out of the JSON the model reads.
+const TOOL_IMAGES = Symbol('toolImages');
+type HandlerOutput = Record<string, unknown> & { [TOOL_IMAGES]?: AgentToolImage[] };
+
 type ToolHandlers = {
-  [N in AgentToolName]: (
-    args: AgentToolArgs<N>
-  ) => Record<string, unknown> | Promise<Record<string, unknown>>;
+  [N in AgentToolName]: (args: AgentToolArgs<N>) => HandlerOutput | Promise<HandlerOutput>;
 };
 
 function getActiveHistory(state: FlowState): FlowState['tabs'][number]['history'] | undefined {
@@ -180,10 +224,21 @@ function describeNode(node: FlowNode, rect: NodeBounds, full: boolean): Record<s
     label: clipText(node.data.label ?? ''),
   };
   if (parentId) entry.parentId = parentId;
-  const data = full
-    ? pickDefined(node.data, NODE_DATA_FIELDS[node.type as keyof typeof NODE_DATA_FIELDS] ?? [])
-    : undefined;
-  return { ...entry, ...(data ? { data } : {}), ...describeBounds(rect) };
+  if (!full) {
+    const color = describeNodeColor(node.data);
+    if (color) entry.color = color;
+    if (node.data.colorMode === 'filled') entry.colorMode = 'filled';
+    return { ...entry, ...describeBounds(rect) };
+  }
+  const allowed = NODE_DATA_FIELDS[node.type as keyof typeof NODE_DATA_FIELDS] ?? [];
+  const style = describeNodeStyle(node, allowed);
+  const data = pickDefined(node.data, allowed.filter((field) => !NODE_STYLE_FIELDS.includes(field)));
+  return {
+    ...entry,
+    ...(Object.keys(style).length > 0 ? { style } : {}),
+    ...(data ? { data } : {}),
+    ...describeBounds(rect),
+  };
 }
 
 function describeLayout(review: LayoutReview, overview: boolean): Record<string, unknown> {
@@ -240,8 +295,14 @@ function describeEdge(edge: FlowEdge, full: boolean): Record<string, unknown> {
   const label = getEditableEdgeLabel(edge);
   const entry: Record<string, unknown> = { id: edge.id, source: edge.source, target: edge.target };
   if (label) entry.label = clipText(label);
+  // Sequence messages draw in the diagram's own style.
+  const style = edge.type === 'sequence_message' ? {} : describeEdgeStyle(edge, full);
   const data = full ? pickDefined(edge.data ?? {}, EDGE_DATA_FIELDS) : undefined;
-  return data ? { ...entry, data } : entry;
+  return {
+    ...entry,
+    ...(Object.keys(style).length > 0 ? { style } : {}),
+    ...(data ? { data } : {}),
+  };
 }
 
 function readCanvas(
@@ -278,6 +339,7 @@ function readCanvas(
     ...(selectedIds.length > 0 ? { selectedIds } : {}),
     ...(notFound.length > 0 ? { notFound } : {}),
     layout: describeLayout(reviewLayout(state, { focusIds: requested }), true),
+    style: describeCanvasStyle(state),
     ...(truncated
       ? {
           note: `Truncated: showing ${nodeEntries.length} of ${nodes.length} nodes and ${edgeEntries.length} of ${edges.length} edges. Pass nodeIds to read the others.`,
@@ -319,6 +381,67 @@ function clearEntryAnimation(nodeIds: ReadonlySet<string>): void {
   );
 }
 
+// The view that fits a region into the canvas, centred, within zoom limits the user can still read.
+function viewportFor(region: NodeBounds, container: { width: number; height: number }): Viewport {
+  const fit = Math.min(
+    container.width / (region.width * (1 + VIEW_PADDING * 2)),
+    container.height / (region.height * (1 + VIEW_PADDING * 2))
+  );
+  const zoom = Math.max(VIEW_MIN_ZOOM, Math.min(VIEW_MAX_ZOOM, fit));
+  return {
+    x: container.width / 2 - (region.x + region.width / 2) * zoom,
+    y: container.height / 2 - (region.y + region.height / 2) * zoom,
+    zoom,
+  };
+}
+
+// Background tabs run no animation frames, so this never waits for more than a moment.
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, 50);
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    }
+  });
+}
+
+// Whether the user sees the node: not hidden, on a visible layer and not in a hidden section.
+function isShown(state: FlowState, byId: ReadonlyMap<string, FlowNode>, node: FlowNode): boolean {
+  if (node.hidden || node.data.sectionHidden) return false;
+  if (state.layers.find((layer) => layer.id === node.data.layerId)?.visible === false) return false;
+  const parent = byId.get(getNodeParentId(node));
+  return !parent || isShown(state, byId, parent);
+}
+
+// The area around the given nodes, or everything shown on the page, titles of sections included.
+function regionOf(state: FlowState, nodeIds: readonly string[] | undefined): { region?: NodeBounds; notFound: string[] } {
+  const byId = new Map(state.nodes.map((node) => [node.id, node]));
+  const rects = nodeRects(byId);
+  const ids = nodeIds ?? state.nodes.filter((node) => isShown(state, byId, node)).map((node) => node.id);
+  const notFound = ids.filter((id) => !rects.has(id));
+  const boxes = ids.filter((id) => rects.has(id)).map((id) => visualRect(byId.get(id), rects.get(id)));
+  if (boxes.length === 0) return { notFound };
+  const bounds = unionBounds(boxes);
+  return {
+    region: {
+      x: bounds.x - CAPTURE_PADDING,
+      y: bounds.y - CAPTURE_PADDING,
+      width: bounds.width + CAPTURE_PADDING * 2,
+      height: bounds.height + CAPTURE_PADDING * 2,
+    },
+    notFound,
+  };
+}
+
+function selectOnly(nodeIds: ReadonlySet<string>): void {
+  const { setNodes, setEdges } = useFlowStore.getState();
+  setNodes((nodes) => nodes.map((node) => (Boolean(node.selected) === nodeIds.has(node.id) ? node : { ...node, selected: nodeIds.has(node.id) })));
+  setEdges((edges) => edges.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)));
+}
+
 /**
  * Runs the agent's tool calls against the live store for one turn. The turn's lock must be held:
  * calls fail once it is released, the page changes or the turn is ending. The first edit records one
@@ -328,6 +451,7 @@ export function createAgentTurnExecutor({
   turn,
   confirmRemoval,
   endingReason,
+  view,
 }: AgentTurnExecutorOptions): AgentTurnExecutor {
   const initial = useFlowStore.getState();
   const startGraph = { nodes: initial.nodes, edges: initial.edges };
@@ -395,11 +519,14 @@ export function createAgentTurnExecutor({
         ? tidyNodes(before, outcome.placedNodeIds, { flow: outcome.placementFlow, routing, ownSectionIds })
         : before;
       const real = (ref: string) => outcome.idMap[ref] ?? ref;
-      const moves = ops.flatMap((op) =>
-        op.op === 'move_node' && op.nextTo
-          ? [{ ...op, id: real(op.id), nextTo: { ...op.nextTo, id: real(op.nextTo.id) } }]
-          : []
-      );
+      // Moves next to a node, aligning and spacing out depend on sizes, so the call's moves run again in order.
+      const moves = ops.flatMap((op): EditCanvasOp[] => {
+        if (op.op === 'move_node') {
+          return [{ ...op, id: real(op.id), ...(op.nextTo ? { nextTo: { ...op.nextTo, id: real(op.nextTo.id) } } : {}) }];
+        }
+        if (op.op === 'align' || op.op === 'distribute') return [{ ...op, nodeIds: op.nodeIds.map(real) }];
+        return [];
+      });
       if (moves.length > 0) {
         const moved = applyCanvasEdits(after, moves, { routing, ownSectionIds });
         if (moved.ok === true) after = moved;
@@ -408,6 +535,22 @@ export function createAgentTurnExecutor({
     } catch {
       // The turn is ending or the page moved on; the first placement stands.
     }
+  };
+
+  // Brings a region into the user's view, so the canvas renders what is in it. Says whether it all fits
+  // in view; undefined without a canvas.
+  const showRegion = async (region: NodeBounds): Promise<{ fits: boolean } | undefined> => {
+    const canvasView = view?.();
+    const container = typeof document === 'undefined' ? null : document.querySelector('.react-flow');
+    const box = container?.getBoundingClientRect();
+    if (!canvasView || !box || box.width === 0 || box.height === 0) return undefined;
+    const viewport = viewportFor(region, box);
+    // The transition's promise never settles if the user pans during it, so this waits for it instead.
+    void canvasView.setViewport(viewport, { duration: VIEW_DURATION_MS });
+    await new Promise((resolve) => setTimeout(resolve, VIEW_DURATION_MS + VIEW_SETTLE_MS));
+    await nextFrame();
+    await nextFrame();
+    return { fits: region.width * viewport.zoom <= box.width && region.height * viewport.zoom <= box.height };
   };
 
   const handlers: ToolHandlers = {
@@ -422,6 +565,7 @@ export function createAgentTurnExecutor({
         layerId: state.activeLayerId,
         routing: routingOptions(state),
         ownSectionIds: new Set(addedNodeIds),
+        edgeDefaults: state.globalEdgeOptions,
       });
       if (outcome.ok === false) throw new Error(outcome.error);
       // A plain failure, not a rejected result, so the agent carries on without the removal.
@@ -435,7 +579,7 @@ export function createAgentTurnExecutor({
       // Moves put nodes where the agent said, so only the nodes placed automatically are placed again.
       await settle(outcome, ops);
       const after = useFlowStore.getState();
-      const changedIds = [...outcome.addedNodeIds, ...outcome.movedNodeIds];
+      const changedIds = [...outcome.addedNodeIds, ...outcome.movedNodeIds, ...outcome.resizedNodeIds];
       // New edges between nodes already there count too, as they can cross or run through others.
       const focusIds = new Set([
         ...changedIds,
@@ -448,6 +592,58 @@ export function createAgentTurnExecutor({
         idMap: outcome.idMap,
         ...(changedIds.length > 0 ? { placed: describePlaced(after, changedIds) } : {}),
         layout: describeLayout(reviewLayout(after, { focusIds }), false),
+      };
+    },
+
+    capture_canvas: async ({ nodeIds }) => {
+      const { region, notFound } = regionOf(requireTurn(), nodeIds);
+      if (!region) {
+        if (notFound.length > 0) throw new Error(`Nodes ${notFound.map((id) => `"${id}"`).join(', ')} do not exist; call get_canvas for the current ids.`);
+        return { note: 'The canvas is empty, so there is nothing to look at.' };
+      }
+      const shown = await showRegion(region);
+      const { captureCanvasRegion } = await import('./canvasCapture');
+      const capture = await captureCanvasRegion(region, canvasBackground());
+      requireTurn();
+      if (!capture) {
+        return { note: 'The canvas is not showing, so no picture could be taken. Rely on get_canvas.' };
+      }
+      const result: HandlerOutput = {
+        area: describeBounds(region),
+        image: {
+          width: capture.width,
+          height: capture.height,
+          note: `Image px = (canvas px - area.position) x ${Math.round(capture.scale * 1000) / 1000}.`,
+        },
+        ...(notFound.length > 0 ? { notFound } : {}),
+        ...(!shown?.fits
+          ? {
+              note: shown
+                ? 'The area is too large to show at once, so nodes outside the view may be missing; capture fewer nodes.'
+                : 'Only what was already on screen could be drawn; nodes outside the view may be missing.',
+            }
+          : {}),
+      };
+      result[TOOL_IMAGES] = [{ data: capture.data, mimeType: capture.mimeType }];
+      return result;
+    },
+
+    focus_canvas: async ({ nodeIds, select }) => {
+      const state = requireTurn();
+      const { region, notFound } = regionOf(state, nodeIds);
+      if (!region && notFound.length > 0) {
+        throw new Error(`Nodes ${notFound.map((id) => `"${id}"`).join(', ')} do not exist; call get_canvas for the current ids.`);
+      }
+      const shown = region ? await showRegion(region) : undefined;
+      requireTurn();
+      const found = (nodeIds ?? []).filter((id) => !notFound.includes(id));
+      if (select !== undefined) selectOnly(new Set(select ? found : []));
+      return {
+        summary: [
+          shown ? `Showing ${nodeIds ? `${found.length} node(s)` : 'the whole page'}.` : 'The view could not be moved.',
+          select === true ? `Selected ${found.length} node(s).` : select === false ? 'Cleared the selection.' : '',
+        ].filter(Boolean).join(' '),
+        ...(notFound.length > 0 ? { notFound } : {}),
       };
     },
 
@@ -600,7 +796,8 @@ export function createAgentTurnExecutor({
         const handler = handlers[name] as (
           toolArgs: unknown
         ) => ReturnType<ToolHandlers[AgentToolName]>;
-        return { ok: true, result: await handler(parsed.data) };
+        const { [TOOL_IMAGES]: images, ...result } = await handler(parsed.data);
+        return { ok: true, result, ...(images?.length ? { images } : {}) };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return {

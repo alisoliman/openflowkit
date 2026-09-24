@@ -14,7 +14,13 @@ function buildSnapshot(state: FlowState): FlowHistoryState {
     return {
         nodes: state.nodes,
         edges: state.edges,
+        globalEdgeOptions: state.globalEdgeOptions,
     };
+}
+
+// Snapshots persisted before they carried the diagram-wide edge style leave it as it is.
+function restoredGlobalEdgeOptions(snapshot: FlowHistoryState): Partial<FlowState> {
+    return snapshot.globalEdgeOptions ? { globalEdgeOptions: snapshot.globalEdgeOptions } : {};
 }
 
 function findActiveTabIndex(state: FlowState): number {
@@ -119,6 +125,7 @@ export function createHistoryActions(set: SetFlowState, get: GetFlowState): Pick
                     tabs,
                     nodes: previous.nodes,
                     edges: previous.edges,
+                    ...restoredGlobalEdgeOptions(previous),
                 };
             });
         },
@@ -150,6 +157,7 @@ export function createHistoryActions(set: SetFlowState, get: GetFlowState): Pick
                     tabs,
                     nodes: next.nodes,
                     edges: next.edges,
+                    ...restoredGlobalEdgeOptions(next),
                 };
             });
         },

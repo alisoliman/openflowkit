@@ -2206,3 +2206,303 @@ describe('straightenEdges', () => {
     expect(byId(straightenEdges(wide, 'down'), 'b').position).toEqual({ x: 0, y: 200 });
   });
 });
+
+describe('applyCanvasEdits styling', () => {
+  const graph = (): CanvasGraph => ({
+    nodes: [node('api', 0, 0), node('db', 300, 0), node('cache', 300, 200)],
+    edges: [
+      edge('api', 'db', {
+        type: 'smoothstep',
+        markerEnd: { type: 'arrowclosed' },
+        style: { stroke: '#94a3b8', strokeWidth: 2 },
+        data: { labelPosition: 0.2, elkPoints: [{ x: 1, y: 1 }] },
+      }),
+    ],
+  });
+
+  it('colors nodes from the palette, its aliases or a hex, and sets their fonts', () => {
+    const result = editOk(graph(), [
+      { op: 'update_node', id: 'api', data: { color: '#4F46E5', fontSize: 18, fontFamily: 'fira', fontWeight: 'bold', fontStyle: 'italic', align: 'left' } },
+      { op: 'update_node', id: 'db', data: { color: 'green', colorMode: 'filled' } },
+    ]);
+
+    expect(byId(result, 'api').data).toMatchObject({
+      color: 'custom', customColor: '#4f46e5', fontSize: '18', fontFamily: 'fira', fontWeight: 'bold', fontStyle: 'italic', align: 'left',
+    });
+    expect(byId(result, 'db').data).toMatchObject({ color: 'emerald', colorMode: 'filled', customColor: undefined });
+  });
+
+  it('keeps fonts off node types that draw a fixed font', () => {
+    expect(editError(graph(), [{ op: 'add_node', id: 'note', type: 'annotation', label: 'N', data: { fontSize: 20 } }]))
+      .toContain('annotation nodes do not support data.fontSize');
+    expect(editOk(graph(), [{ op: 'add_node', id: 't', type: 'text', label: 'T', data: { fontSize: 24, fontFamily: 'playfair' } }]).nodes.at(-1).data)
+      .toMatchObject({ fontSize: '24', fontFamily: 'playfair' });
+  });
+
+  it('resizes nodes like a resize by hand and stacks them in front or behind', () => {
+    const measured = { ...graph(), nodes: graph().nodes.map((candidate) => ({ ...candidate, measured: { width: 120, height: 60 } })) };
+    const result = editOk(measured, [
+      { op: 'update_node', id: 'api', width: 260, height: 90 },
+      { op: 'update_node', id: 'db', order: 'front' },
+      { op: 'update_node', id: 'cache', order: 'back' },
+    ]);
+
+    expect(byId(result, 'api')).toMatchObject({ width: 260, height: 90, style: { width: 260, height: 90 }, position: { x: 0, y: 0 } });
+    expect(byId(result, 'api').measured).toBeUndefined();
+    expect(result.resizedNodeIds).toEqual(['api']);
+    expect(byId(result, 'db').zIndex).toBe(1);
+    expect(byId(result, 'cache').zIndex).toBe(-1);
+    expect(editOk(graph(), [{ op: 'add_node', id: 'wide', type: 'process', label: 'W', width: 300 }]).nodes.at(-1).style).toMatchObject({ width: 300 });
+  });
+
+  it('grows the section around a node resized past its edge', () => {
+    const start = { nodes: [section('zone', 0, 0, 300, 200), child('zone', node('api', 40, 60))], edges: [] };
+    const result = editOk(start, [{ op: 'update_node', id: 'api', width: 400 }]);
+    expect(absoluteRect(result, 'zone').width).toBeGreaterThanOrEqual(440);
+  });
+
+  it('styles edges the way the properties panel does', () => {
+    const result = editOk(graph(), [{
+      op: 'update_edge',
+      id: 'e-api-db',
+      data: { color: 'red', arrowheads: 'both', arrowStyle: 'open', path: 'sharp', width: 3, dashPattern: 'dashed', animated: true, labelPosition: 0.8 },
+    }]);
+    const styled = edgeById(result, 'e-api-db');
+
+    expect(styled).toMatchObject({
+      type: 'step',
+      animated: true,
+      style: { stroke: '#f87171', strokeWidth: 3, strokeDasharray: '8 4' },
+      markerStart: { type: 'arrow', color: '#f87171' },
+      markerEnd: { type: 'arrow', color: '#f87171' },
+      data: { curve: 'step', dashPattern: 'dashed', labelPosition: 0.8, labelOffsetX: 0, labelOffsetY: 0 },
+    });
+  });
+
+  it('recolors arrowheads with the line, and returns an edge to the theme defaults', () => {
+    const colored = editOk(graph(), [{ op: 'update_edge', id: 'e-api-db', data: { color: '#2563EB', path: 'straight' } }]);
+    expect(edgeById(colored, 'e-api-db')).toMatchObject({
+      type: 'straight',
+      style: { stroke: '#2563eb' },
+      markerEnd: { type: 'arrowclosed', color: '#2563eb' },
+      data: { curve: 'linear' },
+    });
+
+    const reset = editOk(colored, [{ op: 'update_edge', id: 'e-api-db', data: { color: 'default', path: 'default', arrowheads: 'none' } }], {
+      edgeDefaults: { type: 'bezier', animated: false, strokeWidth: 1.5, curve: 'basis' },
+    });
+    const plain = edgeById(reset, 'e-api-db');
+    expect(plain.style?.stroke).toBeUndefined();
+    expect(plain.type).toBe('bezier');
+    expect(plain.data?.curve).toBeUndefined();
+    expect(plain.markerStart).toBeUndefined();
+    expect(plain.markerEnd).toBeUndefined();
+  });
+
+  it('reverses an edge like the Swap button, so the flow runs the other way along its route', () => {
+    const start = graph();
+    start.edges[0] = {
+      ...start.edges[0],
+      sourceHandle: 'right',
+      targetHandle: 'left',
+      data: { ...start.edges[0].data, elkPoints: [{ x: 1, y: 1 }, { x: 2, y: 2 }] },
+    };
+    const reversed = edgeById(editOk(start, [{ op: 'update_edge', id: 'e-api-db', reverse: true }]), 'e-api-db');
+
+    expect(reversed).toMatchObject({ source: 'db', target: 'api', sourceHandle: 'left', targetHandle: 'right', markerEnd: { type: 'arrowclosed' } });
+    expect(reversed.data?.elkPoints).toEqual([{ x: 2, y: 2 }, { x: 1, y: 1 }]);
+    expect(reversed.data?.labelPosition).toBeCloseTo(0.8);
+  });
+
+  it('reconnects an edge to another node', () => {
+    const moved = edgeById(editOk(graph(), [{ op: 'update_edge', id: 'e-api-db', target: 'cache' }]), 'e-api-db');
+    expect(moved).toMatchObject({ source: 'api', target: 'cache', targetHandle: null, data: { connectionType: 'dynamic' } });
+    expect(moved.data?.elkPoints).toBeUndefined();
+    expect(editError(graph(), [{ op: 'update_edge', id: 'e-api-db', reverse: true, target: 'cache' }])).toContain('either reverse');
+    expect(editError(graph(), [{ op: 'update_edge', id: 'e-api-db', target: 'ghost' }])).toContain('"ghost" does not exist');
+  });
+
+  it('pins the sides an edge attaches to, or lets them follow the nodes again', () => {
+    const pinned = edgeById(editOk(graph(), [{ op: 'update_edge', id: 'e-api-db', data: { sourceSide: 'bottom', targetSide: 'top' } }]), 'e-api-db');
+    expect(pinned).toMatchObject({ sourceHandle: 'bottom', targetHandle: 'top', data: { connectionType: 'fixed' } });
+    expect(pinned.data?.elkPoints).toBeUndefined();
+
+    const text = { nodes: [...graph().nodes, { ...node('t', 0, 300), type: 'text' }], edges: [] };
+    const toText = editOk(text, [{ op: 'add_edge', source: 'api', target: 't', data: { targetSide: 'left' } }]).edges[0];
+    expect(toText.targetHandle).toBe('target-left');
+
+    const auto = edgeById(editOk({ ...graph(), edges: [pinned] }, [{ op: 'update_edge', id: 'e-api-db', data: { sourceSide: 'auto', targetSide: 'auto' } }]), 'e-api-db');
+    expect(auto).toMatchObject({ sourceHandle: null, targetHandle: null, data: { connectionType: 'dynamic' } });
+  });
+
+  it('gives new edges the diagram-wide edge style, like edges the user draws', () => {
+    const result = editOk(graph(), [{ op: 'add_edge', source: 'api', target: 'cache' }], {
+      edgeDefaults: { type: 'straight', animated: true, strokeWidth: 3, color: '#0f766e', curve: 'linear' },
+    });
+    expect(result.edges.at(-1)).toMatchObject({ type: 'straight', animated: true, style: { strokeWidth: 3, stroke: '#0f766e' } });
+  });
+
+  it('keeps sequence messages in their own style', () => {
+    const sequence = {
+      nodes: [
+        { ...node('alice', 0, 0), type: 'sequence_participant' },
+        { ...node('bob', 300, 0), type: 'sequence_participant' },
+      ],
+      edges: [],
+    };
+    expect(editError(sequence, [{ op: 'add_edge', source: 'alice', target: 'bob', data: { color: 'red' } }]))
+      .toContain('sequence messages draw in the diagram\'s own style');
+  });
+});
+
+describe('applyCanvasEdits align and distribute', () => {
+  const graph = (): CanvasGraph => ({
+    nodes: [
+      node('a', 0, 10, { measured: { width: 100, height: 40 } }),
+      node('b', 200, 40, { measured: { width: 160, height: 80 } }),
+      node('c', 500, 0, { measured: { width: 100, height: 60 } }),
+    ],
+    edges: [],
+  });
+
+  it('lines nodes up on an edge or on the average of their centres', () => {
+    const top = editOk(graph(), [{ op: 'align', nodeIds: ['a', 'b', 'c'], edge: 'top' }]);
+    expect(['a', 'b', 'c'].map((id) => byId(top, id).position.y)).toEqual([0, 0, 0]);
+    expect(top.movedNodeIds).toEqual(['a', 'b']);
+
+    const middle = editOk(graph(), [{ op: 'align', nodeIds: ['a', 'b'], edge: 'middle' }]);
+    // Centres at 30 and 80 average to 55.
+    expect(byId(middle, 'a').position.y).toBe(35);
+    expect(byId(middle, 'b').position.y).toBe(15);
+
+    const right = editOk(graph(), [{ op: 'align', nodeIds: ['a', 'b'], edge: 'right' }]);
+    expect(byId(right, 'a').position.x).toBe(260);
+    expect(byId(right, 'b').position.x).toBe(200);
+  });
+
+  it('spaces nodes evenly between the outermost ones, or with a fixed gap', () => {
+    const even = editOk(graph(), [{ op: 'distribute', nodeIds: ['c', 'a', 'b'], axis: 'horizontal' }]);
+    // 600 px span less 360 px of nodes leaves two 120 px gaps.
+    expect(['a', 'b', 'c'].map((id) => byId(even, id).position.x)).toEqual([0, 220, 500]);
+
+    const gap = editOk(graph(), [{ op: 'distribute', nodeIds: ['a', 'b', 'c'], axis: 'horizontal', gap: 40 }]);
+    expect(['a', 'b', 'c'].map((id) => byId(gap, id).position.x)).toEqual([0, 140, 340]);
+  });
+
+  it('arranges the nodes a call adds, after placing them', () => {
+    const result = editOk(graph(), [
+      { op: 'add_node', id: 'd', type: 'process', label: 'D' },
+      { op: 'align', nodeIds: ['a', 'd'], edge: 'left' },
+    ]);
+    expect(byId(result, 'd').position.x).toBe(0);
+  });
+
+  it('leaves structured diagrams to layout', () => {
+    const mindmap = { nodes: [{ ...node('m1', 0, 0), type: 'mindmap' }, { ...node('m2', 200, 0), type: 'mindmap' }], edges: [] };
+    expect(editError(mindmap, [{ op: 'align', nodeIds: ['m1', 'm2'], edge: 'top' }])).toContain('placed by their structure');
+  });
+});
+
+describe('applyCanvasEdits pinned edge sides', () => {
+  const routing = { profile: 'standard' as const, bundlingEnabled: false };
+  const graph = (): CanvasGraph => ({
+    nodes: [node('a', 0, 0), node('b', 400, 0), node('c', 0, 400)],
+    edges: [edge('a', 'b', { sourceHandle: 'right', targetHandle: 'left', data: { connectionType: 'fixed' } })],
+  });
+
+  it('keeps the sides the agent pins on a new edge through smart routing', () => {
+    const result = editOk(graph(), [{ op: 'add_edge', source: 'a', target: 'b', data: { sourceSide: 'top', targetSide: 'top' } }], { routing });
+    expect(result.edges.at(-1)).toMatchObject({ sourceHandle: 'top', targetHandle: 'top', data: { connectionType: 'fixed' } });
+  });
+
+  it('gives the end the agent left on auto a side facing the other node', () => {
+    const half = editOk(graph(), [{ op: 'add_edge', source: 'a', target: 'c', data: { sourceSide: 'left' } }], { routing });
+    expect(half.edges.at(-1)).toMatchObject({ sourceHandle: 'left', targetHandle: 'top' });
+
+    const unpinned = editOk(graph(), [{ op: 'update_edge', id: 'e-a-b', data: { sourceSide: 'auto', targetSide: 'auto' } }], { routing });
+    expect(edgeById(unpinned, 'e-a-b')).toMatchObject({ sourceHandle: 'right', targetHandle: 'left', data: { connectionType: 'dynamic' } });
+
+    const reconnected = editOk(graph(), [{ op: 'update_edge', id: 'e-a-b', target: 'c' }], { routing });
+    expect(edgeById(reconnected, 'e-a-b')).toMatchObject({ target: 'c', targetHandle: 'top' });
+  });
+
+  it('leaves the handles of edges it only restyles alone', () => {
+    const start = { ...graph(), edges: [edge('a', 'b', { sourceHandle: 'top', targetHandle: 'top' })] };
+    const result = editOk(start, [{ op: 'update_edge', id: 'e-a-b', data: { color: 'blue' } }], { routing });
+    expect(edgeById(result, 'e-a-b')).toMatchObject({ sourceHandle: 'top', targetHandle: 'top' });
+  });
+
+  it('keeps mindmap branches in the style of their map', () => {
+    const mindmap = { nodes: [{ ...node('m1', 0, 0), type: 'mindmap' }, { ...node('m2', 200, 0), type: 'mindmap' }], edges: [] };
+    expect(editError(mindmap, [{ op: 'add_edge', source: 'm1', target: 'm2', data: { color: 'red' } }])).toContain('mindmap branches');
+  });
+
+  it('lets filled arrowheads follow the line color unless the edge sets one', () => {
+    const plain = edgeById(editOk({ ...graph(), edges: [edge('a', 'b')] }, [{ op: 'update_edge', id: 'e-a-b', data: { arrowheads: 'both' } }]), 'e-a-b');
+    expect(plain.markerStart).toEqual({ type: 'arrowclosed' });
+    const open = edgeById(editOk({ ...graph(), edges: [edge('a', 'b')] }, [{ op: 'update_edge', id: 'e-a-b', data: { arrowheads: 'end', arrowStyle: 'open' } }]), 'e-a-b');
+    expect(open.markerStart).toBeUndefined();
+    expect(open.markerEnd).toEqual({ type: 'arrow', color: '#94a3b8' });
+  });
+});
+
+describe('applyCanvasEdits review fixes', () => {
+  it('keeps resized nodes at least as large as their resize handles allow', () => {
+    const result = editOk({ nodes: [node('a', 0, 0)], edges: [] }, [{ op: 'update_node', id: 'a', width: 40, height: 20 }]);
+    expect(byId(result, 'a')).toMatchObject({ width: 120, height: 60 });
+  });
+
+  it('keeps a size the agent gives a section as its floor when it wraps what it holds', () => {
+    const result = editOk({ nodes: [node('a', 0, 0)], edges: [] }, [
+      { op: 'add_node', id: 'zone', type: 'section', label: 'Zone', width: 900, height: 500 },
+      { op: 'update_node', id: 'a', parentId: 'zone' },
+    ]);
+    expect(absoluteRect(result, 'zone')).toMatchObject({ width: 900, height: 500 });
+  });
+
+  it('tells the agent what wireframes cannot draw', () => {
+    const add = (data: Record<string, unknown>) => [{ op: 'add_node', id: 'w', type: 'browser', label: 'app', data }];
+    expect(editError({ nodes: [], edges: [] }, add({ color: '#123456' }))).toContain('palette colors only');
+    expect(editError({ nodes: [], edges: [] }, add({ variant: 'chat' }))).toContain('no "chat" screen');
+    expect(editOk({ nodes: [], edges: [] }, add({ variant: 'kanban', color: 'blue' })).nodes[0].data).toMatchObject({ variant: 'kanban' });
+  });
+
+  it('arranges a section together with what it holds, not what it holds on its own', () => {
+    const start = {
+      nodes: [section('zone', 0, 0, 400, 300), child('zone', node('inner', 40, 60)), node('b', 600, 200)],
+      edges: [],
+    };
+    const result = editOk(start, [{ op: 'align', nodeIds: ['zone', 'inner', 'b'], edge: 'top' }]);
+    expect(byId(result, 'b').position.y).toBe(0);
+    expect(byId(result, 'inner').position).toEqual({ x: 40, y: 60 });
+  });
+
+  it('drops a stored layout route when the agent picks a line shape, so the shape draws', () => {
+    const start = {
+      nodes: [node('a', 0, 0), node('b', 400, 0)],
+      edges: [edge('a', 'b', { data: { routingMode: 'elk', elkPoints: [{ x: 1, y: 1 }] } })],
+    };
+    const straight = edgeById(editOk(start, [{ op: 'update_edge', id: 'e-a-b', data: { path: 'straight' } }]), 'e-a-b');
+    expect(straight.data).toMatchObject({ curve: 'linear', routingMode: 'auto', elkPoints: undefined });
+  });
+});
+
+describe('applyCanvasEdits reversing structured edges', () => {
+  it('reverses an architecture edge so its arrowhead moves to the other node', () => {
+    const start = {
+      nodes: [node('web', 0, 0), node('server', 400, 0)],
+      edges: [edge('web', 'server', { markerEnd: { type: 'arrowclosed' }, data: { archDirection: '-->' } })],
+    };
+    const reversed = edgeById(editOk(start, [{ op: 'update_edge', id: 'e-web-server', reverse: true }]), 'e-web-server');
+    expect(reversed).toMatchObject({ source: 'server', target: 'web', markerEnd: { type: 'arrowclosed' }, data: { archDirection: '-->' } });
+    expect(reversed.markerStart).toBeUndefined();
+  });
+
+  it('leaves mindmap branches pointing from topic to subtopic', () => {
+    const mindmap = {
+      nodes: [{ ...node('m1', 0, 0), type: 'mindmap' }, { ...node('m2', 200, 0), type: 'mindmap' }],
+      edges: [edge('m1', 'm2')],
+    };
+    expect(editError(mindmap, [{ op: 'update_edge', id: 'e-m1-m2', reverse: true }])).toContain('mindmap branches');
+  });
+});

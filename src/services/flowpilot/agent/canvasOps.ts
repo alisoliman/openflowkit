@@ -1,9 +1,13 @@
 import { findIconName } from '@/components/IconMap';
+import { getIconAssetNodeMinSize, getMinNodeSize } from '@/components/nodeHelpers';
 import {
   buildEdgeLabelUpdates,
   getEditableEdgeLabel,
 } from '@/components/properties/edge/edgeLabelModel';
+import { canReverseEdge } from '@/components/properties/edge/reverseEdge';
 import { createMindmapEdge } from '@/constants';
+import { clearStoredRouteData } from '@/lib/edgeRouteData';
+import { getNodeHandleIdForSide } from '@/lib/nodeHandles';
 import { buildConnectedEdge } from '@/hooks/edge-operations/utils';
 import {
   createAnnotationNode,
@@ -35,10 +39,12 @@ import {
 } from '@/lib/nodeIconState';
 import { clearNodeParent, getNodeParentId, setNodeParent } from '@/lib/nodeParent';
 import { releaseStaleElkRoutesForNodeIds } from '@/lib/releaseStaleElkRoutes';
-import type { EdgeData, FlowEdge, FlowNode, NodeData } from '@/lib/types';
+import type { EdgeData, FlowEdge, FlowNode, GlobalEdgeOptions, NodeData } from '@/lib/types';
 import {
+  AGENT_BROWSER_VARIANTS,
   AGENT_DEFAULT_NEXT_TO_GAP,
   AGENT_LUCIDE_ICONS,
+  AGENT_MOBILE_VARIANTS,
   AGENT_NODE_TYPES,
   type EditCanvasOp,
 } from '@/services/copilot/agentTools';
@@ -49,6 +55,12 @@ import {
 } from '@/services/sequence/sequenceMessage';
 import { assignSmartHandlesWithOptions, type SmartRoutingOptions } from '@/services/smartEdgeRouting';
 import { NODE_DEFAULTS } from '@/theme';
+import {
+  fontWeightValue,
+  nodeColorData,
+  reversedEdge,
+  withEdgeStyle,
+} from './canvasStyle';
 import {
   absolutePositions,
   centerOf,
@@ -82,6 +94,11 @@ const SHAPE_NODE_FIELDS: readonly (keyof AgentNodeData)[] = [
   'icon',
   'archIconPackId',
   'archIconShapeId',
+  'fontSize',
+  'fontFamily',
+  'fontWeight',
+  'fontStyle',
+  'align',
 ];
 // The data each node component renders. Anything else is rejected so the agent learns what applies.
 export const NODE_DATA_FIELDS: Record<AgentNodeType, readonly (keyof AgentNodeData)[]> = {
@@ -91,20 +108,25 @@ export const NODE_DATA_FIELDS: Record<AgentNodeType, readonly (keyof AgentNodeDa
   end: SHAPE_NODE_FIELDS,
   custom: SHAPE_NODE_FIELDS,
   annotation: ['subLabel', 'color'],
-  text: ['color'],
+  text: ['color', 'fontSize', 'fontFamily'],
   section: ['subLabel', 'color', 'colorMode', 'icon'],
   class: ['color', 'colorMode', 'classStereotype', 'classAttributes', 'classMethods'],
   er_entity: ['color', 'colorMode', 'erFields'],
   mindmap: ['color', 'colorMode'],
   journey: ['color', 'colorMode', 'journeySection', 'journeyActor', 'journeyScore'],
   sequence_participant: ['color', 'colorMode', 'seqParticipantKind'],
-  browser: ['color'],
-  mobile: ['color'],
+  browser: ['color', 'variant'],
+  mobile: ['color', 'variant'],
 };
+
 // These types carry structure (children, branches, lifelines and messages) a type change would break.
 const FIXED_NODE_TYPES: readonly string[] = ['section', 'mindmap', 'sequence_participant'];
+const WIREFRAME_VARIANTS: Partial<Record<AgentNodeType, readonly string[]>> = {
+  browser: AGENT_BROWSER_VARIANTS,
+  mobile: AGENT_MOBILE_VARIANTS,
+};
 // A type change resets these to the new type's look; other supported fields carry over.
-const TYPE_STYLE_FIELDS = ['color', 'colorMode', 'shape'];
+const TYPE_STYLE_FIELDS = ['color', 'colorMode', 'shape', 'variant'];
 const ICON_STATE_FIELDS = [
   'customIconUrl',
   'iconAssetId',
@@ -154,6 +176,8 @@ export interface CanvasEditOptions {
   routing?: SmartRoutingOptions;
   /** Sections the agent added earlier in the turn: they wrap their contents closely, shrinking too. */
   ownSectionIds?: ReadonlySet<string>;
+  /** The diagram-wide edge style, which new edges take like the ones the user draws. */
+  edgeDefaults?: GlobalEdgeOptions;
 }
 
 export interface TidyOptions {
@@ -179,8 +203,10 @@ export interface CanvasEditResult extends CanvasGraph {
   idMap: Record<string, string>;
   addedNodeIds: string[];
   addedEdgeIds: string[];
-  /** Nodes that were already on the canvas and that move_node moved. */
+  /** Nodes that were already on the canvas and that move_node, align or distribute moved. */
   movedNodeIds: string[];
+  /** Nodes the call resized. */
+  resizedNodeIds: string[];
   /** New nodes placed automatically rather than by a move. */
   placedNodeIds: string[];
   /** The way they were placed along, so placing them again keeps to it. */
@@ -210,10 +236,13 @@ interface EditState {
   cascadedEdgeIds: Set<string>;
   /** Targets of added and removed edges, so mindmap topics among them hang again. */
   rebranchIds: Set<string>;
-  /** move_node ops in call order. They run once the call's new nodes have their places. */
+  /** move_node, align and distribute ops in call order. They run once the call's new nodes have their places. */
   moves: NodeMove[];
   /** Nodes already on the canvas that a move moved. */
   movedNodeIds: Set<string>;
+  /** Nodes the call resized, so their sections grow and their edges follow. */
+  resizedNodeIds: Set<string>;
+  edgeDefaults?: GlobalEdgeOptions;
   /** New nodes that a move places. */
   pinnedNodeIds: Set<string>;
   /** Overrides the page's flow when placing nodes; placeNodes records the one it used. */
@@ -221,12 +250,9 @@ interface EditState {
   ownSectionIds: ReadonlySet<string>;
 }
 
-interface NodeMove {
-  index: number;
-  id: string;
-  op: CanvasOp<'move_node'>;
-  nextToId?: string;
-}
+type NodeMove =
+  | { index: number; id: string; op: CanvasOp<'move_node'>; nextToId?: string }
+  | { index: number; ids: string[]; op: CanvasOp<'align'> | CanvasOp<'distribute'> };
 
 class CanvasEditError extends Error {
   constructor(
@@ -254,6 +280,7 @@ export function applyCanvasEdits(
 ): CanvasEditOutcome {
   const state = createEditState(graph, options.layerId);
   state.ownSectionIds = options.ownSectionIds ?? new Set();
+  state.edgeDefaults = options.edgeDefaults;
   for (const [index, op] of ops.entries()) {
     try {
       applyOp(state, op, index);
@@ -275,6 +302,7 @@ export function applyCanvasEdits(
   const rebranchedIds = assignMindmapBranches(state);
   const nodes = ensureParentsBeforeChildren([...state.nodes.values()]);
   const edges = routeEdges(state, nodes, finishEdges(state, nodes, rebranchedIds), options.routing);
+  const resizedNodeIds = [...state.resizedNodeIds].filter((id) => state.nodes.has(id));
   return {
     ok: true,
     // Collapsed topics hide what hangs below them, as when the user inserts a topic.
@@ -283,6 +311,7 @@ export function applyCanvasEdits(
     addedNodeIds: [...state.addedNodeIds],
     addedEdgeIds: [...state.addedEdgeIds],
     movedNodeIds: [...state.movedNodeIds],
+    resizedNodeIds,
     placedNodeIds: [...state.addedNodeIds].filter((id) => !state.pinnedNodeIds.has(id)),
     placementFlow: state.flow,
     summary: summarize(state),
@@ -423,6 +452,7 @@ function createEditState(graph: CanvasGraph, layerId?: string): EditState {
     rebranchIds: new Set(),
     moves: [],
     movedNodeIds: new Set(),
+    resizedNodeIds: new Set(),
     pinnedNodeIds: new Set(),
     ownSectionIds: new Set(),
   };
@@ -450,6 +480,9 @@ function applyOp(state: EditState, op: EditCanvasOp, index: number): void {
       return groupNodes(state, op);
     case 'move_node':
       return moveNode(state, op, index);
+    case 'align':
+    case 'distribute':
+      return arrangeNodes(state, op, index);
   }
 }
 
@@ -576,8 +609,29 @@ function withNodeData(node: FlowNode, patch: AgentNodeData | undefined): FlowNod
     );
   }
 
-  const { icon, archIconPackId, archIconShapeId, erFields, journeyActor, ...fields } = patch;
+  const {
+    icon,
+    archIconPackId,
+    archIconShapeId,
+    erFields,
+    journeyActor,
+    color,
+    fontSize,
+    fontWeight,
+    ...fields
+  } = patch;
   const data: NodeData = { ...node.data, ...fields };
+  if (color !== undefined) {
+    const colorData = nodeColorData(color);
+    // Wireframes draw palette colors only, and each has its own screens.
+    if (colorData.customColor && WIREFRAME_VARIANTS[type]) fail(`${type} nodes take palette colors only`);
+    Object.assign(data, colorData);
+  }
+  if (fields.variant !== undefined && !WIREFRAME_VARIANTS[type]?.includes(fields.variant)) {
+    fail(`${type} nodes have no "${fields.variant}" screen; use one of ${WIREFRAME_VARIANTS[type]?.join(', ')}`);
+  }
+  if (fontSize !== undefined) data.fontSize = String(fontSize);
+  if (fontWeight !== undefined) data.fontWeight = fontWeightValue(fontWeight);
   if (icon !== undefined && (archIconPackId !== undefined || archIconShapeId !== undefined)) {
     fail('set either data.icon or a provider icon, not both');
   }
@@ -618,6 +672,36 @@ function withNodeData(node: FlowNode, patch: AgentNodeData | undefined): FlowNod
     data.subLabel = journeyActor;
   }
   return { ...node, data };
+}
+
+// Like a resize by hand: the node keeps its top-left corner and React Flow draws it at the new size.
+function withSize(node: FlowNode, width: number | undefined, height: number | undefined): FlowNode {
+  if (width === undefined && height === undefined) return node;
+  const current = nodeSize(node);
+  // No smaller than the resize handles allow, which is what the node draws at anyway.
+  const { minWidth, minHeight } = NODE_DATA_FIELDS[node.type as AgentNodeType] === SHAPE_NODE_FIELDS
+    ? node.data.assetPresentation === 'icon'
+      ? getIconAssetNodeMinSize(Boolean(node.data.label?.trim()))
+      : getMinNodeSize(node.data.shape)
+    : { minWidth: 0, minHeight: 0 };
+  const size = { width: Math.max(minWidth, width ?? current.width), height: Math.max(minHeight, height ?? current.height) };
+  const { measured: _measured, ...rest } = node;
+  return {
+    ...rest,
+    width: size.width,
+    height: size.height,
+    style: { ...node.style, width: size.width, height: size.height },
+    // Imported nodes can carry their size in data, which the renderer reads first.
+    ...(typeof node.data.width === 'number' || typeof node.data.height === 'number'
+      ? { data: { ...node.data, width: size.width, height: size.height } }
+      : {}),
+  };
+}
+
+function withOrder(state: EditState, node: FlowNode, order: 'front' | 'back'): FlowNode {
+  const others = [...state.nodes.values()].filter((other) => other.id !== node.id).map((other) => other.zIndex ?? 0);
+  const zIndex = order === 'front' ? Math.max(0, ...others) + 1 : Math.min(0, ...others) - 1;
+  return { ...node, zIndex };
 }
 
 function withLabel(node: FlowNode, label: string): FlowNode {
@@ -663,9 +747,10 @@ function withParent(state: EditState, node: FlowNode, parentRef: string | null):
 function addNode(state: EditState, op: CanvasOp<'add_node'>): void {
   const parent = op.parentId === undefined ? undefined : requireSection(state, op.parentId);
   const id = claimId(state, state.nodeRefs, op.id, (candidate) => state.nodes.has(candidate));
-  const node = withNodeData(createAgentNode(state, op.type, id, op.label), op.data);
+  const node = withSize(withNodeData(createAgentNode(state, op.type, id, op.label), op.data), op.width, op.height);
   state.nodes.set(id, parent ? setNodeParent(node, parent.id) : node);
   state.addedNodeIds.add(id);
+  if (op.width !== undefined || op.height !== undefined) state.resizedNodeIds.add(id);
 }
 
 function updateNode(state: EditState, op: CanvasOp<'update_node'>): void {
@@ -679,6 +764,11 @@ function updateNode(state: EditState, op: CanvasOp<'update_node'>): void {
   let node = op.type && op.type !== current.type ? changeNodeType(current, op.type) : current;
   if (op.label !== undefined) node = withLabel(node, op.label);
   node = withNodeData(node, op.data);
+  if (op.width !== undefined || op.height !== undefined) {
+    node = withSize(node, op.width, op.height);
+    state.resizedNodeIds.add(node.id);
+  }
+  if (op.order !== undefined) node = withOrder(state, node, op.order);
   if (op.parentId !== undefined) node = withParent(state, node, op.parentId);
   state.nodes.set(node.id, node);
   if (!state.addedNodeIds.has(node.id)) state.updatedNodeIds.add(node.id);
@@ -726,7 +816,20 @@ function createAgentEdge(
   if (source.type === 'mindmap' && target.type === 'mindmap') {
     return createMindmapEdge(source, target, undefined, id);
   }
-  return { ...buildConnectedEdge(source.id, target.id, null, null), id };
+  const edge = { ...buildConnectedEdge(source.id, target.id, null, null), id };
+  // The diagram-wide style, as onConnect gives edges the user draws.
+  const defaults = state.edgeDefaults;
+  if (!defaults) return edge;
+  return {
+    ...edge,
+    type: defaults.type === 'default' ? undefined : defaults.type,
+    animated: defaults.animated,
+    style: {
+      ...edge.style,
+      strokeWidth: defaults.strokeWidth,
+      ...(defaults.color ? { stroke: defaults.color } : {}),
+    },
+  };
 }
 
 // Moves the sequence timeline (other messages, notes, fragments and activations) at `from` or later
@@ -776,7 +879,19 @@ function withEdgeData(
   patch: AgentEdgeData | undefined
 ): FlowEdge {
   if (!patch) return edge;
-  const { seqMessageKind, seqMessageOrder, ...fields } = patch;
+  const {
+    seqMessageKind,
+    seqMessageOrder,
+    classRelation,
+    erRelation,
+    sourceSide,
+    targetSide,
+    ...styleFields
+  } = patch;
+  const fields = {
+    ...(classRelation !== undefined ? { classRelation } : {}),
+    ...(erRelation !== undefined ? { erRelation } : {}),
+  };
   const sourceType = state.nodes.get(edge.source)?.type;
   const targetType = state.nodes.get(edge.target)?.type;
   const isMessage = edge.type === 'sequence_message';
@@ -784,6 +899,13 @@ function withEdgeData(
     fail(
       'seqMessageKind and seqMessageOrder only apply to edges between sequence_participant nodes'
     );
+  }
+  const styled = Object.keys(styleFields).length > 0 || sourceSide !== undefined || targetSide !== undefined;
+  if (isMessage && styled) {
+    fail('sequence messages draw in the diagram\'s own style; set seqMessageKind instead (return messages are dashed)');
+  }
+  if (sourceType === 'mindmap' && targetType === 'mindmap' && styled) {
+    fail('mindmap branches take the style of their map');
   }
   if (fields.classRelation !== undefined && (sourceType !== 'class' || targetType !== 'class')) {
     fail('classRelation only applies to edges between class nodes');
@@ -799,7 +921,51 @@ function withEdgeData(
   if (seqMessageOrder !== undefined) {
     data.seqMessageOrder = moveMessage(state, edge, seqMessageOrder);
   }
-  return { ...edge, data };
+  const next = withEdgeStyle({ ...edge, data }, styleFields, { edgeDefaults: state.edgeDefaults });
+  return sourceSide !== undefined || targetSide !== undefined
+    ? withEdgeSides(state, next, sourceSide, targetSide)
+    : next;
+}
+
+type EdgeSide = NonNullable<AgentEdgeData['sourceSide']>;
+
+// Like the Route panel: a side pins the edge's end there (a fixed connector), auto lets it follow moves.
+function withEdgeSides(
+  state: EditState,
+  edge: FlowEdge,
+  sourceSide: EdgeSide | undefined,
+  targetSide: EdgeSide | undefined
+): FlowEdge {
+  const handleFor = (nodeId: string, side: EdgeSide | undefined, current: FlowEdge['sourceHandle']) => {
+    if (side === undefined) return current;
+    if (side === 'auto') return null;
+    const node = state.nodes.get(nodeId);
+    if (node?.type === 'mindmap' && (side === 'top' || side === 'bottom')) {
+      fail('mindmap topics connect on their left and right sides only');
+    }
+    return getNodeHandleIdForSide(node, side);
+  };
+  const sourceHandle = handleFor(edge.source, sourceSide, edge.sourceHandle);
+  const targetHandle = handleFor(edge.target, targetSide, edge.targetHandle);
+  const fixed = Boolean(sourceHandle || targetHandle);
+  const archSide = (side: EdgeSide | undefined, current: EdgeData['archSourceSide']) =>
+    side === undefined ? current : side === 'auto' ? undefined : ({ top: 'T', right: 'R', bottom: 'B', left: 'L' } as const)[side];
+  return {
+    ...edge,
+    sourceHandle,
+    targetHandle,
+    data: {
+      // A layout route drawn for the old sides no longer fits.
+      ...clearStoredRouteData(edge),
+      connectionType: fixed ? 'fixed' : 'dynamic',
+      ...(typeof edge.data?.archDirection === 'string'
+        ? {
+            archSourceSide: archSide(sourceSide, edge.data.archSourceSide),
+            archTargetSide: archSide(targetSide, edge.data.archTargetSide),
+          }
+        : {}),
+    },
+  };
 }
 
 // Relation edges keep their text in the relation label, like the edge properties panel.
@@ -821,9 +987,46 @@ function addEdge(state: EditState, op: CanvasOp<'add_edge'>): void {
 }
 
 function updateEdge(state: EditState, op: CanvasOp<'update_edge'>): void {
-  const edge = withEdgeLabel(withEdgeData(state, requireEdge(state, op.id), op.data), op.label);
+  const current = requireEdge(state, op.id);
+  const edge = withEdgeLabel(withEdgeData(state, reconnectEdge(state, current, op), op.data), op.label);
   state.edges.set(edge.id, edge);
   if (!state.addedEdgeIds.has(edge.id)) state.updatedEdgeIds.add(edge.id);
+}
+
+// Reversing swaps the ends in place; a new source or target keeps the other end, as a reconnect by hand.
+function reconnectEdge(state: EditState, edge: FlowEdge, op: CanvasOp<'update_edge'>): FlowEdge {
+  if (op.reverse && (op.source !== undefined || op.target !== undefined)) {
+    fail('give either reverse or a new source/target, not both');
+  }
+  if (op.reverse) {
+    if (!canReverseEdge(edge, [...state.nodes.values()])) {
+      fail('mindmap branches point from a topic to its subtopic; reconnect the edge to reshape the map');
+    }
+    return reversedEdge(edge);
+  }
+  if (op.source === undefined && op.target === undefined) return edge;
+  const source = op.source === undefined ? state.nodes.get(edge.source) : requireNode(state, op.source);
+  const target = op.target === undefined ? state.nodes.get(edge.target) : requireNode(state, op.target);
+  if (source.id === edge.source && target.id === edge.target) return edge;
+  const isMessage = edge.type === 'sequence_message';
+  if (isMessage && (source.type !== 'sequence_participant' || target.type !== 'sequence_participant')) {
+    fail('sequence messages connect sequence_participant nodes');
+  }
+  state.rebranchIds.add(edge.target).add(target.id);
+  // A new end attaches wherever faces the other end; messages always hang off the lifelines' tops.
+  const sourceHandle = source.id !== edge.source && !isMessage ? null : edge.sourceHandle;
+  const targetHandle = target.id !== edge.target && !isMessage ? null : edge.targetHandle;
+  return {
+    ...edge,
+    source: source.id,
+    target: target.id,
+    sourceHandle,
+    targetHandle,
+    data: {
+      ...clearStoredRouteData(edge),
+      ...(!isMessage && !sourceHandle && !targetHandle ? { connectionType: 'dynamic' as const } : {}),
+    },
+  };
 }
 
 function removeEdge(state: EditState, edge: FlowEdge): void {
@@ -877,6 +1080,21 @@ function moveNode(state: EditState, op: CanvasOp<'move_node'>, index: number): v
     fail('a node cannot go next to itself, a section it is in or a node it holds');
   }
   state.moves.push({ index, id: node.id, op, nextToId: nextTo?.id });
+}
+
+// Checked here and carried out with the moves, from where the nodes are by then.
+function arrangeNodes(
+  state: EditState,
+  op: CanvasOp<'align'> | CanvasOp<'distribute'>,
+  index: number
+): void {
+  const nodes = [...new Map(op.nodeIds.map((ref) => requireNode(state, ref)).map((node) => [node.id, node])).values()];
+  const structured = nodes.find((node) => node.type === 'mindmap' || node.type === 'sequence_participant');
+  if (structured) fail(`${structured.type} nodes are placed by their structure; use layout to rearrange them`);
+  // What a listed section holds moves with it, as in group.
+  const ids = new Set(nodes.map((node) => node.id));
+  const outer = nodes.filter((node) => !ancestorIds(state, node).some((ancestorId) => ids.has(ancestorId)));
+  state.moves.push({ index, ids: outer.map((node) => node.id), op });
 }
 
 function overlaps(position: Point, size: Size, rect: NodeBounds): boolean {
@@ -1182,6 +1400,51 @@ function placeNode(
 }
 
 /**
+ * Where align and distribute put each node, as the toolbar does but with the nodes' real boxes: align lines
+ * them up on the group's outer edge or the average of their centres; distribute keeps the outermost nodes
+ * and spaces the rest evenly between them, or with `gap` lays them out from the first one.
+ */
+function arrangeRects(
+  op: CanvasOp<'align'> | CanvasOp<'distribute'>,
+  ids: string[],
+  rects: ReadonlyMap<string, NodeBounds>
+): Map<string, Point> {
+  const boxes = ids.map((id) => ({ id, rect: rects.get(id) }));
+  const targets = new Map<string, Point>();
+  if (boxes.length === 0) return targets;
+  if (op.op === 'align') {
+    const average = (value: (rect: NodeBounds) => number) =>
+      boxes.reduce((sum, { rect }) => sum + value(rect), 0) / boxes.length;
+    const left = Math.min(...boxes.map(({ rect }) => rect.x));
+    const right = Math.max(...boxes.map(({ rect }) => rect.x + rect.width));
+    const top = Math.min(...boxes.map(({ rect }) => rect.y));
+    const bottom = Math.max(...boxes.map(({ rect }) => rect.y + rect.height));
+    const centerX = average((rect) => rect.x + rect.width / 2);
+    const middleY = average((rect) => rect.y + rect.height / 2);
+    for (const { id, rect } of boxes) {
+      const x = { left, right: right - rect.width, center: centerX - rect.width / 2 }[op.edge as 'left'];
+      const y = { top, bottom: bottom - rect.height, middle: middleY - rect.height / 2 }[op.edge as 'top'];
+      targets.set(id, { x: x ?? rect.x, y: y ?? rect.y });
+    }
+    return targets;
+  }
+  const horizontal = op.axis === 'horizontal';
+  const start = (rect: NodeBounds) => (horizontal ? rect.x : rect.y);
+  const length = (rect: NodeBounds) => (horizontal ? rect.width : rect.height);
+  const sorted = [...boxes].sort((a, b) => start(a.rect) - start(b.rect));
+  const first = sorted[0].rect;
+  const last = sorted[sorted.length - 1].rect;
+  const total = sorted.reduce((sum, { rect }) => sum + length(rect), 0);
+  const gap = op.gap ?? (start(last) + length(last) - start(first) - total) / (sorted.length - 1);
+  let along = start(first);
+  for (const { id, rect } of sorted) {
+    targets.set(id, horizontal ? { x: along, y: rect.y } : { x: rect.x, y: along });
+    along += length(rect) + gap;
+  }
+  return targets;
+}
+
+/**
  * Gives new nodes (and existing nodes moved into a section they sit outside of) free spots near
  * their connections, sizes new sections around their contents and grows existing sections that
  * gained children, then carries out the call's moves. Works in absolute coordinates and moves no
@@ -1261,8 +1524,12 @@ function placeNodes(state: EditState): void {
       children.map((childId) => visualRect(nodes.get(childId), rects.get(childId)))
     );
     const current = addedNodeIds.has(id) ? undefined : rects.get(id);
-    // The agent's own sections from earlier calls wrap their contents like new ones, but stay put.
-    const tight = Boolean(current) && state.ownSectionIds.has(id);
+    // The agent's own sections from earlier calls wrap their contents like new ones, but stay put,
+    // unless it gave them a size.
+    const sized = state.resizedNodeIds.has(id);
+    const tight = Boolean(current) && state.ownSectionIds.has(id) && !sized;
+    // A new section never draws smaller than the render minimum, or than the size it was given.
+    const floor = sized ? nodeSize(section) : { width: SECTION_RENDER_MIN_WIDTH, height: SECTION_RENDER_MIN_HEIGHT };
     // A new section wrapping nodes at the edge of an existing section would cover its border and
     // title, so they move in first.
     const area = current ? undefined : placementBounds(state, ancestorIds(state, section), rects);
@@ -1278,13 +1545,12 @@ function placeNodes(state: EditState): void {
     const kept = current && !tight ? current : undefined;
     const x = kept ? (anySide ? Math.min(kept.x, wrapX) : kept.x) : wrapX;
     const y = kept ? (anySide ? Math.min(kept.y, wrapY) : kept.y) : wrapY;
-    // New sections are default sections, which never draw smaller than the render minimum.
     const right = Math.max(
-      kept ? kept.x + kept.width : x + SECTION_RENDER_MIN_WIDTH,
+      kept ? kept.x + kept.width : x + floor.width,
       bounds.x + bounds.width + contentPaddingX
     );
     const bottom = Math.max(
-      kept ? kept.y + kept.height : y + SECTION_RENDER_MIN_HEIGHT,
+      kept ? kept.y + kept.height : y + floor.height,
       bounds.y + bounds.height + contentPaddingBottom
     );
     const width = right - x;
@@ -1327,14 +1593,38 @@ function placeNodes(state: EditState): void {
   reparentedIds.filter((id) => rects.has(id)).forEach((id) => fitAncestors(id));
   // New sections with contents are sized around them instead of placed, and a move places a new node.
   for (const move of state.moves) {
-    if (addedNodeIds.has(move.id)) state.pinnedNodeIds.add(move.id);
+    if ('id' in move && addedNodeIds.has(move.id)) state.pinnedNodeIds.add(move.id);
   }
   [...relocatedIds, ...addedNodeIds]
     .filter((id) => !childIds.has(id) && !state.pinnedNodeIds.has(id))
     .forEach(place);
 
+  // Puts a node's top-left corner there, taking what it holds along; its sections grow on any side to
+  // keep it inside.
+  const moveTo = (id: string, to: Point) => {
+    const node = nodes.get(id);
+    const from = rects.get(id);
+    const size = from ? { width: from.width, height: from.height } : nodeSize(node);
+    const position = { x: Math.round(to.x), y: Math.round(to.y) };
+    if (!from || position.x !== from.x || position.y !== from.y) {
+      if (from) shiftContents(id, position.x - from.x, position.y - from.y);
+      rects.set(id, { ...position, ...size });
+      if (!addedNodeIds.has(id)) state.movedNodeIds.add(id);
+    }
+    fitAncestors(id, true);
+  };
+
+  // Resized nodes keep their corner; the sections around them grow to keep them inside.
+  state.resizedNodeIds.forEach((id) => {
+    if (rects.has(id)) fitAncestors(id, true);
+  });
+
   // Each move starts from where the node is by then, so moves run in call order.
   for (const move of state.moves) {
+    if ('ids' in move) {
+      arrangeRects(move.op, move.ids.filter((id) => rects.has(id)), rects).forEach((to, id) => moveTo(id, to));
+      continue;
+    }
     const node = nodes.get(move.id);
     // Removed later in the call.
     if (!node) continue;
@@ -1372,12 +1662,7 @@ function placeNodes(state: EditState): void {
           ? { x: around.x, y: sideHandleY(target, targetRect) - sideHandleOffset(node, size.height) }
           : { x: around.x, y: around.y - drawn.y };
     }
-    position = { x: Math.round(position.x), y: Math.round(position.y) };
-    if (from) shiftContents(node.id, position.x - from.x, position.y - from.y);
-    rects.set(node.id, { ...position, ...size });
-    if (!addedNodeIds.has(node.id)) state.movedNodeIds.add(node.id);
-    // The node stays in its sections, which grow on any side to keep it inside.
-    fitAncestors(node.id, true);
+    moveTo(node.id, position);
   }
 
   // React Flow positions are relative to the parent section; a section whose origin moved takes
@@ -1470,23 +1755,28 @@ function routeEdges(
 ): FlowEdge[] {
   const before = absolutePositions(state.original);
   const byId = new Map(nodes.map((node) => [node.id, node]));
-  const movedIds = new Set(
-    [...absolutePositions(byId)]
+  // A resized node's edges attach at new points too.
+  const movedIds = new Set([
+    ...[...absolutePositions(byId)]
       .filter(([id, position]) => {
         const previous = before.get(id);
         return !previous || previous.x !== position.x || previous.y !== position.y;
       })
-      .map(([id]) => id)
-  );
+      .map(([id]) => id),
+    ...state.resizedNodeIds,
+  ]);
   const released = releaseStaleElkRoutesForNodeIds(edges, movedIds);
   if (!routing) return released;
   const routable = released.filter((edge) => {
-    const added = state.addedEdgeIds.has(edge.id);
-    const follows =
-      (movedIds.has(edge.source) || movedIds.has(edge.target)) &&
-      edge.data?.connectionType !== 'fixed';
+    const pinned = edge.data?.connectionType === 'fixed';
+    const added = state.addedEdgeIds.has(edge.id) && !pinned;
+    const follows = (movedIds.has(edge.source) || movedIds.has(edge.target)) && !pinned;
+    // An end the call left without a side, by unpinning or reconnecting it, gets one facing the other end.
+    const unattached =
+      (state.addedEdgeIds.has(edge.id) || state.updatedEdgeIds.has(edge.id)) &&
+      (!edge.sourceHandle || !edge.targetHandle);
     return (
-      (added || follows) &&
+      (added || follows || unattached) &&
       edge.type !== 'sequence_message' &&
       edge.data?.routingMode !== 'manual' &&
       !(byId.get(edge.source)?.type === 'mindmap' && byId.get(edge.target)?.type === 'mindmap')
@@ -1496,7 +1786,16 @@ function routeEdges(
   const routed = new Map(
     assignSmartHandlesWithOptions(nodes, routable, routing).map((edge) => [edge.id, edge])
   );
-  return released.map((edge) => routed.get(edge.id) ?? edge);
+  // Sides the agent pinned stay where it put them.
+  return released.map((edge) => {
+    const next = routed.get(edge.id);
+    if (!next || edge.data?.connectionType !== 'fixed') return next ?? edge;
+    return {
+      ...next,
+      sourceHandle: edge.sourceHandle ?? next.sourceHandle,
+      targetHandle: edge.targetHandle ?? next.targetHandle,
+    };
+  });
 }
 
 function finishEdges(state: EditState, nodes: FlowNode[], rebranchedIds: Set<string>): FlowEdge[] {

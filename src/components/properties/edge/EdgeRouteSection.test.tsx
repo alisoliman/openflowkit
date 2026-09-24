@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { FlowEdge } from '@/lib/types';
+import { useFlowStore } from '@/store';
 import { EdgeRouteSection } from './EdgeRouteSection';
 
 function createEdge(overrides: Partial<FlowEdge> = {}): FlowEdge {
@@ -154,5 +155,34 @@ describe('EdgeRouteSection', () => {
                 archTargetSide: undefined,
             },
         });
+    });
+
+    it('routes a connector made dynamic instead of leaving its handles unset', () => {
+        useFlowStore.setState({
+            nodes: [
+                { id: 'a', type: 'process', position: { x: 0, y: 0 }, data: { label: 'A' } },
+                { id: 'b', type: 'process', position: { x: 0, y: 300 }, data: { label: 'B' } },
+            ],
+        });
+        const onChange = vi.fn();
+        render(
+            <EdgeRouteSection
+                selectedEdge={createEdge({
+                    sourceHandle: 'right',
+                    targetHandle: 'right',
+                    data: { connectionType: 'fixed' },
+                })}
+                onChange={onChange}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Dynamic' }));
+
+        expect(onChange).toHaveBeenCalledWith('edge-1', expect.objectContaining({
+            sourceHandle: 'bottom',
+            targetHandle: 'top',
+            data: expect.objectContaining({ connectionType: 'dynamic' }),
+        }));
+        useFlowStore.setState({ nodes: [] });
     });
 });

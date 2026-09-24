@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { InspectorField } from '../InspectorPrimitives';
 import { SegmentedChoice } from '../SegmentedChoice';
 import { readMermaidImportedEdgeMetadata } from '@/services/mermaid/importProvenance';
+import { assignSmartHandlesWithOptions, getSmartRoutingOptionsFromViewSettings } from '@/services/smartEdgeRouting';
+import { useFlowStore } from '@/store';
 
 interface EdgeRouteSectionProps {
     selectedEdge: FlowEdge;
@@ -28,6 +30,18 @@ function getEffectiveRoutingMode(edge: FlowEdge): 'auto' | 'elk' | 'manual' | 'i
     }
 
     return 'auto';
+}
+
+// Left unset, a dynamic edge's handles would fall back to each node's first handle (the top)
+// until the next reroute, so it takes its routed handles right away.
+function getDynamicHandles(edge: FlowEdge): Pick<FlowEdge, 'sourceHandle' | 'targetHandle'> {
+    const { nodes, viewSettings } = useFlowStore.getState();
+    const [routedEdge] = assignSmartHandlesWithOptions(
+        nodes,
+        [edge],
+        getSmartRoutingOptionsFromViewSettings(viewSettings)
+    );
+    return { sourceHandle: routedEdge.sourceHandle ?? null, targetHandle: routedEdge.targetHandle ?? null };
 }
 
 export function EdgeRouteSection({
@@ -70,7 +84,7 @@ export function EdgeRouteSection({
                     ]}
                     selectedId={connectionType}
                     onSelect={(value) => {
-                        onChange(selectedEdge.id, {
+                        const updates: Partial<FlowEdge> = {
                             sourceHandle: value === 'dynamic' ? null : selectedEdge.sourceHandle,
                             targetHandle: value === 'dynamic' ? null : selectedEdge.targetHandle,
                             data: {
@@ -83,7 +97,13 @@ export function EdgeRouteSection({
                                     }
                                     : {}),
                             },
-                        });
+                        };
+                        onChange(
+                            selectedEdge.id,
+                            value === 'dynamic'
+                                ? { ...updates, ...getDynamicHandles({ ...selectedEdge, ...updates }) }
+                                : updates
+                        );
                     }}
                     columns={2}
                 />

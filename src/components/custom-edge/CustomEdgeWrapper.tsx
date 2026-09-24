@@ -3,6 +3,8 @@ import { BaseEdge, EdgeLabelRenderer, useReactFlow } from '@/lib/reactflowCompat
 import { ROLLOUT_FLAGS } from '@/config/rolloutFlags';
 import { MarkerType } from '@/lib/reactflowCompat';
 import { useDesignSystem } from '@/hooks/useDesignSystem';
+import { useEdgeLabelEditRequest } from '@/hooks/edgeLabelEditRequest';
+import { useFlowStore } from '@/store';
 import type { EdgeData, FlowEdge } from '@/lib/types';
 import {
   resolveRelationVisualSpec,
@@ -70,28 +72,34 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState('');
   const designSystem = useDesignSystem();
+  const recordHistory = useFlowStore((state) => state.recordHistoryV2);
   const relationSemanticsV1Enabled = ROLLOUT_FLAGS.relationSemanticsV1;
+  const edgeLabel = getEditableEdgeLabel({
+    id,
+    source: '',
+    target: '',
+    data,
+    label,
+  } as FlowEdge);
 
   const beginLabelEdit = useCallback(() => {
-    const current = getEditableEdgeLabel({
-      id,
-      source: '',
-      target: '',
-      data,
-      label,
-    } as FlowEdge);
-    setLabelDraft(current);
+    setLabelDraft(edgeLabel);
     setIsEditingLabel(true);
-  }, [data, id, label]);
+  }, [edgeLabel]);
+
+  useEdgeLabelEditRequest(id, beginLabelEdit);
 
   const commitLabelEdit = useCallback(() => {
+    setIsEditingLabel(false);
+    // Only a changed label becomes an undo step.
+    if (labelDraft.trim() === edgeLabel.trim()) return;
+    recordHistory();
     setEdges((edges) =>
       edges.map((e) =>
         e.id !== id ? e : { ...e, ...buildEdgeLabelUpdates(e as FlowEdge, labelDraft) }
       )
     );
-    setIsEditingLabel(false);
-  }, [id, labelDraft, setEdges]);
+  }, [edgeLabel, id, labelDraft, recordHistory, setEdges]);
 
   const cancelLabelEdit = useCallback(() => {
     setIsEditingLabel(false);
@@ -227,6 +235,7 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
     event.preventDefault();
     const pathNode = pathRef.current;
     if (!pathNode) return;
+    let recordedHistory = false;
 
     const onPointerMove = (moveEvent: PointerEvent): void => {
       moveEvent.preventDefault();
@@ -261,6 +270,11 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
         }
       }
 
+      // One undo step per drag, taken before its first move.
+      if (!recordedHistory) {
+        recordedHistory = true;
+        recordHistory();
+      }
       updateEdgeData((edgeData) => ({
         ...edgeData,
         labelPosition: bestLength / pathLength,
@@ -287,13 +301,6 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
   const targetSide = typeof data?.archTargetSide === 'string' ? data.archTargetSide : '';
   const sideHint =
     sourceSide || targetSide ? `${sourceSide || '?'}${directionGlyph}${targetSide || '?'}` : '';
-  const edgeLabel = getEditableEdgeLabel({
-    id,
-    source: '',
-    target: '',
-    data,
-    label,
-  } as FlowEdge);
   const renderedLabel = hasArchitectureMeta ? (
     <span
       className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
@@ -320,6 +327,15 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
     strokeOpacity: 0.98,
   };
   const cinematicMarkerVisible = cinematicEdgeProgress >= 0.995;
+  // The edge's inline stroke outranks React Flow's `.selected` rule, so selection draws a
+  // halo beneath the line instead. Exports zero the opacity variable (see index.css).
+  const selectionHaloStyle: React.CSSProperties = {
+    stroke: 'var(--brand-primary)',
+    strokeOpacity: 'var(--flow-edge-selection-halo-opacity, 0.5)',
+    strokeWidth: Number(resolvedStyle.strokeWidth ?? designSystem.components.edge.strokeWidth) + 6,
+    strokeDasharray: 'none',
+    animation: 'none',
+  };
   const cinematicGlowStyle: React.CSSProperties = {
     ...resolvedStyle,
     stroke: 'rgba(59,130,246,0.22)',
@@ -331,6 +347,18 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
   return (
     <>
       <EdgeMarkerDefs standardMarkers={standardMarkers} />
+      {selected && shouldRenderInteractiveChrome ? (
+        <path
+          d={displayPath}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pointerEvents="none"
+          className="flow-edge-selection-halo"
+          style={selectionHaloStyle}
+          aria-hidden="true"
+        />
+      ) : null}
       {shouldRenderBaseEdge ? (
         <BaseEdge
           path={displayPath}
@@ -405,7 +433,7 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
       />
 
       {((renderedLabel && (!cinematicActive || showCinematicLabel)) ||
-        (!cinematicActive && !hasArchitectureMeta && (selected || isHovered))) && (
+        (!cinematicActive && (isEditingLabel || (!hasArchitectureMeta && (selected || isHovered))))) && (
         <EdgeLabelRenderer>
           <div
             ref={labelRef}

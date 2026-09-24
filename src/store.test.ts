@@ -444,6 +444,53 @@ describe('flow store agent commits', () => {
     });
 });
 
+describe('flow store canvas-wide edge style', () => {
+    it('undoes a canvas-wide restyle in one step, per-edge curves and diagram style included', () => {
+        const nodes = [createNode('n1', 'A'), createNode('n2', 'B')];
+        const edges: FlowEdge[] = [{ id: 'e1', source: 'n1', target: 'n2', type: 'step', data: { curve: 'step' } }];
+        useFlowStore.setState({
+            nodes,
+            edges,
+            tabs: [createTab('tab-1', 'Tab 1', nodes, edges)],
+            activeTabId: 'tab-1',
+            globalEdgeOptions: { type: 'bezier', curve: 'basis', animated: false, strokeWidth: 1.5 },
+        });
+
+        useFlowStore.getState().recordHistoryV2();
+        useFlowStore.getState().setGlobalEdgeOptions({ type: 'smoothstep', curve: 'smoothstep' });
+
+        let state = useFlowStore.getState();
+        expect(state.edges[0].data?.curve).toBeUndefined();
+        // The active tab keeps the restyled edges too.
+        expect(state.tabs[0].edges).toBe(state.edges);
+
+        state.undoV2();
+        state = useFlowStore.getState();
+        expect(state.edges[0]).toMatchObject({ type: 'step', data: { curve: 'step' } });
+        expect(state.globalEdgeOptions).toMatchObject({ type: 'bezier', curve: 'basis' });
+
+        state.redoV2();
+        expect(useFlowStore.getState().globalEdgeOptions).toMatchObject({ type: 'smoothstep', curve: 'smoothstep' });
+    });
+});
+
+describe('flow store selection', () => {
+    it('keeps a node and an edge from being inspected together', () => {
+        useFlowStore.setState({ selectedNodeId: null, selectedEdgeId: null });
+
+        useFlowStore.getState().setSelectedEdgeId('e1');
+        useFlowStore.getState().setSelectedNodeId('n1');
+        expect(useFlowStore.getState()).toMatchObject({ selectedNodeId: 'n1', selectedEdgeId: null });
+
+        useFlowStore.getState().setSelectedEdgeId('e1');
+        expect(useFlowStore.getState()).toMatchObject({ selectedNodeId: null, selectedEdgeId: 'e1' });
+
+        // Clearing one leaves the other alone.
+        useFlowStore.getState().setSelectedNodeId(null);
+        expect(useFlowStore.getState().selectedEdgeId).toBe('e1');
+    });
+});
+
 describe('flow store layer actions', () => {
     beforeEach(() => {
         const nodes = [

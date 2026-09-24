@@ -24,6 +24,8 @@ function getStepLabel(t: TFunction, name: string): string {
   switch (name) {
     case 'get_canvas': return t('flowpilot.agent.tools.get_canvas', 'Read the canvas');
     case 'edit_canvas': return t('flowpilot.agent.tools.edit_canvas', 'Edited the canvas');
+    case 'capture_canvas': return t('flowpilot.agent.tools.capture_canvas', 'Looked at the canvas');
+    case 'focus_canvas': return t('flowpilot.agent.tools.focus_canvas', 'Moved the view');
     case 'find_icons': return t('flowpilot.agent.tools.find_icons', 'Looked up icons');
     case 'layout': return t('flowpilot.agent.tools.layout', 'Arranged the layout');
     case 'review_architecture': return t('flowpilot.agent.tools.review_architecture', 'Reviewed the architecture');

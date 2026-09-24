@@ -23,6 +23,7 @@ import {
 } from '@/services/flowpilot/thread';
 import type { AssetGroundingMatch, DiagramChangeSummary } from '@/services/flowpilot/types';
 import { getCanvasFingerprint, summarizeDiagramChanges } from '@/services/flowpilot/changeSummary';
+import type { AgentCanvasView } from '@/services/flowpilot/agent/executor';
 import { serializeCanvasContextForAI } from '@/services/ai/contextSerializer';
 import { useFlowStore } from '@/store';
 import { useToast } from '@/components/ui/ToastContext';
@@ -200,7 +201,8 @@ interface AppliedChange {
 
 export function useAIGeneration(
   applyComposedGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void,
-  fitView?: (options?: { duration?: number; padding?: number }) => void
+  fitView?: (options?: { duration?: number; padding?: number }) => void,
+  view?: AgentCanvasView
 ) {
   const { nodes, edges, aiSettings, globalEdgeOptions, activeTabId, agentTurn } = useFlowStore();
   const selectedNodeIds = nodes.filter((n) => n.selected).map((n) => n.id);
@@ -248,6 +250,7 @@ export function useAIGeneration(
     blockedReason: !readiness.canGenerate && readiness.blockingIssue ? readiness.blockingIssue.detail : null,
     onError: setLastError,
     fitView,
+    view,
   });
   const displayedThread = useMemo(
     () => agent.liveItem ? upsertThreadItem(assistantThread, agent.liveItem) : assistantThread,

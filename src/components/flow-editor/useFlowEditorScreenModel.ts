@@ -55,7 +55,7 @@ export function useFlowEditorScreenModel({ onGoHome }: UseFlowEditorScreenModelP
     agentTurnControls,
     canUndoLastChange,
     undoLastChange,
-  } = useAIGeneration(callbacks.handlePreparedGraphApply, screenState.fitView);
+  } = useAIGeneration(callbacks.handlePreparedGraphApply, screenState.fitView, screenState);
 
   const handleApplyDsl = useCallback(
     (dsl: string) => {

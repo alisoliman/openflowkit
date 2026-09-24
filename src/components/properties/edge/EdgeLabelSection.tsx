@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { FlowEdge } from '@/lib/types';
 import { Input } from '@/components/ui/Input';
 import { Slider } from '@/components/ui/Slider';
@@ -11,13 +11,21 @@ interface EdgeLabelSectionProps {
 
 export function EdgeLabelSection({ selectedEdge, onChange }: EdgeLabelSectionProps): React.ReactElement {
     const editableLabel = getEditableEdgeLabel(selectedEdge);
+    // Stored labels are trimmed, so while typing the field keeps the raw text; otherwise the
+    // space before the next word would be stripped as soon as it was typed.
+    const [draft, setDraft] = useState<string | null>(null);
+    const inputValue = draft !== null && draft.trim() === editableLabel ? draft : editableLabel;
 
     return (
         <div className="space-y-3">
             <Input
                 label="Label"
-                value={editableLabel}
-                onChange={(event) => onChange(selectedEdge.id, buildEdgeLabelUpdates(selectedEdge, event.target.value))}
+                value={inputValue}
+                onChange={(event) => {
+                    setDraft(event.target.value);
+                    onChange(selectedEdge.id, buildEdgeLabelUpdates(selectedEdge, event.target.value));
+                }}
+                onBlur={() => setDraft(null)}
                 placeholder="e.g., 'If yes', 'On success'"
             />
 

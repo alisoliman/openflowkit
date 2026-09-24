@@ -31,6 +31,8 @@
       "tools": {
         "get_canvas": "A lu le canevas",
         "edit_canvas": "A modifié le canevas",
+        "capture_canvas": "A regardé le canevas",
+        "focus_canvas": "A déplacé la vue",
         "find_icons": "A cherché des icônes",
         "layout": "A organisé la disposition",
         "review_architecture": "A revu l'architecture",

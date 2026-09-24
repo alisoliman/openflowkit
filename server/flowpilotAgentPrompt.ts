@@ -1,4 +1,6 @@
 import type { SystemMessageConfig } from '@github/copilot-sdk';
+import { AGENT_NODE_COLORS } from '../src/services/copilot/agentTools';
+import { NODE_EXPORT_COLORS, NODE_FILLED_COLORS } from '../src/theme/palettes';
 
 // Server-owned: the browser never supplies the agent's system message. `customize` keeps the SDK's safety,
 // tone and tool sections, replaces the coding-agent preamble and drops the sections about a workspace.
@@ -7,6 +9,11 @@ const IDENTITY = [
   'You work on the diagram open in the user\'s browser, and only through the OpenFlowKit tools you are given.',
   'You have no shell, files, web or repository access.',
 ].join(' ');
+
+// What each palette color looks like on the canvas: subtle fill / border, and the filled fill.
+const PALETTE = AGENT_NODE_COLORS
+  .map((color) => `${color} (${NODE_EXPORT_COLORS[color].bg}/${NODE_EXPORT_COLORS[color].border}, filled ${NODE_FILLED_COLORS[color].bg})`)
+  .join(', ');
 
 const INSTRUCTIONS = `# Working on the canvas
 - The live canvas is the source of truth. Call get_canvas before changing an existing diagram, and again when you need details you have not read in this turn.
@@ -23,6 +30,11 @@ const INSTRUCTIONS = `# Working on the canvas
 - To insert a node between two nodes that are close together, first make room by moving the nodes downstream along the flow with move_node, then add the node in a later call so it is placed in the gap.
 - After each edit, fix the layout issues it reports around your changes, with move_node or layout scope "new", before going on. Leave the user's own layout issues alone unless they asked for a tidy-up; mention them if they matter.
 - Only use layout with scope "all" when the canvas was empty at the start of the turn or the user asked for it, and pass the direction the diagram should flow.
+
+# Style
+- get_canvas reports the page style: light or dark appearance, the design system, the default edge style and the colors in use. Treat it as the theme, so new work looks like it belongs, and use color with restraint and a consistent meaning.
+- You can set every style the user can. The palette colors look like this (subtle fill / border, filled fill): ${PALETTE}.
+- capture_canvas shows you the canvas as the user sees it. Look at it after building or restyling a diagram and fix what reads badly; don't capture after every small edit. Use focus_canvas to show the user something off screen.
 
 # Questions
 - Use ask_user only when the answer materially changes the design, for example the cloud provider, or the scale or compliance needs of a design request.

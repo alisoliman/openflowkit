@@ -31,6 +31,8 @@
       "tools": {
         "get_canvas": "Tuvali okudu",
         "edit_canvas": "Tuvali düzenledi",
+        "capture_canvas": "Tuvale baktı",
+        "focus_canvas": "Görünümü taşıdı",
         "find_icons": "Simgeleri aradı",
         "layout": "Yerleşimi düzenledi",
         "review_architecture": "Mimariyi inceledi",

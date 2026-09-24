@@ -286,9 +286,11 @@ function CustomNode(props: LegacyNodeProps<NodeData>): React.ReactElement {
 
           {isComplexShape && (
             <div className="absolute inset-0 w-full h-full z-0 flex items-center justify-center">
+              {/* The shape fills the node box, where its handles sit; square shapes keep a 1:1 box, and
+                  strokes do not scale. */}
               <svg
                 viewBox="0 0 100 100"
-                preserveAspectRatio="xMidYMid meet"
+                preserveAspectRatio="none"
                 className="w-full h-full overflow-visible drop-shadow-sm"
               >
                 <NodeShapeSVG

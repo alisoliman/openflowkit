@@ -15,6 +15,7 @@ import {
   canUndoAgentTurn,
   createAgentTurnExecutor,
   undoAgentTurn,
+  type AgentCanvasView,
   type AgentToolResult,
   type AgentTurnExecutor,
   type AgentTurnUndo,
@@ -64,6 +65,8 @@ interface UseFlowpilotAgentOptions {
   blockedReason: string | null;
   onError: (message: string | null) => void;
   fitView?: (options?: { duration?: number; padding?: number }) => void;
+  /** Lets capture_canvas and focus_canvas move the view. */
+  view?: AgentCanvasView;
 }
 
 /** What the chat needs to drive Copilot turns from their thread items. */
@@ -353,6 +356,7 @@ export function useFlowpilotAgent(options: UseFlowpilotAgentOptions) {
           turn: lock,
           confirmRemoval: (removal) => confirmRemoval(turn, removal),
           endingReason: () => turn.ending && ENDING_ERRORS[turn.ending],
+          view: () => optionsRef.current.view,
         }),
         item,
         reply: '',

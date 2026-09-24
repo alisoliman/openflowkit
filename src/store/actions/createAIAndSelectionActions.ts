@@ -25,8 +25,9 @@ export function createAIAndSelectionActions(set: SetFlowState): Pick<
             };
         }),
 
-        setSelectedNodeId: (id) => set({ selectedNodeId: id }),
-        setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
+        // The properties panel inspects one node or one edge, so selecting one clears the other.
+        setSelectedNodeId: (id) => set(id ? { selectedNodeId: id, selectedEdgeId: null } : { selectedNodeId: null }),
+        setSelectedEdgeId: (id) => set(id ? { selectedEdgeId: id, selectedNodeId: null } : { selectedEdgeId: null }),
         setHoveredSectionId: (id) => set({ hoveredSectionId: id }),
         queuePendingNodeLabelEditRequest: (request) => set({ pendingNodeLabelEditRequest: request }),
         clearPendingNodeLabelEditRequest: () => set({ pendingNodeLabelEditRequest: null }),

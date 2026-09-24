@@ -213,7 +213,8 @@ export function FlowCanvasSurface({
         nodesConnectable={!isAgentEditing}
         edgesReconnectable={!isAgentEditing}
         elementsSelectable={!isAgentEditing}
-        deleteKeyCode={isAgentEditing ? null : undefined}
+        // The app's shortcut handler deletes the selection, one undo step for Delete and Backspace.
+        deleteKeyCode={null}
         // Arrow keys still move a selection or a node that sets its own draggable.
         disableKeyboardA11y={isAgentEditing}
         nodeTypes={flowCanvasNodeTypes}
