@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { APP_EVENT_NAMES } from '@/lib/legacyBranding';
+import { useFlowStore } from '@/store';
 
 const NODE_QUICK_CREATE_REQUEST_EVENT = APP_EVENT_NAMES.nodeQuickCreateRequest;
 
@@ -24,7 +25,8 @@ export function useNodeQuickCreateRequest(
   useEffect(() => {
     const handleRequest = (event: Event): void => {
       const customEvent = event as CustomEvent<NodeQuickCreateRequestDetail>;
-      if (!customEvent.detail?.nodeId) {
+      // The buttons stay on a node selected before a Flowpilot turn, which owns the page until it ends.
+      if (!customEvent.detail?.nodeId || useFlowStore.getState().agentTurn) {
         return;
       }
       onRequest(customEvent.detail.nodeId, customEvent.detail.direction);

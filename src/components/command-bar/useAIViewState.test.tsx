@@ -9,7 +9,7 @@ function createHook(onAIGenerate: (prompt: string, imageBase64?: string) => Prom
       isGenerating: false,
       onAIGenerate,
       onClose: vi.fn(),
-      chatMessageCount: 0,
+      scrollKey: 0,
     })
   );
 }

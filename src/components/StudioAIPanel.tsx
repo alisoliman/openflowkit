@@ -5,10 +5,12 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { IS_BEVELED } from '@/lib/brand';
+import { useFlowStore } from '@/store';
 import type { ChatMessage } from '@/services/aiService';
 import type { AssistantThreadItem } from '@/services/flowpilot/types';
 import type { ImportDiff } from '@/hooks/useAIGeneration';
 import type { AIReadinessState } from '@/hooks/ai-generation/readiness';
+import type { AgentTurnControls } from '@/hooks/ai-generation/useFlowpilotAgent';
 import { useAIViewState } from './command-bar/useAIViewState';
 import { FlowpilotControls } from './FlowpilotControls';
 import {
@@ -41,6 +43,7 @@ interface StudioAIPanelProps {
   onClearError: () => void;
   chatMessages: ChatMessage[];
   assistantThread: AssistantThreadItem[];
+  agentTurnControls?: AgentTurnControls;
   onClearChat: () => void;
   canUndoLastChange?: boolean;
   undoLastChange?: () => void;
@@ -61,6 +64,17 @@ function buildGenerationPrompt(prompt: string, mode: AIGenerationMode, nodeCount
     '',
     prompt,
   ].join('\n');
+}
+
+// Changes whenever the thread grows, including while a Copilot turn streams its reply and steps.
+function getThreadScrollKey(thread: AssistantThreadItem[]): string {
+  const latest = thread.at(-1);
+  return [
+    thread.length,
+    latest?.content.length ?? 0,
+    latest?.agentTurn?.steps.length ?? 0,
+    latest?.agentTurn?.questions.length ?? 0,
+  ].join(':');
 }
 
 function getPromptPlaceholder(
@@ -130,6 +144,7 @@ export function StudioAIPanel({
   onClearError,
   chatMessages,
   assistantThread,
+  agentTurnControls,
   onClearChat,
   canUndoLastChange,
   undoLastChange,
@@ -141,7 +156,9 @@ export function StudioAIPanel({
   const { t } = useTranslation();
   const isBeveled = IS_BEVELED;
   const [generationMode, setGenerationMode] = useState<AIGenerationMode>('edit');
-  const effectiveGenerationMode: AIGenerationMode = nodeCount === 0 ? 'create' : generationMode;
+  // Copilot has no modes: the agent reads the canvas and decides whether to edit or rebuild.
+  const isCopilot = useFlowStore((state) => state.aiSettings.provider === 'copilot');
+  const effectiveGenerationMode: AIGenerationMode = nodeCount === 0 ? 'create' : isCopilot ? 'edit' : generationMode;
 
   function openAISettings(): void {
     window.dispatchEvent(new CustomEvent('open-ai-settings'));
@@ -168,7 +185,7 @@ export function StudioAIPanel({
       return onAIGenerate(buildGenerationPrompt(text, effectiveGenerationMode, nodeCount), image);
     },
     onClose: () => setGenerationMode('edit'),
-    chatMessageCount: assistantThread.length,
+    scrollKey: getThreadScrollKey(assistantThread),
   });
 
   useEffect(() => {
@@ -222,6 +239,7 @@ export function StudioAIPanel({
         hasHistory={hasHistory}
         chatMessages={chatMessages}
         assistantThread={assistantThread}
+        agentTurnControls={agentTurnControls}
         isGenerating={isGenerating}
         streamingText={streamingText}
         retryCount={retryCount}
@@ -240,7 +258,7 @@ export function StudioAIPanel({
       />
       <FlowpilotControls isGenerating={isGenerating} canUndo={canUndoLastChange} onUndo={undoLastChange} />
       <ComposerSection
-        nodeCount={nodeCount}
+        showModeToggle={!isCopilot && nodeCount > 0}
         selectedNodeCount={selectedNodeCount}
         effectiveGenerationMode={effectiveGenerationMode}
         selectedImage={selectedImage}

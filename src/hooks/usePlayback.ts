@@ -73,6 +73,12 @@ export function usePlayback() {
 
     const togglePlay = useCallback(() => setIsPlaying(p => !p), []);
 
+    // Playback restyles every node, so a Flowpilot turn ends it. The store calls this as the turn takes
+    // its lock, before the turn reads the page it starts from, and the toolbar with Stop comes back.
+    useEffect(() => useFlowStore.subscribe((state, previous) => {
+        if (state.agentTurn && !previous.agentTurn) stopPlayback();
+    }), [stopPlayback]);
+
     const nextStep = useCallback(() => {
         setCurrentStepIndex(prev => {
             if (prev < steps.length - 1) return prev + 1;

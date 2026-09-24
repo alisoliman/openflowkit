@@ -2,11 +2,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowNode } from '@/lib/types';
 import type { AssistantThreadItem } from '@/services/flowpilot/types';
+import type { CodebaseAnalysis } from './ai-generation/codebaseAnalyzer';
 import type { GenerateAIFlowResult } from './ai-generation/requestLifecycle';
 import { useFlowStore } from '@/store';
 import { useAIGeneration } from './useAIGeneration';
 import { generateAIFlowResult } from './ai-generation/requestLifecycle';
 import { chatWithFlowpilot } from '@/services/aiService';
+import { startAgentTurn, type AgentTurnHandlers } from '@/services/copilot/agentClient';
 import { loadAssistantThreadHistory, saveAssistantThreadHistory } from './ai-generation/chatHistoryStorage';
 import { useStreamingState } from './ai-generation/streamingStore';
 
@@ -15,8 +17,9 @@ vi.mock('@/components/ui/ToastContext', () => ({ useToast: () => ({ addToast }) 
 vi.mock('@/services/aiService', () => ({ chatWithFlowpilot: vi.fn() }));
 vi.mock('./ai-generation/requestLifecycle', () => ({ generateAIFlowResult: vi.fn() }));
 vi.mock('./ai-generation/chatHistoryStorage', () => ({
-  loadAssistantThreadHistory: vi.fn(), saveAssistantThreadHistory: vi.fn(),
+  loadAssistantThreadHistory: vi.fn(), saveAssistantThreadHistory: vi.fn(), saveAssistantThreadItem: vi.fn(),
 }));
+vi.mock('@/services/copilot/agentClient', () => ({ startAgentTurn: vi.fn() }));
 vi.mock('./ai-generation/useCopilotConnection', () => ({
   useCopilotConnection: () => ({ connection: {
     state: 'ready', status: { runtime: 'github-copilot-sdk', authenticated: true, models: [] },
@@ -50,10 +53,11 @@ function commitGraph(nodes: FlowNode[], edges: GenerateAIFlowResult['layoutedEdg
 
 beforeEach(() => {
   vi.resetAllMocks();
-  useFlowStore.setState({ documents: [], tabs: [], nodes: [], edges: [] });
+  useFlowStore.setState({ documents: [], tabs: [], nodes: [], edges: [], agentTurn: null });
   useFlowStore.getState().createDocument();
   useFlowStore.getState().setNodes(INITIAL);
-  useFlowStore.getState().setAISettings({ provider: 'copilot', model: 'auto', autoApply: false });
+  // Copilot chat runs agent turns (below); the one-shot review flow is what the other providers use.
+  useFlowStore.getState().setAISettings({ provider: 'openai', apiKey: 'test-key', model: 'gpt-5-mini', autoApply: false });
   vi.mocked(loadAssistantThreadHistory).mockResolvedValue([]);
   vi.mocked(saveAssistantThreadHistory).mockResolvedValue(undefined);
   vi.mocked(generateAIFlowResult).mockResolvedValue(resultWith());
@@ -243,6 +247,30 @@ describe('multi-turn Flowpilot harness', () => {
     expect(result.current.lastError).toContain('canvas changed');
   });
 
+  it('does not apply a draft while a Flowpilot turn edits the page', async () => {
+    const { result, apply } = await setup();
+    await act(async () => { await result.current.handleAIRequest('Rename it to Orders Cache.'); });
+    act(() => { useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: useFlowStore.getState().activeTabId }); });
+    act(() => { result.current.confirmPendingDiff(); });
+    expect(apply).not.toHaveBeenCalled();
+    expect(result.current.lastError).toContain('Flowpilot is editing this page');
+    expect(useFlowStore.getState().nodes).toEqual(INITIAL);
+  });
+
+  it('offers Undo AI edit again only once a Flowpilot turn ends', async () => {
+    useFlowStore.getState().setAISettings({ autoApply: true });
+    const { result } = await setup();
+    await act(async () => { await result.current.handleAIRequest('Rename it to Orders Cache.'); });
+    act(() => { useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: useFlowStore.getState().activeTabId }); });
+    expect(result.current.canUndoLastChange).toBe(false);
+    act(() => result.current.undoLastChange());
+    expect(result.current.assistantThread.find((item) => item.type === 'assistant_canvas_preview')?.previewStatus).toBe('applied');
+    act(() => { useFlowStore.getState().setAgentTurn(null); });
+    expect(result.current.canUndoLastChange).toBe(true);
+    act(() => result.current.undoLastChange());
+    expect(useFlowStore.getState().nodes).toEqual(INITIAL);
+  });
+
   it('supersedes a previous draft when another edit is requested', async () => {
     const { result } = await setup();
     await act(async () => { await result.current.handleAIRequest('Rename it to Orders Cache.'); });
@@ -292,5 +320,79 @@ describe('multi-turn Flowpilot harness', () => {
     expect(result.current.pendingDiff).toBeNull();
     expect(result.current.assistantThread[0].previewStatus).toBe('superseded');
     expect(result.current.chatMessages[0].parts[0].text).not.toContain('Orders Cache');
+  });
+
+  it('sends a property-panel AI edit to the other providers as the panel built it', async () => {
+    const { result } = await setup();
+    await act(async () => { await result.current.handleFocusedAIRequest('Rename the selected cache.', ['cache']); });
+    expect(generateAIFlowResult).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      prompt: 'Rename the selected cache.',
+      selectedNodeIds: ['cache'],
+    }));
+    expect(result.current.assistantThread[0]).toMatchObject({ type: 'user_message', content: 'Rename the selected cache.' });
+    expect(result.current.pendingDiff).not.toBeNull();
+  });
+});
+
+describe('Copilot chat', () => {
+  it('runs an agent turn instead of the one-shot requests', async () => {
+    useFlowStore.getState().setAISettings({ provider: 'copilot', model: 'auto' });
+    const connection = { sendToolResult: vi.fn(), answer: vi.fn(), cancel: vi.fn(), close: vi.fn() };
+    let handlers!: AgentTurnHandlers;
+    vi.mocked(startAgentTurn).mockImplementation((_start, turnHandlers) => {
+      handlers = turnHandlers;
+      return connection;
+    });
+    const { result } = await setup();
+
+    let request!: Promise<boolean>;
+    act(() => { request = result.current.handleAIRequest('Add a database.'); });
+    expect(startAgentTurn).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Add a database.', model: 'auto' }), expect.anything());
+    expect(result.current.isGenerating).toBe(true);
+    act(() => handlers.onEvent({ v: 1, type: 'reply_delta', text: 'Adding it now.' }));
+    expect(result.current.assistantThread.at(-1)).toMatchObject({
+      type: 'assistant_agent_turn', content: 'Adding it now.', agentTurn: { status: 'running' },
+    });
+
+    act(() => result.current.cancelGeneration());
+    expect(connection.cancel).toHaveBeenCalledOnce();
+    await act(async () => { handlers.onEnd({ type: 'done', reply: 'Stopped before adding it.' }); await request; });
+    expect(result.current.isGenerating).toBe(false);
+    expect(result.current.assistantThread.at(-1)).toMatchObject({ content: 'Stopped before adding it.', agentTurn: { status: 'stopped' } });
+    expect(chatWithFlowpilot).not.toHaveBeenCalled();
+    expect(generateAIFlowResult).not.toHaveBeenCalled();
+  });
+
+  it('runs a property-panel AI edit as an agent turn on the named node', async () => {
+    useFlowStore.getState().setAISettings({ provider: 'copilot', model: 'auto' });
+    vi.mocked(startAgentTurn).mockReturnValue({ sendToolResult: vi.fn(), answer: vi.fn(), cancel: vi.fn(), close: vi.fn() });
+    const { result } = await setup();
+
+    act(() => { void result.current.handleFocusedAIRequest('Refine the selected architecture node.', ['api']); });
+    expect(startAgentTurn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: 'Refine the selected architecture node.\n\nSelected node ids: "api".',
+    }), expect.anything());
+    expect(result.current.isGenerating).toBe(true);
+    expect(generateAIFlowResult).not.toHaveBeenCalled();
+  });
+
+  it('reviews an AI import before applying it, even with auto-apply left on from another provider', async () => {
+    useFlowStore.getState().setAISettings({ provider: 'copilot', model: 'auto', autoApply: true });
+    const { result, apply } = await setup();
+    const analysis: CodebaseAnalysis = {
+      files: [{ path: 'src/index.ts', content: '', language: 'typescript', imports: [] }],
+      edges: [],
+      entryPoints: ['src/index.ts'],
+      cloudPlatform: 'unknown',
+      detectedServices: [],
+      infraFiles: [],
+      stats: { totalFiles: 1, sourceFiles: 1, languages: { typescript: 1 }, directories: 1 },
+      summary: 'CODEBASE STRUCTURE',
+    };
+
+    await act(async () => { expect(await result.current.handleCodebaseAnalysis(analysis)).toBe(true); });
+    expect(generateAIFlowResult).toHaveBeenCalledOnce();
+    expect(apply).not.toHaveBeenCalled();
+    expect(result.current.pendingDiff).not.toBeNull();
   });
 });

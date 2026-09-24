@@ -214,11 +214,8 @@ function normalizeIconLookupKey(iconName: string): string {
     return iconName.replace(/[\s_-]/g, '').toLowerCase();
 }
 
-export function resolveIconName(iconName?: string, fallback: string = FALLBACK_ICON_NAME): string {
-    if (!iconName || iconName === 'none') {
-        return ICON_MAP[fallback] ? fallback : FALLBACK_ICON_NAME;
-    }
-
+/** Returns the ICON_MAP key for a name or alias (case and separators ignored), without a fallback. */
+export function findIconName(iconName: string): string | undefined {
     if (ICON_MAP[iconName]) {
         return iconName;
     }
@@ -229,9 +226,13 @@ export function resolveIconName(iconName?: string, fallback: string = FALLBACK_I
         return aliasedName;
     }
 
-    const matchedKey = ICON_NAMES.find((key) => normalizeIconLookupKey(key) === normalizedKey);
-    if (matchedKey) {
-        return matchedKey;
+    return ICON_NAMES.find((key) => normalizeIconLookupKey(key) === normalizedKey);
+}
+
+export function resolveIconName(iconName?: string, fallback: string = FALLBACK_ICON_NAME): string {
+    const matchedName = iconName && iconName !== 'none' ? findIconName(iconName) : undefined;
+    if (matchedName) {
+        return matchedName;
     }
 
     return ICON_MAP[fallback] ? fallback : FALLBACK_ICON_NAME;

@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { COPILOT_MAX_MESSAGE_CHARS } from '@/services/copilot/protocol';
 import {
-  assistantThreadToChatMessages, createAnswerThreadItem, createPreviewThreadItem, createUserThreadItem,
-  expirePendingPreviews, getLatestAssistantResponse, getPendingConversationPlan, setPreviewStatus,
+  assistantThreadToAgentHistory, assistantThreadToChatMessages, createAgentTurnThreadItem, createAnswerThreadItem,
+  createErrorThreadItem, createPlanThreadItem, createPreviewThreadItem, createUserThreadItem, describeCanvasChanges,
+  expirePendingPreviews, getLatestAssistantResponse, getPendingConversationPlan, interruptUnfinishedAgentTurns,
+  setPreviewStatus, upsertThreadItem,
 } from './thread';
+import type { DiagramChange, DiagramChangeSummary } from './types';
+
+function changesOf(details: DiagramChange[]): DiagramChangeSummary {
+  return {
+    addedCount: 0, removedCount: 0, updatedCount: 0, addedEdgeCount: 0, removedEdgeCount: 0, updatedEdgeCount: 0,
+    totalChanges: details.length, details,
+  };
+}
 
 describe('Flowpilot conversation state', () => {
   it.each(['pending', 'applied', 'discarded', 'superseded', 'undone'] as const)(
@@ -51,5 +62,99 @@ describe('Flowpilot conversation state', () => {
     }])).toBeUndefined();
     const latest = createAnswerThreadItem('Rename the API to Gateway.', 'plan');
     expect(getPendingConversationPlan([plan, request, latest])).toBe(latest.content);
+  });
+
+  it('replays a Copilot turn as its reply and a change note, and leaves errors out', () => {
+    const turn = {
+      ...createAgentTurnThreadItem(),
+      content: 'Added a cache.',
+      changes: changesOf([
+        { kind: 'node', status: 'added', label: 'Cache' },
+        { kind: 'node', status: 'updated', label: 'Orders API', previousLabel: 'API' },
+      ]),
+    };
+    const plan = createPlanThreadItem({
+      goal: 'Add a cache', mode: 'plan', steps: [], requiresApproval: false, intendedOutput: '', confidence: 1,
+      reasoningSummary: 'Internal plan', skillId: 'plan_diagram',
+    });
+    const history = assistantThreadToAgentHistory([
+      createUserThreadItem('Add a cache.'), plan, turn, createErrorThreadItem('Copilot timed out.'),
+      { ...turn, id: 'undone', agentTurn: { status: 'done', steps: [], questions: [], undone: true } },
+    ]);
+    expect(history).toEqual([
+      { role: 'user', content: 'Add a cache.' },
+      { role: 'assistant', content: 'Added a cache.\n[Canvas changes this turn: added node "Cache"; renamed node "API" to "Orders API"]' },
+      {
+        role: 'assistant',
+        content: 'Added a cache.\n[Canvas changes this turn: added node "Cache"; renamed node "API" to "Orders API"; the user has since undone these changes]',
+      },
+    ]);
+  });
+
+  it('replays the questions the user answered with a Copilot turn', () => {
+    const turn = {
+      ...createAgentTurnThreadItem(),
+      content: 'Built it on Azure.',
+      agentTurn: {
+        status: 'done' as const,
+        steps: [],
+        questions: [
+          { kind: 'question' as const, id: 'q-1', status: 'answered' as const, question: 'Which cloud?', allowFreeform: true, answer: 'Azure' },
+          { kind: 'question' as const, id: 'q-2', status: 'closed' as const, question: 'Region?', allowFreeform: true },
+          { kind: 'confirm' as const, id: 'c-1', status: 'answered' as const, removedLabels: ['API'], removedCount: 1, clearsCanvas: false, approved: true },
+          { kind: 'question' as const, id: 'q-3', status: 'answered' as const, question: 'Serverless?', allowFreeform: true, answer: 'Yes' },
+        ],
+      },
+    };
+    expect(assistantThreadToAgentHistory([turn])).toEqual([{
+      role: 'assistant',
+      content: 'Built it on Azure.\n[Canvas changes this turn: none]\n'
+        + '[Questions this turn: asked "Which cloud?" and the user answered "Azure"; asked "Serverless?" and the user answered "Yes"]',
+    }]);
+  });
+
+  it('shortens a replayed message the request would refuse', () => {
+    const [message] = assistantThreadToAgentHistory([createUserThreadItem('x'.repeat(COPILOT_MAX_MESSAGE_CHARS + 1))]);
+    expect(message.content).toHaveLength(COPILOT_MAX_MESSAGE_CHARS);
+  });
+
+  it('keeps the change note short', () => {
+    expect(describeCanvasChanges(undefined)).toBe('none');
+    const many = Array.from({ length: 23 }, (_, index): DiagramChange => ({ kind: 'edge', status: 'removed', label: `e${index}` }));
+    const note = describeCanvasChanges(changesOf(many));
+    expect(note).toMatch(/^removed edge "e0"; .*removed edge "e19"; and 3 more$/);
+  });
+
+  it('marks turns saved mid-run as interrupted, failing their unfinished steps and closing their open questions', () => {
+    const running = {
+      ...createAgentTurnThreadItem(),
+      agentTurn: {
+        status: 'waiting' as const,
+        steps: [
+          { callId: 'c-1', name: 'get_canvas', status: 'succeeded' as const },
+          { callId: 'c-2', name: 'edit_canvas', status: 'started' as const },
+        ],
+        questions: [
+          { kind: 'question' as const, id: 'q-1', status: 'waiting' as const, question: 'Which cloud?', allowFreeform: true },
+          { kind: 'question' as const, id: 'q-2', status: 'answered' as const, question: 'Region?', allowFreeform: true, answer: 'EU' },
+        ],
+      },
+    };
+    const done = { ...createAgentTurnThreadItem(), agentTurn: { status: 'done' as const, steps: [], questions: [] } };
+    const [interrupted, unchanged] = interruptUnfinishedAgentTurns([running, done]);
+    expect(interrupted.agentTurn).toMatchObject({
+      status: 'interrupted',
+      steps: [{ status: 'succeeded' }, { status: 'failed' }],
+      questions: [{ status: 'closed' }, { status: 'answered' }],
+    });
+    expect(unchanged).toBe(done);
+  });
+
+  it('replaces a thread item in place or appends it', () => {
+    const user = createUserThreadItem('Hi');
+    const turn = createAgentTurnThreadItem();
+    expect(upsertThreadItem([user], turn)).toEqual([user, turn]);
+    const updated = { ...turn, content: 'Hello' };
+    expect(upsertThreadItem([turn, user], updated)).toEqual([updated, user]);
   });
 });

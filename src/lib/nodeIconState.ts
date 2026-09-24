@@ -62,6 +62,10 @@ export function getProviderIconMetadata(
   };
 }
 
+export function isKnownProviderIcon(packId: string, shapeId: string): boolean {
+  return SHAPE_METADATA.has(`${packId}:${shapeId}`);
+}
+
 export function createBuiltInIconData(icon: string): Partial<NodeData> {
   return {
     icon,

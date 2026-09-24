@@ -6,6 +6,7 @@ import type { FlowEdge, FlowNode } from '@/lib/types';
 import { getOpenFlowDSLExportDiagnostics, toOpenFlowDSL } from '@/services/openFlowDSLExporter';
 import { getElkLayout } from '@/services/elkLayout';
 import { encodeDslForViewer } from '@/services/viewerUrlCodec';
+import { useFlowStore } from '@/store';
 
 vi.mock('@/services/openFlowDSLExporter', () => ({
     toOpenFlowDSL: vi.fn(() => 'mock-dsl'),
@@ -13,6 +14,7 @@ vi.mock('@/services/openFlowDSLExporter', () => ({
 }));
 
 vi.mock('@/services/elkLayout', () => ({
+    clearLayoutCache: vi.fn(),
     getElkLayout: vi.fn(async (nodes: FlowNode[], edges: FlowEdge[]) => ({ nodes, edges })),
 }));
 
@@ -240,5 +242,42 @@ describe('useFlowEditorActions', () => {
         expect(setEdges).toHaveBeenCalledTimes(1);
         const layoutedNodes = setNodes.mock.calls[0][0] as FlowNode[];
         expect(layoutedNodes.find((node) => node.id === 'mind-child')?.position.x).not.toBe(400);
+    });
+
+    it('drops a layout that finishes after a Flowpilot turn started', async () => {
+        const recordHistory = vi.fn();
+        const setNodes = vi.fn();
+        const setEdges = vi.fn();
+        vi.mocked(getElkLayout).mockImplementationOnce(async (nodes, edges) => {
+            useFlowStore.setState({ agentTurn: { turnId: 'turn-1', pageId: 'page-1' } });
+            return { nodes, edges };
+        });
+        const { result } = renderHook(() =>
+            useFlowEditorActions({
+                nodes: [createNode('n1')],
+                edges: [],
+                recordHistory,
+                setNodes,
+                setEdges,
+                fitView: vi.fn(),
+                t: createTranslator((key: string) => key),
+                addToast: vi.fn(),
+                exportSerializationMode: 'deterministic',
+            })
+        );
+
+        try {
+            await act(async () => {
+                await result.current.onLayout();
+            });
+        } finally {
+            useFlowStore.setState({ agentTurn: null });
+        }
+
+        expect(getElkLayout).toHaveBeenCalledOnce();
+        expect(recordHistory).not.toHaveBeenCalled();
+        expect(setNodes).not.toHaveBeenCalled();
+        expect(setEdges).not.toHaveBeenCalled();
+        expect(result.current.isLayouting).toBe(false);
     });
 });

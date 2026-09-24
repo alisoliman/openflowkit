@@ -2,11 +2,15 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n/config';
+import { useFlowStore } from '@/store';
 import { StudioAIPanel } from './StudioAIPanel';
 import { createPreviewThreadItem } from '@/services/flowpilot/thread';
 
 vi.mock('./FlowpilotControls', () => ({ FlowpilotControls: () => null }));
-beforeEach(async () => { await i18n.changeLanguage('en'); });
+beforeEach(async () => {
+  await i18n.changeLanguage('en');
+  useFlowStore.getState().setAISettings({ provider: 'copilot', model: 'auto' });
+});
 
 function props(): ComponentProps<typeof StudioAIPanel> {
   return {
@@ -36,6 +40,7 @@ describe('Flowpilot multi-turn composer', () => {
   });
 
   it('automatically offers Edit current after a first draft is applied', async () => {
+    useFlowStore.getState().setAISettings({ provider: 'openai', model: 'gpt-5-mini' });
     const input = props();
     const { rerender } = render(<StudioAIPanel {...input} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Create an order diagram.' } });
@@ -50,6 +55,7 @@ describe('Flowpilot multi-turn composer', () => {
   });
 
   it.each(['button', 'enter'])('honors explicit Create new identically via %s and resets to edit afterwards', async (submit) => {
+    useFlowStore.getState().setAISettings({ provider: 'openai', model: 'gpt-5-mini' });
     const input = props();
     render(<StudioAIPanel {...input} nodeCount={3} />);
     fireEvent.click(screen.getByRole('button', { name: 'Create new' }));
@@ -60,6 +66,15 @@ describe('Flowpilot multi-turn composer', () => {
       expect.stringContaining('Ignore the existing canvas'), undefined,
     ));
     expect(screen.getByRole('button', { name: 'Edit current' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('sends Copilot prompts unchanged without an edit or create mode', async () => {
+    const input = props();
+    render(<StudioAIPanel {...input} nodeCount={3} />);
+    expect(screen.queryByRole('button', { name: 'Create new' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Start over with a queue diagram.' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(input.onAIGenerate).toHaveBeenCalledWith('Start over with a queue diagram.', undefined));
   });
 
   it('does not let Enter bypass readiness checks', () => {

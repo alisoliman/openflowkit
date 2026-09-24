@@ -254,6 +254,7 @@ export function createInitialFlowState(): Pick<
   | 'hoveredSectionId'
   | 'pendingNodeLabelEditRequest'
   | 'mermaidDiagnostics'
+  | 'agentTurn'
   | 'lastUpdateTime'
 > {
   return {
@@ -275,6 +276,7 @@ export function createInitialFlowState(): Pick<
     hoveredSectionId: null,
     pendingNodeLabelEditRequest: null,
     mermaidDiagnostics: null,
+    agentTurn: null,
     lastUpdateTime: Date.now(),
   };
 }

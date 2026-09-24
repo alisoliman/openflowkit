@@ -402,6 +402,48 @@ describe('flow store Mermaid diagnostics contract', () => {
     });
 });
 
+describe('flow store agent commits', () => {
+    beforeEach(() => {
+        const nodes = [createNode('n1', 'Base')];
+        const tab = createTab('tab-1', 'Tab 1', nodes, []);
+        useFlowStore.setState({ nodes, edges: [], tabs: [tab], activeTabId: 'tab-1', agentTurn: null });
+    });
+
+    it('setGraph replaces nodes and edges together and syncs the active tab', () => {
+        const nodes = [createNode('n1', 'Base'), createNode('n2', 'Added')];
+        const edges = [createEdge('e1', 'n1', 'n2')];
+        const seen: boolean[] = [];
+        // The workspace document sync writes after it, so check what the first notification saw.
+        const unsubscribe = useFlowStore.subscribe((state) => {
+            seen.push(state.nodes === nodes && state.edges === edges);
+        });
+
+        useFlowStore.getState().setGraph(nodes, edges);
+        unsubscribe();
+
+        const state = useFlowStore.getState();
+        expect(seen[0]).toBe(true);
+        expect(state.nodes).toBe(nodes);
+        expect(state.edges).toBe(edges);
+        expect(state.tabs[0].nodes).toBe(nodes);
+        expect(state.tabs[0].edges).toBe(edges);
+    });
+
+    it('sets and clears the agent turn lock without persisting it', () => {
+        expect(useFlowStore.getState().agentTurn).toBeNull();
+
+        useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: 'tab-1' });
+        expect(useFlowStore.getState().agentTurn).toEqual({ turnId: 'turn-1', pageId: 'tab-1' });
+        const persistedSlice = useFlowStore.persist.getOptions().partialize(
+            useFlowStore.getState()
+        ) as unknown as Record<string, unknown>;
+        expect('agentTurn' in persistedSlice).toBe(false);
+
+        useFlowStore.getState().setAgentTurn(null);
+        expect(useFlowStore.getState().agentTurn).toBeNull();
+    });
+});
+
 describe('flow store layer actions', () => {
     beforeEach(() => {
         const nodes = [

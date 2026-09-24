@@ -166,6 +166,11 @@ export const useFlowExport = (
           });
 
           if (result.ok) {
+            // A Flowpilot turn that started during the layout owns the page, so the import is dropped.
+            if (useFlowStore.getState().agentTurn) {
+              addToast('Flowpilot is editing this page. Try again after it finishes.', 'warning');
+              return;
+            }
             setImportRecoveryState(null);
             recordHistory();
             setNodes(result.nodes);

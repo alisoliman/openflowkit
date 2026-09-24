@@ -19,9 +19,11 @@ import type { ChatMessage } from '@/services/aiService';
 import type { AssistantThreadItem } from '@/services/flowpilot/types';
 import type { ImportDiff } from '@/hooks/useAIGeneration';
 import type { AIReadinessState } from '@/hooks/ai-generation/readiness';
+import type { AgentTurnControls } from '@/hooks/ai-generation/useFlowpilotAgent';
 import { SECTION_CARD_CLASS, SECTION_SURFACE_CLASS, STATUS_SURFACE_CLASS } from '@/lib/designTokens';
 import { STUDIO_AI_COPY } from './studioAICopy';
 import { FlowpilotChangeSummary } from './FlowpilotChangeSummary';
+import { FlowpilotAgentTurn } from './FlowpilotAgentTurn';
 
 export type AIGenerationMode = 'edit' | 'create';
 type TranslateFn = (...args: unknown[]) => string;
@@ -97,6 +99,7 @@ interface ChatHistoryViewProps {
   hasHistory: boolean;
   chatMessages: ChatMessage[];
   assistantThread: AssistantThreadItem[];
+  agentTurnControls?: AgentTurnControls;
   isGenerating: boolean;
   streamingText: string | null;
   retryCount: number;
@@ -192,7 +195,23 @@ function renderPlanContent(item: AssistantThreadItem): ReactElement {
   );
 }
 
-function renderThreadContent(item: AssistantThreadItem, t: TranslateFn): ReactElement {
+interface AgentTurnContext {
+  controls?: AgentTurnControls;
+  latestItemId?: string;
+  busy: boolean;
+}
+
+function renderThreadContent(item: AssistantThreadItem, t: TranslateFn, agent: AgentTurnContext): ReactElement {
+  if (item.type === 'assistant_agent_turn') {
+    return (
+      <FlowpilotAgentTurn
+        item={item}
+        controls={agent.controls}
+        isLatest={item.id === agent.latestItemId}
+        busy={agent.busy}
+      />
+    );
+  }
   if (item.type === 'assistant_canvas_preview') {
     const status = item.previewStatus ?? (item.applied ? 'applied' : 'superseded');
     const statusLabels = {
@@ -244,7 +263,7 @@ function getStreamingStatusCopy(
   return 'Understanding the request and deciding whether to answer in chat or prepare a canvas preview.';
 }
 
-function renderThreadItem(item: AssistantThreadItem, t: TranslateFn): ReactElement {
+function renderThreadItem(item: AssistantThreadItem, t: TranslateFn, agent: AgentTurnContext): ReactElement {
   const isUser = item.role === 'user';
 
   return (
@@ -252,7 +271,7 @@ function renderThreadItem(item: AssistantThreadItem, t: TranslateFn): ReactEleme
       <div
         className={`max-w-[88%] rounded-[var(--radius-md)] px-3.5 py-2.5 text-sm whitespace-pre-wrap ${getThreadBubbleClassName(isUser)}`}
       >
-        {renderThreadContent(item, t)}
+        {renderThreadContent(item, t, agent)}
         {isUser || item.type === 'assistant_canvas_preview' ? null : renderThreadAssetMatches(item)}
         {isUser || item.type === 'assistant_canvas_preview' ? null : renderThreadPreview(item)}
       </div>
@@ -264,6 +283,7 @@ export function ChatHistoryView({
   hasHistory,
   chatMessages,
   assistantThread,
+  agentTurnControls,
   isGenerating,
   streamingText,
   retryCount,
@@ -278,12 +298,17 @@ export function ChatHistoryView({
   t,
 }: ChatHistoryViewProps): ReactElement {
   if (hasHistory) {
+    const latestItem = assistantThread.at(-1);
+    // A running Copilot turn shows its own progress and saves itself when it ends.
+    const isAgentTurnLive = latestItem?.agentTurn?.status === 'running' || latestItem?.agentTurn?.status === 'waiting';
+    const agent = { controls: agentTurnControls, latestItemId: latestItem?.id, busy: isGenerating };
     return (
       <>
         <div className="flex items-center justify-end px-1 pb-2">
           <button
             onClick={onClearChat}
-            className="rounded-full p-2 text-[var(--brand-secondary)] transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
+            disabled={isAgentTurnLive}
+            className="rounded-full p-2 text-[var(--brand-secondary)] transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             title={t('commandBar.ai.clearChat')}
           >
             <Trash2 className="h-4 w-4" />
@@ -295,8 +320,8 @@ export function ChatHistoryView({
           aria-live="polite"
           className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-4 custom-scrollbar"
         >
-          {assistantThread.map((item) => renderThreadItem(item, t))}
-          {isGenerating ? (
+          {assistantThread.map((item) => renderThreadItem(item, t, agent))}
+          {isGenerating && !isAgentTurnLive ? (
             <div className="flex justify-start">
               <div className="max-w-[88%] rounded-[var(--radius-md)] rounded-bl-sm border border-[var(--color-brand-border)]/70 bg-[var(--brand-surface)] px-3.5 py-2.5 text-sm text-[var(--brand-text)] shadow-sm">
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-secondary)]">
@@ -378,7 +403,7 @@ export function ChatHistoryView({
 }
 
 interface ComposerSectionProps {
-  nodeCount: number;
+  showModeToggle: boolean;
   selectedNodeCount: number;
   effectiveGenerationMode: AIGenerationMode;
   selectedImage: string | null;
@@ -485,7 +510,7 @@ function AIRecoveryBanner({
 }
 
 export function ComposerSection({
-  nodeCount,
+  showModeToggle,
   selectedNodeCount,
   effectiveGenerationMode,
   selectedImage,
@@ -526,7 +551,7 @@ export function ComposerSection({
           onClearError={onClearError}
         />
       ) : null}
-      {nodeCount > 0 ? (
+      {showModeToggle ? (
         <div className="mb-3 flex rounded-[var(--radius-md)] border border-[var(--color-brand-border)]/80 bg-[var(--brand-background)]/80 p-1">
           <button
             onClick={() => onSetGenerationMode('edit')}

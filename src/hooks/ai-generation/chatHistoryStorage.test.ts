@@ -119,6 +119,30 @@ describe('chatHistoryStorage', () => {
     expect((await loadAssistantThreadHistory('doc-preview'))[0]).toMatchObject(item);
   });
 
+  it('round-trips a Copilot turn and saves one into a page that is no longer open', async () => {
+    const { loadAssistantThreadHistory, saveAssistantThreadHistory, saveAssistantThreadItem } = await import('./chatHistoryStorage');
+    const user = { id: 'user', role: 'user' as const, type: 'user_message' as const, content: 'Add a cache.', createdAt: '2026-09-22T00:00:00Z' };
+    const turn = {
+      id: 'turn', role: 'model' as const, type: 'assistant_agent_turn' as const, content: '', createdAt: '2026-09-22T00:00:01Z',
+      agentTurn: {
+        status: 'waiting' as const,
+        steps: [{ callId: 'call-1', name: 'edit_canvas', status: 'succeeded' as const }],
+        questions: [{ kind: 'question' as const, id: 'q-1', status: 'waiting' as const, question: 'Which cache?', allowFreeform: true }],
+      },
+    };
+    await saveAssistantThreadHistory('doc-agent', [user, turn]);
+    const saved = replaceChatThread.mock.calls[0][1];
+    loadChatThread.mockResolvedValue(saved);
+    expect(await loadAssistantThreadHistory('doc-agent')).toEqual([user, turn].map((item) => expect.objectContaining(item)));
+
+    const finished = { ...turn, content: 'Added it.', agentTurn: { ...turn.agentTurn, status: 'interrupted' as const, questions: [] } };
+    await saveAssistantThreadItem('doc-agent', finished);
+    expect(replaceChatThread).toHaveBeenLastCalledWith('doc-agent', [
+      expect.objectContaining({ id: 'user' }),
+      expect.objectContaining({ id: 'turn', parts: [{ text: 'Added it.' }], agentTurn: finished.agentTurn }),
+    ]);
+  });
+
   it('serializes conversation writes so a slow old save cannot overwrite a discard', async () => {
     let finish!: () => void;
     replaceChatThread.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));

@@ -388,30 +388,19 @@ ${docsContext}
     );
 }
 
+// Copilot chat runs as agent turns (useFlowpilotAgent), so this only serves the API key providers.
 export async function chatWithFlowpilot(
     history: ChatMessage[],
     newMessage: string,
     systemInstruction: string,
-    apiKeySetting?: string,
-    modelIdSetting?: string,
-    provider: AIProvider = 'copilot',
+    apiKeySetting: string | undefined,
+    modelIdSetting: string | undefined,
+    provider: AIProvider,
     customBaseUrlSetting?: string,
     onChunk?: (delta: string) => void,
     signal?: AbortSignal,
-    imageBase64?: string,
 ): Promise<string> {
     const modelId = resolveModelId(provider, modelIdSetting);
-
-    if (provider === 'copilot') {
-        return requestCopilot({
-            prompt: newMessage,
-            systemInstruction,
-            history: historyToMessages(history),
-            model: modelId || DEFAULT_MODELS.copilot,
-            image: imageBase64,
-        }, onChunk, signal);
-    }
-
     const apiKey = resolveApiKey(provider, apiKeySetting);
     if (provider === 'gemini') {
         return chatWithSystemInstructionGemini(

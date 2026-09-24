@@ -33,6 +33,7 @@ export function useFlowEditorScreenBehavior(params: {
     recordHistory: screenState.recordHistory,
     fitView: screenState.fitView,
     screenToFlowPosition: screenState.screenToFlowPosition,
+    addToast,
   });
 
   useFlowEditorInteractionBindings({

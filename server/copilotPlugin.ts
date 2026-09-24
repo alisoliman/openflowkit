@@ -1,13 +1,16 @@
 import type { Connect, Plugin, ViteDevServer } from 'vite';
+import { createCopilotAgentEndpoint } from './copilotAgentEndpoint';
 import { createCopilotMiddleware } from './copilotMiddleware';
 import { createCopilotRuntime } from './copilotRuntime';
 
 export function copilotPlugin(): Plugin {
   function attach(middlewares: Connect.Server, server: ViteDevServer['httpServer']) {
     const runtime = createCopilotRuntime();
+    const agent = createCopilotAgentEndpoint(runtime);
     middlewares.use(createCopilotMiddleware(runtime));
+    server?.on('upgrade', agent.upgrade);
     server?.once('close', () => {
-      void runtime.stop().catch((error: unknown) => {
+      void Promise.all([agent.close(), runtime.stop()]).catch((error: unknown) => {
         console.error('[Flowpilot] Copilot shutdown failed.', error);
       });
     });

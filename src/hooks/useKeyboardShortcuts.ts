@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useFlowStore } from '@/store';
 import { requestNodeLabelEdit } from './nodeLabelEditRequest';
 
 interface ShortcutHandlers {
@@ -93,10 +94,12 @@ export function useKeyboardShortcuts({
       const isShift = e.shiftKey;
       const key = e.key.toLowerCase();
       const isEditable = isEditableEventTarget(e);
+      // While Flowpilot edits the page only help, fit view and zoom work.
+      const isAgentEditing = useFlowStore.getState().agentTurn !== null;
 
       // Command Bar (Cmd+K)
       if (isCmdOrCtrl && key === 'k') {
-        if (isEditable) return;
+        if (isEditable || isAgentEditing) return;
         e.preventDefault();
         onCommandBar();
         return;
@@ -104,7 +107,7 @@ export function useKeyboardShortcuts({
 
       // Search (Cmd+F)
       if (isCmdOrCtrl && key === 'f') {
-        if (isEditable) return;
+        if (isEditable || isAgentEditing) return;
         e.preventDefault();
         onSearch();
         return;
@@ -120,7 +123,7 @@ export function useKeyboardShortcuts({
       }
 
       // Select mode (V) / Pan mode (H) — Figma/draw.io standard
-      if (!isCmdOrCtrl && !isShift && !isEditable) {
+      if (!isCmdOrCtrl && !isShift && !isEditable && !isAgentEditing) {
         if (key === 'v') {
           e.preventDefault();
           onSelectMode?.();
@@ -153,6 +156,8 @@ export function useKeyboardShortcuts({
         onZoomOut?.();
         return;
       }
+
+      if (isAgentEditing) return;
 
       // Delete
       if (e.key === 'Delete' || e.key === 'Backspace') {

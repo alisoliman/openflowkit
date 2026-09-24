@@ -25,6 +25,7 @@ export type AssistantThreadItemType =
   | 'assistant_recommendation'
   | 'assistant_canvas_preview'
   | 'assistant_applied_result'
+  | 'assistant_agent_turn'
   | 'assistant_error';
 
 export interface AssetGroundingMatch {
@@ -87,6 +88,50 @@ export interface AssistantThreadItem {
   applied?: boolean;
   previewStatus?: 'pending' | 'applied' | 'discarded' | 'superseded' | 'undone';
   changes?: DiagramChangeSummary;
+  /** Set on `assistant_agent_turn` items; the reply is the content and the canvas changes are `changes`. */
+  agentTurn?: AgentTurnState;
+}
+
+export type AgentTurnStatus = 'running' | 'waiting' | 'done' | 'stopped' | 'failed' | 'interrupted';
+
+export interface AgentTurnStep {
+  callId: string;
+  /** A canvas tool name, or ask_user. */
+  name: string;
+  status: 'started' | 'succeeded' | 'failed';
+}
+
+/** `expired`: nobody answered for 10 minutes. `closed`: the turn ended first, by Stop, an error, an interruption or a reload. */
+type AgentQuestionStatus = 'waiting' | 'answered' | 'expired' | 'closed';
+
+/** A question from Copilot, or a removal the user has to confirm. Answering one that expired or closed starts a new turn. */
+export type AgentTurnQuestion =
+  | {
+    kind: 'question';
+    id: string;
+    status: AgentQuestionStatus;
+    question: string;
+    choices?: string[];
+    allowFreeform: boolean;
+    answer?: string;
+  }
+  | {
+    kind: 'confirm';
+    id: string;
+    status: AgentQuestionStatus;
+    removedLabels: string[];
+    removedCount: number;
+    clearsCanvas: boolean;
+    approved?: boolean;
+  };
+
+export interface AgentTurnState {
+  status: AgentTurnStatus;
+  steps: AgentTurnStep[];
+  questions: AgentTurnQuestion[];
+  error?: string;
+  /** The user reverted the turn with "Undo Copilot's changes". */
+  undone?: boolean;
 }
 
 export interface DiagramChange {

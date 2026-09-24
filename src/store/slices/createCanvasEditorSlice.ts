@@ -19,6 +19,7 @@ type CanvasEditorSliceState = Pick<
   | 'hoveredSectionId'
   | 'pendingNodeLabelEditRequest'
   | 'mermaidDiagnostics'
+  | 'agentTurn'
   | 'aiSettings'
 >;
 
@@ -47,13 +48,16 @@ type MermaidDiagnosticsActionsSlice = Pick<
   'setMermaidDiagnostics' | 'clearMermaidDiagnostics'
 >;
 
+type AgentTurnActionsSlice = Pick<FlowState, 'setAgentTurn'>;
+
 export type CanvasEditorSlice = CanvasEditorSliceState &
   CanvasActionsSlice &
   LayerActionsSlice &
   AISettingsActionsSlice &
   SelectionActionsSlice &
   NodeLabelEditActionsSlice &
-  MermaidDiagnosticsActionsSlice;
+  MermaidDiagnosticsActionsSlice &
+  AgentTurnActionsSlice;
 
 export function createCanvasEditorSlice(
   initialState: CanvasEditorSliceState,
@@ -70,6 +74,7 @@ export function createCanvasEditorSlice(
     hoveredSectionId: initialState.hoveredSectionId,
     pendingNodeLabelEditRequest: initialState.pendingNodeLabelEditRequest,
     mermaidDiagnostics: initialState.mermaidDiagnostics,
+    agentTurn: initialState.agentTurn,
     aiSettings: initialState.aiSettings,
     ...createCanvasActions(set, get),
     ...createLayerActions(set, get),

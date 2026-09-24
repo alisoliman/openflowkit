@@ -65,6 +65,9 @@ export async function importDiagramDocumentJson(params: {
   try {
     const raw = JSON.parse(json);
     const parsed = parseDiagramDocumentImport(raw);
+    // The layout cache keys on ids and edges only, so it would hand back an earlier document's nodes.
+    const { clearLayoutCache } = await import('@/services/elkLayout');
+    clearLayoutCache();
     const { nodes, edges } = await composeDiagramForDisplay(parsed.nodes, parsed.edges, {
       diagramType: parsed.diagramType,
     });

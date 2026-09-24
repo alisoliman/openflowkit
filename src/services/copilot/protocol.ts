@@ -4,6 +4,7 @@ export const COPILOT_API_PATH = '/api/copilot';
 export const COPILOT_CLIENT_HEADER = 'x-flowpilot-client';
 export const COPILOT_MAX_BODY_BYTES = 8 * 1024 * 1024;
 export const COPILOT_MAX_HISTORY_MESSAGES = 200;
+export const COPILOT_MAX_MESSAGE_CHARS = 1_000_000;
 export const COPILOT_MAX_RESPONSE_CHARS = 2 * 1024 * 1024;
 export const COPILOT_SETUP_MESSAGE =
   'The local Copilot runtime is unavailable. Run npm run dev (or npm run build && npm run preview) on this computer, then open the local app. Static hosted sites cannot access your Copilot CLI sign-in.';
@@ -15,12 +16,12 @@ export const COPILOT_HOSTED_SETUP_MESSAGE =
   'The hosted Copilot service is unavailable. Retry shortly or select an alternative provider in Settings > AI. Your saved diagrams remain on this device.';
 
 export const copilotRequestSchema = z.object({
-  prompt: z.string().trim().min(1).max(1_000_000),
+  prompt: z.string().trim().min(1).max(COPILOT_MAX_MESSAGE_CHARS),
   systemInstruction: z.string().min(1).max(100_000),
   model: z.string().trim().min(1).max(200).default('auto'),
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
-    content: z.string().max(1_000_000),
+    content: z.string().max(COPILOT_MAX_MESSAGE_CHARS),
   }).strict()).max(COPILOT_MAX_HISTORY_MESSAGES).default([]),
   image: z.string().max(7_000_000)
     .regex(/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/)
@@ -56,6 +57,7 @@ export const copilotErrorCodeSchema = z.enum([
   'bad_response',
   'copilot_access_denied',
   'quota_exceeded',
+  'interrupted',
 ]);
 
 export const copilotErrorSchema = z.object({

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { chatWithDocs, chatWithFlowpilot, generateDiagramFromChat } from './aiService';
+import { chatWithDocs, generateDiagramFromChat } from './aiService';
 
 const request = vi.hoisted(() => vi.fn().mockResolvedValue('flow: "Test"'));
 vi.mock('./copilot/client', () => ({ requestCopilot: request }));
@@ -37,12 +37,9 @@ describe('Copilot as the Flowpilot engine', () => {
     expect(requestSignal).toBe(signal);
   });
 
-  it('routes conversations and documentation answers through the same SDK engine', async () => {
-    await chatWithFlowpilot([], 'Explain this diagram', 'Answer, do not generate DSL.');
-    expect(request.mock.calls[0][0]).toMatchObject({
-      prompt: 'Explain this diagram', systemInstruction: 'Answer, do not generate DSL.', model: 'auto',
-    });
+  it('routes documentation answers through the same SDK engine', async () => {
     await chatWithDocs([], 'How do I export?', 'Use the export button.');
-    expect(request.mock.calls[1][0].systemInstruction).toContain('Use the export button.');
+    expect(request.mock.calls[0][0]).toMatchObject({ prompt: 'How do I export?', model: 'auto' });
+    expect(request.mock.calls[0][0].systemInstruction).toContain('Use the export button.');
   });
 });

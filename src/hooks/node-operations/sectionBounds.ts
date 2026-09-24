@@ -10,6 +10,11 @@ export const SECTION_PADDING_BOTTOM = 32;
 // Title now floats ABOVE the section border — no internal header space needed
 export const SECTION_HEADER_HEIGHT = 16;
 export const SECTION_CONTENT_PADDING_TOP = SECTION_HEADER_HEIGHT;
+// SectionNode draws sections at least this big (Mermaid-imported ones only when they have no size),
+// with the title floating this far above the border.
+export const SECTION_RENDER_MIN_WIDTH = 350;
+export const SECTION_RENDER_MIN_HEIGHT = 250;
+export const SECTION_TITLE_OFFSET = 36;
 
 export interface NodeBounds {
   x: number;

@@ -15,6 +15,7 @@ import type { CodebaseAnalysis } from '@/hooks/ai-generation/codebaseAnalyzer';
 import type { SupportedLanguage } from '@/hooks/ai-generation/codeToArchitecture';
 import type { TerraformInputFormat } from '@/hooks/ai-generation/terraformToCloud';
 import type { AIReadinessState } from '@/hooks/ai-generation/readiness';
+import type { AgentTurnControls } from '@/hooks/ai-generation/useFlowpilotAgent';
 
 export interface CommandBarPanelBuilderParams {
   isCommandBarOpen: boolean;
@@ -118,6 +119,7 @@ export interface StudioRailBuilderParams {
   onClearAIError: () => void;
   chatMessages: ChatMessage[];
   assistantThread: AssistantThreadItem[];
+  agentTurnControls?: AgentTurnControls;
   canUndoLastChange?: boolean;
   undoLastChange?: () => void;
   clearChat: () => void;
@@ -338,6 +340,7 @@ export function buildStudioRailProps({
   onClearAIError,
   chatMessages,
   assistantThread,
+  agentTurnControls,
   canUndoLastChange,
   undoLastChange,
   clearChat,
@@ -368,6 +371,7 @@ export function buildStudioRailProps({
     onClearAIError,
     chatMessages,
     assistantThread,
+    agentTurnControls,
     canUndoLastChange,
     undoLastChange,
     onClearChat: clearChat,

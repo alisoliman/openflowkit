@@ -29,6 +29,7 @@ describe('Flowpilot runtime controls', () => {
   });
 
   it('requires an explicit opt-in to automatic edits and explains undo', () => {
+    useFlowStore.getState().setAISettings({ provider: 'openai', model: 'gpt-5-mini' });
     render(<FlowpilotControls isGenerating={false} />);
     const toggle = screen.getByRole('checkbox', { name: 'Apply edits automatically' });
     expect(toggle).not.toBeChecked();
@@ -41,10 +42,22 @@ describe('Flowpilot runtime controls', () => {
   });
 
   it('locks model, execution mode, and undo while a request is running', () => {
-    render(<FlowpilotControls isGenerating canUndo onUndo={vi.fn()} />);
+    const { unmount } = render(<FlowpilotControls isGenerating canUndo onUndo={vi.fn()} />);
     expect(screen.getByRole('combobox', { name: 'Copilot model' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Undo AI edit' })).toBeDisabled();
+    unmount();
+
+    useFlowStore.getState().setAISettings({ provider: 'openai', model: 'gpt-5-mini' });
+    render(<FlowpilotControls isGenerating canUndo onUndo={vi.fn()} />);
     expect(screen.getByRole('checkbox', { name: 'Apply edits automatically' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Undo AI edit' })).toBeDisabled();
+  });
+
+  it('hides the review settings for Copilot, which edits the canvas live', () => {
+    render(<FlowpilotControls isGenerating={false} />);
+    expect(screen.queryByRole('checkbox', { name: 'Apply edits automatically' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Review each change before it reaches the canvas.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo AI edit' })).not.toBeInTheDocument();
   });
 
   it('exposes the harness undo action when it is safe to use', () => {

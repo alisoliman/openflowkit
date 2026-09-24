@@ -64,6 +64,7 @@ function createState(snapshotCount = 0): FlowState {
     onEdgesChange: () => undefined,
     setNodes: () => undefined,
     setEdges: () => undefined,
+    setGraph: () => undefined,
     onConnect: () => undefined,
     recordHistoryV2: () => undefined,
     undoV2: () => undefined,
@@ -124,6 +125,7 @@ function createState(snapshotCount = 0): FlowState {
     hoveredSectionId: null,
     pendingNodeLabelEditRequest: null,
     mermaidDiagnostics: null,
+    agentTurn: null,
     setSelectedNodeId: () => undefined,
     setSelectedEdgeId: () => undefined,
     setHoveredSectionId: () => undefined,
@@ -131,6 +133,7 @@ function createState(snapshotCount = 0): FlowState {
     clearPendingNodeLabelEditRequest: () => undefined,
     setMermaidDiagnostics: () => undefined,
     clearMermaidDiagnostics: () => undefined,
+    setAgentTurn: () => undefined,
     lastUpdateTime: 0,
     updateLastSaveTime: () => undefined,
   };
@@ -159,5 +162,24 @@ describe('createHistoryActions', () => {
     actions.recordHistoryV2();
 
     expect(nextState.tabs?.[0]?.history.past.length).toBeLessThanOrEqual(20);
+  });
+
+  it('does not undo or redo while a Flowpilot turn edits the page', () => {
+    const run = (agentTurn: FlowState['agentTurn'], action: 'undoV2' | 'redoV2') => {
+      let nextState: Partial<FlowState> = {};
+      const state = { ...createState(2), agentTurn };
+      state.tabs[0].history.future = [{ nodes: [], edges: [] }];
+      const actions = createHistoryActions((updater) => {
+        nextState = typeof updater === 'function' ? updater(state) : updater;
+      }, () => state);
+      actions[action]();
+      return nextState;
+    };
+    const turn = { turnId: 'turn-1', pageId: 'tab-1' };
+
+    expect(run(turn, 'undoV2')).toEqual({});
+    expect(run(turn, 'redoV2')).toEqual({});
+    expect(run(null, 'undoV2').tabs?.[0]?.history.past).toHaveLength(1);
+    expect(run(null, 'redoV2').tabs?.[0]?.history.future).toHaveLength(0);
   });
 });

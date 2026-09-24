@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { ingestUserMediaFile } from '@/services/storage/assetStore';
 import { reportStorageTelemetry } from '@/services/storage/storageTelemetry';
+import { useFlowStore } from '@/store';
 
 interface UseFlowCanvasDragDropParams {
   screenToFlowPosition: (position: { x: number; y: number }) => { x: number; y: number };
@@ -62,6 +63,11 @@ export function useFlowCanvasDragDrop({
         });
         void ingestUserMediaFile(file, 'image', { fileName: file.name })
           .then((result) => {
+            // A Flowpilot turn that started while the image was stored owns the page, so the image is not added.
+            if (useFlowStore.getState().agentTurn) {
+              onImageDropError?.('Flowpilot is editing this page. Drop the image again after it finishes.');
+              return;
+            }
             handleAddImage(
               result.assetId ? '' : result.displayUrl,
               position,

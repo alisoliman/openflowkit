@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { CommandItem, CommandView } from './types';
 import { SearchField } from '../ui/SearchField';
 import { fuzzyMatch, fuzzyScore } from '@/lib/fuzzyMatch';
+import { useFlowStore } from '@/store';
 
 interface RootViewProps {
   commands: CommandItem[];
@@ -157,6 +158,8 @@ export const RootView = ({
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // The bar stays open but inert during a Flowpilot turn, while these keys belong to the chat.
+      if (useFlowStore.getState().agentTurn) return;
       const len = filteredCommands.length;
       if (e.key === 'ArrowDown') {
         e.preventDefault();

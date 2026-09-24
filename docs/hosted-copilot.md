@@ -18,35 +18,51 @@ and an organization policy that allows it.
 
 Connections last seven days from sign-in, including across server restarts.
 GitHub's expiring user tokens are renewed server-side; the application session
-does not slide indefinitely. **Disconnect GitHub** removes that browser's
-server-side credential record and clears its cookie. It does not delete diagrams,
-change other AI provider settings, or revoke the entire GitHub App grant on
-other devices. Users can revoke the grant in GitHub's application settings.
-Active generations recheck their application authorization every five seconds
-and before returning a completed draft, including when disconnection happens on
-another replica. Cancellation can still consume Copilot usage.
+does not slide indefinitely. An agent turn asks for a renewed token while it
+runs, so a long turn outlasts the token it started with. **Disconnect GitHub**
+removes that browser's server-side credential record and clears its cookie. It
+does not delete diagrams, change other AI provider settings, or revoke the
+entire GitHub App grant on other devices. Users can revoke the grant in GitHub's
+application settings.
+Active generations and agent turns recheck their application authorization
+every five seconds, including when disconnection happens on another replica.
+Generations also recheck before returning a completed draft; a disconnected
+agent turn stops and keeps the changes it already made. An agent turn whose
+check cannot reach the store is interrupted instead, so the browser can
+continue it. Cancellation can still consume Copilot usage.
 
-The server admits at most 20 simultaneous generations and one per GitHub
-account across browser tabs, devices, replicas, and deployment revisions. There
-is no queue: excess requests receive an explicit busy response and can be
-retried. Stale admission leases expire after five minutes following a crash.
-These are admission limits, not a measured throughput guarantee.
+Flowpilot chat runs as agent turns that edit the canvas live and may take many
+steps. Turns have no step or time limit; **Stop** ends one at any point. Most
+Copilot plans bill by tokens since 2026-06-01, so a long turn costs the user more
+than a single diagram request.
+
+The server admits at most 20 simultaneous generations or agent turns and one per
+GitHub account across browser tabs, devices, replicas, and deployment revisions.
+There is no queue: excess requests receive an explicit busy response and can be
+retried. Stale admission leases expire after five minutes following a crash;
+agent turns renew theirs every minute while they run. These are admission
+limits, not a measured throughput guarantee.
 
 ## Runtime and data boundaries
 
 - A shared, explicitly selected stdio Copilot runtime uses `mode: "empty"`.
   Its environment excludes the web server's GitHub App secret, Azure managed
   identity credentials, and operator GitHub/Copilot tokens.
-- Every model-discovery or generation session receives the requesting user's
-  token and a server-generated session ID. There is no client-controlled
+- Every model-discovery, generation, or agent session receives the requesting
+  user's token and a server-generated session ID. There is no client-controlled
   session resume, deletion, tool, filesystem, or credential parameter.
+- Agent sessions expose only the OpenFlowKit canvas tools and `ask_user`, with a
+  server-owned system message; every other permission request is rejected.
+  Their tool handlers relay each call to the browser that started the turn and
+  return its result. They have no filesystem, environment, or network access.
 - Models are discovered through the user's session, never a global account
   cache. Missing entitlement and quota errors are distinct from GitHub sign-in.
 - Host tools, MCP, configuration discovery, skills, host Git operations,
   cross-session memory, shared embedding retrieval, and session telemetry are
   disabled. Runtime content logging is disabled.
-- Prompts, requested diagram context, chat context, and images transit the
-  backend to GitHub. They are not deliberately persisted by the application.
+- Prompts, requested diagram context, chat context, images, and agent tool
+  results transit the backend to GitHub. They are not deliberately persisted by
+  the application.
   Temporary SDK sessions are deleted after processing; cleanup failure makes
   the runtime unhealthy so the container is restarted. Do not mount persistent
   storage at its temporary runtime directory.
@@ -62,6 +78,66 @@ These are admission limits, not a measured throughput guarantee.
 - Diagrams and chats remain in the browser, tied to its origin. There is no
   cross-device synchronization or old-site migration in this release. GitHub's
   own processing and retention policies still apply.
+
+## Agent socket
+
+Copilot chat uses a WebSocket at `/api/copilot/agent`, one per turn, so a turn
+never needs to reach the same replica twice. Upgrades bypass the request
+listener, so the server repeats the hosted checks before accepting one:
+
+- Other upgrade paths receive 404.
+- `Host` must match the `PUBLIC_ORIGIN` host, `Origin` must equal
+  `PUBLIC_ORIGIN`, and `Sec-Fetch-Site`, when sent, must be `same-origin`. The
+  `flowpilot-agent.v1` subprotocol stands in for the client header that browsers
+  cannot set on a socket. Failures receive 403.
+- The session cookie is authorized before the upgrade completes. Without a
+  GitHub connection the upgrade receives 401; during shutdown it receives 503.
+
+The socket first takes the account's admission lease and reads nothing until
+it has it, so a busy account gets an error message without its start being
+read. When the turn ends, the socket stops reading and frees the lease before
+it reports the end, so the next turn does not find the account busy. The first
+message must be a valid start message within 30 seconds of connecting. Messages
+are schema-checked with per-type size limits, and an invalid one closes the
+socket with code 1008. The server pings every 25 seconds and drops a socket
+that stays silent for 60 seconds.
+
+There is no turn deadline. A question waits up to 10 minutes for an answer, and
+the runtime's 15-minute session idle timeout does not reap a waiting session.
+On SIGTERM the server stops accepting sockets, ends running turns as
+interrupted, and closes them with code 1001 within the 15-second shutdown
+deadline. The browser keeps the changes made so far and offers to continue.
+Logs record only error codes, never prompts, canvas content, or tool arguments.
+
+### Azure Container Apps findings
+
+These come from Microsoft's documentation, not from a deployment:
+
+- HTTP ingress supports WebSocket and documents a 240-second request timeout
+  ([ingress overview](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)).
+  Only premium ingress can change it, as an idle request timeout of 4 to 30
+  minutes ([environment ingress configuration](https://learn.microsoft.com/en-us/azure/container-apps/ingress-environment-configuration));
+  this Consumption environment does not use premium ingress. The 25-second ping
+  keeps a waiting socket active, assuming the limit applies to idle sockets.
+  Confirm this once on the canonical origin by leaving a Flowpilot question
+  unanswered for more than four minutes and then answering it. That check uses
+  a small amount of Copilot quota and needs the same approval as other live checks.
+- On scale-in or revision deactivation, a replica receives SIGTERM and then
+  SIGKILL after `terminationGracePeriodSeconds`, 30 seconds by default
+  ([application lifecycle](https://learn.microsoft.com/en-us/azure/container-apps/application-lifecycle-management),
+  [template reference](https://learn.microsoft.com/en-us/dotnet/api/azure.resourcemanager.appcontainers.models.containerapptemplate.terminationgraceperiodseconds?view=azure-dotnet)).
+  The 15-second shutdown deadline fits within it.
+- How open WebSockets drain when traffic moves between revisions is not
+  documented ([azure-container-apps#493](https://github.com/microsoft/azure-container-apps/issues/493)).
+  New turns open on the new revision. A turn still running on the old revision
+  when it is deactivated ends as interrupted and can be continued. No session
+  affinity is needed, because each turn uses one socket and leases live in the
+  shared table.
+- The 180-second runtime and 210-second request timeouts apply only to one-shot
+  generations at `/api/copilot/chat`, which the importers and documentation
+  answers still use. The 240-second ingress timeout may also apply to agent
+  sockets, as described above; this is unverified. Both paths take the
+  300-second admission lease; agent turns renew it every minute.
 
 ## GitHub App prerequisites
 
@@ -157,9 +233,9 @@ After resource and cost approval:
    Apps managed TLS certificate. Do not purchase an App Service TLS certificate.
    Preserve the certificate ID as `managedCertificateId` on later Bicep runs.
 7. Verify `/readyz`, anonymous editing, real GitHub App sign-in and Copilot
-   access, streaming, cancellation, account separation, token renewal,
-   disconnection, and error recovery on the canonical origin before opening it
-   publicly. The generated Azure hostname is suitable for health checks; the
+   access, streaming, agent turns and questions, cancellation, account
+   separation, token renewal, disconnection, and error recovery on the
+   canonical origin before opening it publicly. The generated Azure hostname is suitable for health checks; the
    authenticated API deliberately accepts only `PUBLIC_ORIGIN`.
 
 The original static deployment and nginx `Dockerfile` remain separate and
@@ -200,18 +276,19 @@ HOSTED_AZURE_SUBSCRIPTION_ID
 `scripts/deploy-hosted.sh` pins traffic to the current revision, stages the new
 image by digest, and checks that the candidate `/readyz` reports the expected
 commit and serves the hosted frontend. Only then does it move production traffic
-and verify the main ingress URL. It drains existing streams for four minutes
-before deactivating the old revision. Failure before successful promotion
+and verify the main ingress URL. It waits four minutes for existing streams
+and agent turns before deactivating the old revision. Failure before successful promotion
 restores the previous routing and attempts to deactivate the candidate, with
 explicit errors if recovery fails.
 
 `npm run test:hosted-runtime` checks the compiled Node server and its real bundled
 stdio runtime in isolated loopback mode, using placeholder GitHub App values.
 It verifies health, the anonymous editor, compressed assets, rejection of
-unauthenticated generation, OAuth initiation, and graceful shutdown. It does
-not authorize a GitHub account, send a model request, or use Azure resources.
+unauthenticated generation and agent sockets, OAuth initiation, and graceful
+shutdown. It does not authorize a GitHub account, send a model request, or use
+Azure resources.
 
-The API uses native Node streaming and does not pass through the Static Web Apps
-45-second API proxy. `/healthz` checks the local Copilot runtime; `/readyz` also
+The API uses native Node streaming and WebSockets and does not pass through the
+Static Web Apps 45-second API proxy. `/healthz` checks the local Copilot runtime; `/readyz` also
 checks access to the auth store. Neither requires a personal GitHub token or
 consumes a model request.

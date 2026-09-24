@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import ReactFlow, { Background } from '@/lib/reactflowCompat';
 import type {
   OnConnect,
@@ -24,6 +24,12 @@ import type { ConnectedEdgePreset } from '@/hooks/edge-operations/utils';
 import type { FlowCanvasReactFlowConfig } from './useFlowCanvasReactFlowConfig';
 import type { AlignmentGuides, SelectionDragPreview } from './alignmentGuides';
 import type { ContextMenuState } from './useFlowCanvasMenus';
+
+// A file dropped during a turn adds nothing, but it must not reach the browser, which would open it in the tab.
+function refuseDrop(event: React.DragEvent): void {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'none';
+}
 
 interface FlowCanvasSurfaceProps {
   containerClassName: string;
@@ -57,6 +63,8 @@ interface FlowCanvasSurfaceProps {
   onDragOver: React.DragEventHandler<HTMLDivElement>;
   onDrop: React.DragEventHandler<HTMLDivElement>;
   fitView: boolean;
+  /** A Flowpilot turn is editing the page: nothing on the canvas reacts, but it still pans and zooms. */
+  isAgentEditing: boolean;
   reactFlowConfig: FlowCanvasReactFlowConfig;
   snapToGrid: boolean;
   effectiveShowGrid: boolean;
@@ -118,6 +126,7 @@ export function FlowCanvasSurface({
   onDragOver,
   onDrop,
   fitView,
+  isAgentEditing,
   reactFlowConfig,
   snapToGrid,
   effectiveShowGrid,
@@ -137,14 +146,36 @@ export function FlowCanvasSurface({
   const selectedNodeCount = nodes.filter((node) => node.selected).length;
   const selectedEdgeCount = edges.filter((edge) => edge.selected).length;
   const selectedItemCount = selectedNodeCount + selectedEdgeCount;
+  const editHandlers = isAgentEditing
+    ? { onDragOver: refuseDrop, onDrop: refuseDrop }
+    : {
+        onNodeDoubleClick,
+        onNodeClick,
+        onEdgeClick,
+        onNodeContextMenu,
+        onSelectionContextMenu,
+        onPaneContextMenu,
+        onEdgeContextMenu,
+        onPaneClick,
+        onDragOver,
+        onDrop,
+      };
+
+  // Buttons inside nodes and edge labels (quick create, collapse, field editors) stay mounted
+  // during a turn, so the viewport also leaves the tab order. The pane underneath still pans and zooms.
+  useEffect(() => {
+    wrapperRef.current
+      ?.querySelector('.react-flow__viewport')
+      ?.toggleAttribute('inert', isAgentEditing);
+  }, [isAgentEditing, wrapperRef]);
 
   return (
     <div
       className={containerClassName}
       ref={wrapperRef}
       onPointerDownCapture={onPointerDownCapture}
-      onPasteCapture={onPasteCapture}
-      onDoubleClickCapture={onDoubleClickCapture}
+      onPasteCapture={isAgentEditing ? undefined : onPasteCapture}
+      onDoubleClickCapture={isAgentEditing ? undefined : onDoubleClickCapture}
     >
       {selectedItemCount > 1 ? (
         <div className="pointer-events-none absolute right-5 top-5 z-30">
@@ -175,18 +206,16 @@ export function FlowCanvasSurface({
         onNodeDragStop={onNodeDragStop}
         onMoveStart={onMoveStart}
         onMoveEnd={onMoveEnd}
-        onNodeDoubleClick={onNodeDoubleClick}
-        onNodeClick={onNodeClick}
-        onEdgeClick={onEdgeClick}
-        onNodeContextMenu={onNodeContextMenu}
-        onSelectionContextMenu={onSelectionContextMenu}
-        onPaneContextMenu={onPaneContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
-        onPaneClick={onPaneClick}
+        {...editHandlers}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+        nodesDraggable={!isAgentEditing}
+        nodesConnectable={!isAgentEditing}
+        edgesReconnectable={!isAgentEditing}
+        elementsSelectable={!isAgentEditing}
+        deleteKeyCode={isAgentEditing ? null : undefined}
+        // Arrow keys still move a selection or a node that sets its own draggable.
+        disableKeyboardA11y={isAgentEditing}
         nodeTypes={flowCanvasNodeTypes}
         edgeTypes={flowCanvasEdgeTypes}
         fitView={fitView}
@@ -224,21 +253,24 @@ export function FlowCanvasSurface({
         <NavigationControls />
       </ReactFlow>
       <StreamingOverlay />
-      <FlowCanvasOverlays
-        alignmentGuidesEnabled={alignmentGuidesEnabled}
-        alignmentGuides={alignmentGuides}
-        overlayNodes={nodes}
-        selectionDragPreview={selectionDragPreview}
-        connectMenu={connectMenu}
-        setConnectMenu={setConnectMenu}
-        screenToFlowPosition={screenToFlowPosition}
-        handleAddAndConnect={handleAddAndConnect}
-        handleAddDomainLibraryItemAndConnect={handleAddDomainLibraryItemAndConnect}
-        contextMenu={contextMenu}
-        onCloseContextMenu={onCloseContextMenu}
-        copySelection={copySelection}
-        contextActions={contextActions}
-      />
+      {/* A context or connect menu left open when the turn started must not edit either. */}
+      <div className="contents" inert={isAgentEditing}>
+        <FlowCanvasOverlays
+          alignmentGuidesEnabled={alignmentGuidesEnabled}
+          alignmentGuides={alignmentGuides}
+          overlayNodes={nodes}
+          selectionDragPreview={selectionDragPreview}
+          connectMenu={connectMenu}
+          setConnectMenu={setConnectMenu}
+          screenToFlowPosition={screenToFlowPosition}
+          handleAddAndConnect={handleAddAndConnect}
+          handleAddDomainLibraryItemAndConnect={handleAddDomainLibraryItemAndConnect}
+          contextMenu={contextMenu}
+          onCloseContextMenu={onCloseContextMenu}
+          copySelection={copySelection}
+          contextActions={contextActions}
+        />
+      </div>
     </div>
   );
 }

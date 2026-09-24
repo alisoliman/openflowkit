@@ -19,6 +19,7 @@ import {
   getLatestAssistantResponse,
   getPendingConversationPlan,
   setPreviewStatus,
+  upsertThreadItem,
 } from '@/services/flowpilot/thread';
 import type { AssetGroundingMatch, DiagramChangeSummary } from '@/services/flowpilot/types';
 import { getCanvasFingerprint, summarizeDiagramChanges } from '@/services/flowpilot/changeSummary';
@@ -45,6 +46,7 @@ import { buildOpenApiToSequencePrompt } from './ai-generation/openApiToSequence'
 import { getAIReadinessState } from './ai-generation/readiness';
 import { useCopilotConnection } from './ai-generation/useCopilotConnection';
 import { useAssistantThread } from './ai-generation/useAssistantThread';
+import { useFlowpilotAgent } from './ai-generation/useFlowpilotAgent';
 import { notifyOperationOutcome } from '@/services/operationFeedback';
 
 const logger = createLogger({ scope: 'useAIGeneration' });
@@ -196,8 +198,11 @@ interface AppliedChange {
   undoSnapshot: FlowHistoryState | undefined;
 }
 
-export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void) {
-  const { nodes, edges, aiSettings, globalEdgeOptions, activeTabId } = useFlowStore();
+export function useAIGeneration(
+  applyComposedGraph: (nodes: FlowNode[], edges: FlowEdge[]) => void,
+  fitView?: (options?: { duration?: number; padding?: number }) => void
+) {
+  const { nodes, edges, aiSettings, globalEdgeOptions, activeTabId, agentTurn } = useFlowStore();
   const selectedNodeIds = nodes.filter((n) => n.selected).map((n) => n.id);
   const { addToast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -208,7 +213,8 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
   const [lastAppliedChange, setLastAppliedChange] = useState<AppliedChange | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  const { connection } = useCopilotConnection((aiSettings.provider ?? 'copilot') === 'copilot');
+  const isCopilot = (aiSettings.provider ?? 'copilot') === 'copilot';
+  const { connection } = useCopilotConnection(isCopilot);
   const providerReadiness = useMemo(() => getAIReadinessState(aiSettings, connection), [aiSettings, connection]);
   const readiness = useMemo(() => !threadReady && providerReadiness.canGenerate ? {
     ...providerReadiness,
@@ -225,26 +231,45 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
     ? pendingDiff : null;
   const activeHistory = useFlowStore((state) => state.tabs.find((tab) => tab.id === state.activeTabId)?.history);
   const canUndoLastChange = Boolean(
-    lastAppliedChange
+    !agentTurn
+    && lastAppliedChange
     && lastAppliedChange.documentId === activeTabId
     && lastAppliedChange.fingerprint === canvasFingerprint
     && lastAppliedChange.undoSnapshot
     && activeHistory?.past.at(-1) === lastAppliedChange.undoSnapshot
   );
 
+  // Copilot chat runs agent turns; the other providers keep the one-shot requests below.
+  const agent = useFlowpilotAgent({
+    pageId: activeTabId,
+    model: aiSettings.model ?? '',
+    thread: assistantThread,
+    updateThread,
+    blockedReason: !readiness.canGenerate && readiness.blockingIssue ? readiness.blockingIssue.detail : null,
+    onError: setLastError,
+    fitView,
+  });
+  const displayedThread = useMemo(
+    () => agent.liveItem ? upsertThreadItem(assistantThread, agent.liveItem) : assistantThread,
+    [agent.liveItem, assistantThread]
+  );
+
   const chatMessages = useMemo(() => assistantThreadToChatMessages(assistantThread), [assistantThread]);
 
   useEffect(() => () => abortControllerRef.current?.abort(), [activeTabId]);
 
+  const { send: sendAgentTurn, stop: stopAgentTurn, isRunning: isAgentRunning } = agent;
   const cancelGeneration = useCallback(() => {
     abortControllerRef.current?.abort();
-  }, []);
+    stopAgentTurn();
+  }, [stopAgentTurn]);
 
   const clearChat = useCallback(() => {
+    if (isAgentRunning) return;
     abortControllerRef.current?.abort();
     setPendingDiff(null);
     updateThread(() => []);
-  }, [updateThread]);
+  }, [isAgentRunning, updateThread]);
 
   const clearLastError = useCallback(() => {
     setLastError(null);
@@ -252,6 +277,9 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
 
   const applyChange = useCallback((preview: ImportDiff) => {
     const current = useFlowStore.getState();
+    if (current.agentTurn) {
+      throw new Error('Flowpilot is editing this page. Try again after it finishes.');
+    }
     if (current.activeTabId !== preview.documentId || getCanvasFingerprint(current) !== preview.baselineFingerprint) {
       throw new Error('The canvas changed after this draft was prepared. Generate an updated draft before applying it.');
     }
@@ -289,6 +317,8 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
 
   const undoLastChange = useCallback(() => {
     const current = useFlowStore.getState();
+    // Undo is off while a Flowpilot turn runs, so this would not undo anything.
+    if (current.agentTurn) return;
     const history = current.tabs.find((tab) => tab.id === current.activeTabId)?.history;
     if (!lastAppliedChange || current.activeTabId !== lastAppliedChange.documentId
       || getCanvasFingerprint(current) !== lastAppliedChange.fingerprint
@@ -309,7 +339,7 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
       assetMatches: AssetGroundingMatch[],
       imageBase64?: string
     ): Promise<boolean> => {
-      if (abortControllerRef.current) return false;
+      if (abortControllerRef.current || useFlowStore.getState().agentTurn) return false;
       if (!readiness.canGenerate && readiness.blockingIssue) {
         setLastError(readiness.blockingIssue.detail);
         return false;
@@ -341,11 +371,10 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
           buildFlowpilotAssistantSystemInstruction(mode),
           aiSettings.apiKey,
           aiSettings.model,
-          aiSettings.provider || 'copilot',
+          aiSettings.provider,
           aiSettings.customBaseUrl,
           (delta) => setStreamingText((previous) => (previous ?? '') + delta),
-          controller.signal,
-          imageBase64
+          controller.signal
         );
 
         controller.signal.throwIfAborted();
@@ -405,7 +434,7 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
       previewDescriptor?: PreviewDescriptor,
       assetMatches?: AssetGroundingMatch[]
     ): Promise<boolean> => {
-      if (abortControllerRef.current) return false;
+      if (abortControllerRef.current || useFlowStore.getState().agentTurn) return false;
       if (!readiness.canGenerate && readiness.blockingIssue) {
         setLastError(readiness.blockingIssue.detail);
         notifyOperationOutcome(addToast, {
@@ -484,7 +513,8 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
           ...createPreviewThreadItem(result.dslText, previewDiff.previewTitle, previewDiff.previewDetail, previewDiff.previewStats, groundedAssets, previewDiff.changes),
           id: previewDiff.threadItemId,
         });
-        if (showPreview && !aiSettings.autoApply) {
+        // Copilot has no auto-apply setting, so a stale one from another provider is ignored.
+        if (showPreview && (isCopilot || !aiSettings.autoApply)) {
           setPendingDiff(previewDiff);
           notifyOperationOutcome(addToast, {
             status: 'success',
@@ -558,6 +588,7 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
       applyChange,
       currentPreview,
       updateThread,
+      isCopilot,
     ]
   );
 
@@ -568,6 +599,7 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
         addToast('The Flowpilot conversation is still loading. Please try again in a moment.', 'info');
         return false;
       }
+      if (isCopilot) return sendAgentTurn(prompt, imageBase64);
       const userThreadItem = createUserThreadItem(prompt, imageBase64);
       appendThreadItem(userThreadItem);
       if (currentPreview && getLatestAssistantResponse(assistantThread)?.id === currentPreview.threadItemId
@@ -626,12 +658,19 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
       confirmPendingDiff,
       currentPreview,
       threadReady,
+      isCopilot,
+      sendAgentTurn,
     ]
   );
 
   const handleFocusedAIRequest = useCallback(
     async (prompt: string, focusedNodeIds: string[], imageBase64?: string): Promise<boolean> => {
       if (abortControllerRef.current || !threadReady) return false;
+      // Copilot edits the node live with its tools; the other providers return the whole diagram.
+      if (isCopilot) {
+        const ids = focusedNodeIds.map((id) => JSON.stringify(id)).join(', ');
+        return sendAgentTurn(`${prompt}\n\nSelected node ids: ${ids}.`, imageBase64);
+      }
       appendThreadItem(createUserThreadItem(prompt, imageBase64));
       return runDiagramRequest(
         prompt,
@@ -643,7 +682,7 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
         undefined
       );
     },
-    [appendThreadItem, runDiagramRequest, threadReady]
+    [appendThreadItem, runDiagramRequest, threadReady, isCopilot, sendAgentTurn]
   );
 
   const handleCodeAnalysis = useCallback(
@@ -716,7 +755,7 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
   );
 
   return {
-    isGenerating,
+    isGenerating: isGenerating || isAgentRunning,
     streamingText,
     retryCount,
     cancelGeneration,
@@ -733,7 +772,8 @@ export function useAIGeneration(applyComposedGraph: (nodes: FlowNode[], edges: F
     handleOpenApiAnalysis,
     handleCodebaseAnalysis,
     chatMessages,
-    assistantThread,
+    assistantThread: displayedThread,
+    agentTurnControls: agent.controls,
     clearChat,
     clearLastError,
     canUndoLastChange,

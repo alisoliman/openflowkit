@@ -27,53 +27,20 @@ async function openFlowpilot(page: Page) {
   return prompt;
 }
 
-test('Copilot generation keeps preview approval, edit context, and node positions', async ({ page }) => {
-  await page.route('**/api/copilot/status', (route) => route.fulfill({ json: STATUS }));
-  const requests: Array<{ prompt: string; model: string; history: unknown[] }> = [];
-  let responseDsl = DSL;
-  await page.route('**/api/copilot/chat', async (route) => {
-    const body = route.request().postDataJSON();
-    requests.push(body);
-    expect(body).not.toHaveProperty('apiKey');
-    expect(body.systemInstruction).toContain('OpenFlow');
-    await route.fulfill({
-      contentType: 'application/x-ndjson',
-      body: `${JSON.stringify({ type: 'delta', text: responseDsl })}\n${JSON.stringify({ type: 'done', text: responseDsl })}\n`,
-    });
-  });
-  const prompt = await openFlowpilot(page);
-  await expect(page.getByRole('button', { name: 'Set up Flowpilot' })).toBeHidden();
-  await prompt.fill('Create a simple flowchart with Client connected to API.');
-  await page.getByLabel('Generate with Flowpilot', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Apply to canvas' })).toBeVisible();
-  await expect(page.locator('.react-flow__node')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Apply to canvas' }).click();
-  await expect(page.locator('.react-flow__node')).toHaveCount(2);
-  expect(requests[0].model).toBe('auto');
+// Importers and docs answers still use the one-shot Copilot chat endpoint.
+async function runSqlImport(page: Page) {
+  await page.goto('/#/home');
+  await page.getByTestId('home-create-new-main').click();
+  await expect(page.locator('.react-flow')).toBeVisible();
+  await page.keyboard.press('ControlOrMeta+k');
+  await page.getByRole('combobox', { name: /search command bar actions/i }).fill('import');
+  await page.getByRole('option', { name: /Import from data/i }).click();
+  const dialog = page.getByRole('dialog', { name: 'Command bar' });
+  await dialog.getByPlaceholder('Paste CREATE TABLE statements here...').fill('CREATE TABLE users (id INT PRIMARY KEY);');
+  await dialog.getByRole('button', { name: 'Generate ERD (AI)' }).click();
+}
 
-  // Initial imports have a delayed measured-layout pass and an 800ms fit animation.
-  await page.waitForTimeout(1000);
-  const client = page.locator('.react-flow__node').filter({ hasText: 'Client' });
-  const api = page.locator('.react-flow__node').filter({ hasText: 'API' });
-  const clientId = await client.getAttribute('data-id');
-  const apiId = await api.getAttribute('data-id');
-  const position = await api.evaluate((element) => element.style.transform);
-  responseDsl = `flow: "Updated"\ndirection: LR\n[process] ${clientId}: Client\n[process] ${apiId}: Gateway\n${clientId} -> ${apiId}`;
-  await page.getByRole('button', { name: 'Edit current', exact: true }).click();
-  await page.getByRole('textbox').fill('Change the API label to Gateway in the existing diagram.');
-  await page.getByLabel('Generate with Flowpilot', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Apply to canvas' })).toBeVisible();
-  expect(requests[1].prompt).toContain('CURRENT DIAGRAM');
-  expect(requests[1].history.length).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'Apply to canvas' }).click();
-  const gateway = page.locator('.react-flow__node').filter({ hasText: 'Gateway' });
-  await expect(gateway).toBeVisible();
-  expect(await gateway.getAttribute('data-id')).toBe(apiId);
-  expect(await gateway.evaluate((element) => element.style.transform)).toBe(position);
-  await expect(page.locator('.react-flow__node')).toHaveCount(2);
-});
-
-test('Copilot repairs the reported OAuth connector error before offering a preview', async ({ page }) => {
+test('Copilot imports repair the reported OAuth connector error before applying', async ({ page }) => {
   await page.route('**/api/copilot/status', (route) => route.fulfill({ json: STATUS }));
   const diagram = [
     'flow: Authentication',
@@ -85,6 +52,7 @@ test('Copilot repairs the reported OAuth connector error before offering a previ
   let requests = 0;
   await page.route('**/api/copilot/chat', async (route) => {
     const body = route.request().postDataJSON();
+    expect(body).not.toHaveProperty('apiKey');
     expect(body.systemInstruction).toContain('| `..>` | Async, error, optional |');
     requests++;
     if (requests === 2) {
@@ -98,18 +66,11 @@ test('Copilot repairs the reported OAuth connector error before offering a previ
       body: `${JSON.stringify({ type: 'delta', text })}\n${JSON.stringify({ type: 'done', text })}\n`,
     });
   });
-  const prompt = await openFlowpilot(page);
-  await expect(page.getByRole('button', { name: 'Set up Flowpilot' })).toBeHidden();
-  await prompt.fill('Generate a user authentication flow showing login, registration, password reset, OAuth, and session management');
-  await page.getByLabel('Generate with Flowpilot', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Apply to canvas' })).toBeVisible();
-  await expect(page.getByText('Last request failed', { exact: true })).toBeHidden();
-  await expect(page.locator('.react-flow__node')).toHaveCount(0);
-  expect(requests).toBe(2);
-  await page.getByRole('button', { name: 'Apply to canvas' }).click();
+  await runSqlImport(page);
   await expect(page.locator('.react-flow__node')).toHaveCount(2);
   await expect(page.locator('.react-flow__edge')).toHaveCount(1);
   await expect(page.locator('.react-flow__node').filter({ hasText: 'Authentication Service' })).toBeVisible();
+  expect(requests).toBe(2);
 });
 
 test('Copilot setup has no key field and recovers after CLI login on desktop and mobile', async ({ page }, testInfo) => {
@@ -147,12 +108,8 @@ test('truncated Copilot output cannot be applied to the canvas', async ({ page }
       contentType: 'application/x-ndjson', body: `${JSON.stringify({ type: 'delta', text: DSL })}\n`,
     });
   });
-  const prompt = await openFlowpilot(page);
-  await expect(page.getByRole('button', { name: 'Set up Flowpilot' })).toBeHidden();
-  await prompt.fill('Create a client and API diagram.');
-  await page.getByLabel('Generate with Flowpilot', { exact: true }).click();
+  await runSqlImport(page);
   await expect(page.getByText('Copilot disconnected before completing the response. No changes were applied; try again.').first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Apply to canvas' })).toHaveCount(0);
   await expect(page.locator('.react-flow__node')).toHaveCount(0);
   expect(requests).toBe(1);
 });
@@ -203,8 +160,7 @@ test('live SDK generates a diagram using the signed-in Copilot account', async (
   await expect(page.getByRole('button', { name: 'Set up Flowpilot' })).toBeHidden({ timeout: 45_000 });
   await prompt.fill('Create a simple flowchart with exactly two process nodes labeled Client and API, connected Client to API. Do not add any other nodes.');
   await page.getByLabel('Generate with Flowpilot', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Apply to canvas' })).toBeVisible({ timeout: 180_000 });
-  await page.getByRole('button', { name: 'Apply to canvas' }).click();
+  await expect(page.locator('[data-agent-status]').last()).toHaveAttribute('data-agent-status', 'done', { timeout: 180_000 });
   await expect(page.locator('.react-flow__node')).toHaveCount(2);
   await expect(page.locator('.react-flow__node').filter({ hasText: 'Client' })).toBeVisible();
   await expect(page.locator('.react-flow__node').filter({ hasText: 'API' })).toBeVisible();

@@ -29,8 +29,9 @@ async function main(): Promise<void> {
       distDirectory: resolve('dist'),
       revision: process.env.APP_REVISION,
     });
-    const server = createServer({ requestTimeout: 30_000, headersTimeout: 15_000, maxHeaderSize: 16_384 }, app);
+    const server = createServer({ requestTimeout: 30_000, headersTimeout: 15_000, maxHeaderSize: 16_384 }, app.request);
     server.maxHeadersCount = 64;
+    server.on('upgrade', app.upgrade);
     let purging = false;
     const housekeeping = setInterval(() => {
       if (purging) return;
@@ -54,12 +55,15 @@ async function main(): Promise<void> {
       }, 15_000);
       deadline.unref();
       let failed = false;
+      // Upgraded sockets are no longer tracked by the server; agent turns end with `interrupted`.
+      const interrupted = app.close();
       try {
         await runtime.stop();
       } catch {
         console.error('[Flowpilot hosted] Runtime shutdown failed.');
         failed = true;
       }
+      await interrupted;
       server.closeAllConnections();
       try {
         await rm(directory, { recursive: true, force: true });

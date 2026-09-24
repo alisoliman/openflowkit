@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowEdge, FlowNode } from '@/lib/types';
 import type { FlowTemplate } from '@/services/templates';
-import { getElkLayout } from '@/services/elkLayout';
+import { clearLayoutCache, getElkLayout } from '@/services/elkLayout';
 import {
   buildTemplateInsertionResult,
   getAutoLayoutResult,
@@ -10,6 +10,7 @@ import {
 } from './layoutHandlers';
 
 vi.mock('@/services/elkLayout', () => ({
+  clearLayoutCache: vi.fn(),
   getElkLayout: vi.fn(async (nodes: FlowNode[], edges: FlowEdge[]) => ({ nodes, edges })),
 }));
 
@@ -73,6 +74,10 @@ describe('layoutHandlers', () => {
       diagramType: 'flowchart',
     });
     expect(result).toEqual({ nodes, edges });
+    // A cached layout of the canvas before the user's edits would undo them.
+    expect(vi.mocked(clearLayoutCache).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(getElkLayout).mock.invocationCallOrder[0]
+    );
   });
 
   it('builds template insertion data with deselected existing nodes', () => {

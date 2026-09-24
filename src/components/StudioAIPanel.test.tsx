@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { createRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { useFlowStore } from '@/store';
 import { StudioAIPanel } from './StudioAIPanel';
 
 const handleGenerateMock = vi.fn();
@@ -262,6 +263,8 @@ describe('StudioAIPanel', () => {
   });
 
   it('renders the active generation mode with selected segmented styling', () => {
+    // Copilot has no modes; the toggle belongs to the other providers.
+    useFlowStore.getState().setAISettings({ provider: 'openai', model: 'gpt-5-mini' });
     render(
       <StudioAIPanel
         onAIGenerate={vi.fn().mockResolvedValue(false)}
@@ -289,6 +292,7 @@ describe('StudioAIPanel', () => {
 
     expect(screen.getByRole('button', { name: 'Edit current' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Create new' })).toHaveAttribute('aria-pressed', 'false');
+    useFlowStore.getState().setAISettings({ provider: 'copilot', model: 'auto' });
   });
 
   it('shows preview copy for repo enhancement diffs', () => {

@@ -54,6 +54,32 @@ describe('diagramDocumentTransfer', () => {
     expect(result.report.status).toBe('success');
   });
 
+  it('lays out a re-imported document that moved and renamed a node, not the earlier one', async () => {
+    const section = (id: string): FlowNode =>
+      ({ ...createNode(id), type: 'section', style: { width: 400, height: 300 } }) as FlowNode;
+    const importNodes = async (nodes: FlowNode[]) => {
+      const json = await buildDiagramDocumentJson({
+        nodes,
+        edges: [createEdge('e1', 'x', 'z')],
+        exportSerializationMode: 'deterministic',
+        activeTab: { diagramType: 'flowchart' },
+      });
+      const result = await importDiagramDocumentJson({ json, importStart: performance.now() });
+      if (!result.ok) throw new Error('expected the import to succeed');
+      return result.nodes.find((node) => node.id === 'z');
+    };
+    const inB = [section('a'), section('b'), { ...createNode('x'), parentId: 'a' }];
+
+    await importNodes([...inB, { ...createNode('z'), parentId: 'b' }]);
+    const moved = await importNodes([
+      ...inB,
+      { ...createNode('z'), parentId: 'a', data: { label: 'Renamed' } } as FlowNode,
+    ]);
+
+    expect(moved?.parentId).toBe('a');
+    expect(moved?.data.label).toBe('Renamed');
+  });
+
   it('returns a structured failure report for invalid diagram json', async () => {
     const result = await importDiagramDocumentJson({
       json: JSON.stringify({ version: '1.0', nodes: [] }),

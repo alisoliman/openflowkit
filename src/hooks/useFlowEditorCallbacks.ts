@@ -24,6 +24,7 @@ interface UseFlowEditorCallbacksParams {
   recordHistory: () => void;
   fitView: (options?: { duration?: number; padding?: number }) => void;
   screenToFlowPosition: (position: { x: number; y: number }) => { x: number; y: number };
+  addToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
 }
 
 interface UseFlowEditorCallbacksResult {
@@ -70,6 +71,7 @@ export function useFlowEditorCallbacks({
   recordHistory,
   fitView,
   screenToFlowPosition,
+  addToast,
 }: UseFlowEditorCallbacksParams): UseFlowEditorCallbacksResult {
   const stabilizationRunIdRef = useRef(0);
 
@@ -167,6 +169,11 @@ export function useFlowEditorCallbacks({
         ...node,
         data: normalizeNodeIconData(node.data),
       }));
+      // A Flowpilot turn owns the page, so an import or code-panel live sync that lands during one is dropped.
+      if (useFlowStore.getState().agentTurn) {
+        addToast('Flowpilot is editing this page. Try again after it finishes.', 'warning');
+        return;
+      }
       const routedEdges = assignSmartHandles(enrichedNodes, newEdges);
       commitGraph(enrichedNodes, routedEdges);
 
@@ -178,9 +185,12 @@ export function useFlowEditorCallbacks({
       const runId = stabilizationRunIdRef.current + 1;
       stabilizationRunIdRef.current = runId;
 
+      // A later apply or a Flowpilot turn started meanwhile takes over the page.
+      const isStale = () => stabilizationRunIdRef.current !== runId || Boolean(useFlowStore.getState().agentTurn);
+
       window.setTimeout(() => {
         void (async () => {
-          if (stabilizationRunIdRef.current !== runId) {
+          if (isStale()) {
             return;
           }
 
@@ -209,7 +219,7 @@ export function useFlowEditorCallbacks({
             { diagramType: activeTab?.diagramType }
           );
 
-          if (stabilizationRunIdRef.current !== runId) {
+          if (isStale()) {
             return;
           }
 
@@ -219,7 +229,7 @@ export function useFlowEditorCallbacks({
         })();
       }, 180);
     },
-    [commitGraph, fitView, setEdges, setNodes]
+    [addToast, commitGraph, fitView, setEdges, setNodes]
   );
 
   return {

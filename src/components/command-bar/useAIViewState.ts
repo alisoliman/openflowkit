@@ -6,7 +6,8 @@ interface UseAIViewStateParams {
     isGenerating: boolean;
     onAIGenerate: (prompt: string, imageBase64?: string) => Promise<boolean>;
     onClose: () => void;
-    chatMessageCount: number;
+    /** The chat scrolls to the bottom whenever this changes. */
+    scrollKey: string | number;
 }
 
 interface UseAIViewStateResult {
@@ -26,7 +27,7 @@ export function useAIViewState({
     isGenerating,
     onAIGenerate,
     onClose,
-    chatMessageCount,
+    scrollKey,
 }: UseAIViewStateParams): UseAIViewStateResult {
     const [prompt, setPromptState] = useState(searchQuery || '');
     const [selectedImage, setSelectedImageState] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export function useAIViewState({
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [chatMessageCount]);
+    }, [scrollKey]);
 
     async function handleGenerate(text?: string): Promise<void> {
         const promptText = text || prompt;

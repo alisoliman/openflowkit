@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createLogger } from '@/lib/logger';
 import { useToast } from '@/components/ui/ToastContext';
 import type { AssistantThreadItem } from '@/services/flowpilot/types';
-import { expirePendingPreviews } from '@/services/flowpilot/thread';
+import { expirePendingPreviews, interruptUnfinishedAgentTurns } from '@/services/flowpilot/thread';
 import { loadAssistantThreadHistory, saveAssistantThreadHistory } from './chatHistoryStorage';
 
 interface ThreadState {
@@ -29,7 +29,7 @@ export function useAssistantThread(documentId: string) {
     let disposed = false;
     void loadAssistantThreadHistory(documentId).then((items) => {
       if (disposed) return;
-      const restored = expirePendingPreviews(items);
+      const restored = interruptUnfinishedAgentTurns(expirePendingPreviews(items));
       const next = { documentId, items: restored, ready: true };
       current.current = next;
       setState(next);

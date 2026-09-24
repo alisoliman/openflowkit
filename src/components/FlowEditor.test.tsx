@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { FlowEditor } from './FlowEditor';
 import type { ImportFidelityReport } from '@/services/importFidelity';
+import { useFlowStore } from '@/store';
 
 const openStudioCode = vi.fn();
 const importRecoveryDialogMock = vi.fn();
@@ -49,7 +50,8 @@ vi.mock('@/components/ImportRecoveryDialog', () => ({
   },
 }));
 
-vi.mock('@/store/selectionHooks', () => ({
+vi.mock('@/store/selectionHooks', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/store/selectionHooks')>(),
   useMermaidDiagnostics: () => useMermaidDiagnosticsMock(),
   useMermaidDiagnosticsActions: () => ({
     setMermaidDiagnostics: setMermaidDiagnosticsMock,
@@ -85,6 +87,10 @@ function createMermaidDiagnostics() {
     diagnostics: [{ message: 'warning' }],
     updatedAt: 1,
   };
+}
+
+function createRendererExactDiagnostics() {
+  return { ...createMermaidDiagnostics(), visualMode: 'renderer_exact' };
 }
 
 function createMermaidLayoutWarningDiagnostics() {
@@ -159,6 +165,10 @@ describe('FlowEditor', () => {
     useFlowEditorScreenModelMock.mockReturnValue(createFlowEditorScreenModel());
   });
 
+  afterEach(() => {
+    useFlowStore.getState().setAgentTurn(null);
+  });
+
   it('opens Mermaid code recovery from the shell diagnostics banner', () => {
     render(<FlowEditor onGoHome={vi.fn()} />);
 
@@ -226,5 +236,39 @@ describe('FlowEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Mermaid code' }));
     expect(openStudioCode).toHaveBeenCalledWith('mermaid');
+  });
+
+  it('converts a renderer-exact Mermaid import to an editable diagram', async () => {
+    useMermaidDiagnosticsMock.mockReturnValue(createRendererExactDiagnostics());
+    render(<FlowEditor onGoHome={vi.fn()} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Convert to editable diagram' }));
+    });
+    await vi.waitFor(() => expect(setNodesMock).toHaveBeenCalled());
+  });
+
+  it('keeps the Mermaid conversion from replacing the canvas during a Flowpilot turn', async () => {
+    useMermaidDiagnosticsMock.mockReturnValue(createRendererExactDiagnostics());
+    useFlowEditorScreenModelMock.mockReturnValue(
+      createFlowEditorScreenModel({
+        fileName: 'diagram.mmd',
+        report: { source: 'mermaid', importState: 'editable_partial', originalSource: 'flowchart TD\nA-->B' },
+      })
+    );
+    render(<FlowEditor onGoHome={vi.fn()} />);
+    const props = importRecoveryDialogMock.mock.calls[0][0] as { actionLabel?: string; onAction?: () => Promise<void> };
+    expect(props.actionLabel).toBe('Convert to editable diagram');
+
+    // One already running when the turn starts is dropped too.
+    let converting: Promise<void> | undefined;
+    act(() => {
+      converting = props.onAction?.();
+      useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: 'tab-1' });
+    });
+    await act(async () => { await converting; });
+    await act(async () => { await props.onAction?.(); });
+    expect(setNodesMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Convert to editable diagram' }).closest('[inert]')).not.toBeNull();
   });
 });

@@ -5,9 +5,13 @@ import {
   SECTION_CONTENT_PADDING_TOP,
   SECTION_PADDING_BOTTOM,
   SECTION_PADDING_X,
+  SECTION_RENDER_MIN_HEIGHT,
+  SECTION_RENDER_MIN_WIDTH,
+  SECTION_TITLE_OFFSET,
 } from '@/hooks/node-operations/sectionBounds';
 import { getNodeParentId } from '@/lib/nodeParent';
 import type { FlowEdge, FlowNode } from '@/lib/types';
+import { isMermaidImportedContainerNode } from '@/services/mermaid/importProvenance';
 import { DEFAULT_MAX_WIDTH, estimateWrappedTextBox } from './textSizing';
 import type { FlowNodeWithMeasuredDimensions } from './types';
 
@@ -16,6 +20,8 @@ export const IMPORT_NODE_MIN_HEIGHT = 40;
 export const IMPORT_NODE_MAX_WIDTH = 320;
 
 const ELK_SECTION_PADDING = `[top=${SECTION_CONTENT_PADDING_TOP},left=${SECTION_PADDING_X},bottom=${SECTION_PADDING_BOTTOM},right=${SECTION_PADDING_X}]`;
+// A default section draws its title above its border, so a node holding one leaves room for it.
+const ELK_SECTION_TITLE_PADDING = `[top=${SECTION_CONTENT_PADDING_TOP + SECTION_TITLE_OFFSET},left=${SECTION_PADDING_X},bottom=${SECTION_PADDING_BOTTOM},right=${SECTION_PADDING_X}]`;
 const ELK_COMPOUND_LAYOUT_OPTIONS = {
   'elk.algorithm': 'layered',
 } as const;
@@ -46,17 +52,19 @@ export function estimateNodeSize(
   };
 }
 
-function hasInternalEdges(childIds: Set<string>, edges: FlowEdge[]): boolean {
-  return edges.some((e) => childIds.has(e.source) && childIds.has(e.target));
+export function isDefaultSection(node: FlowNode): boolean {
+  return node.type === 'section' && !isMermaidImportedContainerNode(node);
 }
 
 export function buildElkNode(
   node: FlowNode,
   childrenByParent: Map<string, FlowNode[]>,
-  allEdges: FlowEdge[],
   nodeMinWidth = NODE_WIDTH,
   nodeMinHeight = NODE_HEIGHT,
-  rootElkDirection = 'DOWN'
+  rootElkDirection = 'DOWN',
+  rootSpacingOptions: Record<string, string> = {},
+  // The direction of the layered run laying this node out along with its whole hierarchy, if any.
+  layeredDirection?: string
 ): ElkNode {
   const children = childrenByParent.get(node.id) || [];
 
@@ -78,21 +86,29 @@ export function buildElkNode(
 
   const hasChildren = children.length > 0;
 
-  // Subgraphs with no internal edges (pure parallel siblings) lay out
-  // horizontally regardless of root direction — matching Mermaid's Dagre
-  // which places same-rank disconnected nodes side by side.
-  const childIds = hasChildren ? new Set(children.map((c) => c.id)) : null;
-  const parallelChildren = childIds !== null && !hasInternalEdges(childIds, allEdges);
-
-  // Compound nodes must explicitly inherit the root elk.direction — ELK does
-  // not cascade it automatically, so without this subgraphs always use ELK's
-  // built-in default (DOWN) regardless of the root graph setting.
+  // Compound nodes must explicitly inherit the root elk.direction and spacing — ELK
+  // does not cascade them automatically, so without this subgraphs always use ELK's
+  // built-in defaults (DOWN, 20px gaps) regardless of the root graph setting.
   const compoundLayoutOptions = hasChildren
     ? {
         ...ELK_COMPOUND_LAYOUT_OPTIONS,
-        'elk.direction': parallelChildren ? 'RIGHT' : rootElkDirection,
+        ...rootSpacingOptions,
+        'elk.direction': rootElkDirection,
       }
     : {};
+
+  // SectionNode draws a section at least this big, so ELK must leave room for it.
+  // When layered lays out a whole hierarchy top-down, elkjs reads a nested node's minimum transposed.
+  const transposed = layeredDirection === 'DOWN' || layeredDirection === 'UP';
+  const sectionSizeOptions =
+    hasChildren && isDefaultSection(node)
+      ? {
+          'elk.nodeSize.constraints': 'MINIMUM_SIZE',
+          'elk.nodeSize.minimum': transposed
+            ? `(${SECTION_RENDER_MIN_HEIGHT},${SECTION_RENDER_MIN_WIDTH})`
+            : `(${SECTION_RENDER_MIN_WIDTH},${SECTION_RENDER_MIN_HEIGHT})`,
+        }
+      : {};
 
   // Anchored layout: pinned nodes keep their current canvas position and
   // ELK arranges the rest around them. Position is supplied as ELK input;
@@ -107,15 +123,25 @@ export function buildElkNode(
 
   return {
     id: node.id,
-    width: hasChildren ? undefined : width,
-    height: hasChildren ? undefined : height,
+    // ELK sizes compound nodes itself, and crashes (`pe` null deref) on a width key set to undefined.
+    ...(hasChildren ? {} : { width, height }),
     ...(pinned ? { x: node.position.x, y: node.position.y } : {}),
     children: children.map((child) =>
-      buildElkNode(child, childrenByParent, allEdges, nodeMinWidth, nodeMinHeight, rootElkDirection)
+      buildElkNode(
+        child,
+        childrenByParent,
+        nodeMinWidth,
+        nodeMinHeight,
+        rootElkDirection,
+        rootSpacingOptions,
+        // Compound nodes are laid out by layered, which takes their whole hierarchy along.
+        layeredDirection ?? rootElkDirection
+      )
     ),
     layoutOptions: {
-      'elk.padding': ELK_SECTION_PADDING,
+      'elk.padding': children.some(isDefaultSection) ? ELK_SECTION_TITLE_PADDING : ELK_SECTION_PADDING,
       ...compoundLayoutOptions,
+      ...sectionSizeOptions,
       ...pinnedOptions,
     },
   };
@@ -183,20 +209,27 @@ export function applyElkLayoutToNodes(
     }
 
     const style = { ...node.style };
-    if (node.type === 'group' || node.type === 'section' || node.type === 'container') {
-      if (normalizedPosition.width) {
-        style.width = normalizedPosition.width;
-      }
-      if (normalizedPosition.height) {
-        style.height = normalizedPosition.height;
-      }
-    }
-
-    return {
+    const laidOut: FlowNode = {
       ...node,
       position: { x: normalizedPosition.x, y: normalizedPosition.y },
       style,
     };
+    if (node.type === 'group' || node.type === 'section' || node.type === 'container') {
+      const { width, height } = normalizedPosition;
+      // React Flow sizes a node the user resized by its top-level width and height.
+      if (width) {
+        style.width = width;
+        if (typeof node.width === 'number') laidOut.width = width;
+        if (node.measured) laidOut.measured = { ...laidOut.measured, width };
+      }
+      if (height) {
+        style.height = height;
+        if (typeof node.height === 'number') laidOut.height = height;
+        if (node.measured) laidOut.measured = { ...laidOut.measured, height };
+      }
+    }
+
+    return laidOut;
   });
 }
 
@@ -255,9 +288,9 @@ function attachEdgesAtLca(
   const edgesByOwner = new Map<string | null, ElkExtendedEdge[]>();
   for (const edge of edges) {
     const lca = lowestCommonAncestor(edge.source, edge.target, parentById);
-    // If endpoints share a compound parent, attach the edge there; otherwise
-    // place it at the root. ELK crashes with INCLUDE_CHILDREN when an edge
-    // sits above its LCA in the hierarchy.
+    // An edge goes to the lowest compound node holding both endpoints. One whose endpoint is that
+    // node, or whose endpoints share none, goes to the root, and INCLUDE_CHILDREN routes it through
+    // the hierarchy from there.
     const ownerId = lca && elkNodeById.has(lca) && lca !== edge.source && lca !== edge.target
       ? lca
       : null;
@@ -281,6 +314,10 @@ export function buildElkRootGraph(
   nodeMinWidth: number,
   nodeMinHeight: number
 ): ElkNode {
+  const rootElkDirection = layoutOptions['elk.direction'] ?? 'DOWN';
+  const rootSpacingOptions = Object.fromEntries(
+    Object.entries(layoutOptions).filter(([key]) => key.includes('.spacing.'))
+  );
   const root: ElkNode = {
     id: 'root',
     layoutOptions,
@@ -288,10 +325,11 @@ export function buildElkRootGraph(
       buildElkNode(
         node,
         childrenByParent,
-        sortedEdges,
         nodeMinWidth,
         nodeMinHeight,
-        layoutOptions['elk.direction'] ?? 'DOWN'
+        rootElkDirection,
+        rootSpacingOptions,
+        layoutOptions['elk.algorithm']?.endsWith('layered') ? rootElkDirection : undefined
       )
     ),
     edges: [],

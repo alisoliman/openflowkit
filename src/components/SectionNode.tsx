@@ -11,6 +11,11 @@ import { InlineTextEditSurface } from './InlineTextEditSurface';
 import { NodeChrome } from './NodeChrome';
 import { useSelectionState } from '@/store/selectionHooks';
 import { readMermaidImportedNodeMetadataFromData } from '@/services/mermaid/importProvenance';
+import {
+  SECTION_RENDER_MIN_HEIGHT,
+  SECTION_RENDER_MIN_WIDTH,
+  SECTION_TITLE_OFFSET,
+} from '@/hooks/node-operations/sectionBounds';
 
 type SectionRenderVariant = 'default' | 'mermaid-import';
 
@@ -52,7 +57,7 @@ function getSectionRenderConfig(
     variant: 'default',
     bodyBorderRadius: '16px',
     bodyInset: 0,
-    titleTop: -36,
+    titleTop: -SECTION_TITLE_OFFSET,
     titleLeft: 0,
     titlePadding: '0.375rem 0.625rem',
     titleBackgroundColor: `${borderColor}22`,
@@ -83,8 +88,12 @@ function SectionNode(props: LegacyNodeProps<NodeData>): React.ReactElement {
   const isHidden = data.sectionHidden === true;
   const isImportedMermaidContainer =
     readMermaidImportedNodeMetadataFromData(data)?.role === 'container';
-  const minWidth = isImportedMermaidContainer ? explicitWidth ?? 350 : 350;
-  const minHeight = isImportedMermaidContainer ? explicitHeight ?? 250 : 250;
+  const minWidth = isImportedMermaidContainer
+    ? explicitWidth ?? SECTION_RENDER_MIN_WIDTH
+    : SECTION_RENDER_MIN_WIDTH;
+  const minHeight = isImportedMermaidContainer
+    ? explicitHeight ?? SECTION_RENDER_MIN_HEIGHT
+    : SECTION_RENDER_MIN_HEIGHT;
 
   const borderColor = isDropTarget ? theme.title : theme.border;
   const bgColor = isDropTarget

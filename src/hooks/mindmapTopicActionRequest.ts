@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { APP_EVENT_NAMES } from '@/lib/legacyBranding';
+import { useFlowStore } from '@/store';
 
 export type MindmapTopicActionType = 'child' | 'sibling';
 export type MindmapTopicSide = 'left' | 'right' | null;
@@ -34,7 +35,8 @@ export function useMindmapTopicActionRequest(
   useEffect(() => {
     const handleRequest = (event: Event): void => {
       const customEvent = event as CustomEvent<MindmapTopicActionRequestDetail>;
-      if (!customEvent.detail?.nodeId || !customEvent.detail.action) {
+      // Topic buttons stay on screen during a Flowpilot turn, which owns the page until it ends.
+      if (!customEvent.detail?.nodeId || !customEvent.detail.action || useFlowStore.getState().agentTurn) {
         return;
       }
       onRequest(customEvent.detail);

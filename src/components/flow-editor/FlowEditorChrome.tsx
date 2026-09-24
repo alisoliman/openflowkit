@@ -8,6 +8,7 @@ import type {
 } from '@/hooks/useFlowEditorCollaboration';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { EditorPage } from '@/store/editorPageHooks';
+import { InertWhileAgentEdits } from './InertWhileAgentEdits';
 
 const LazyFlowEditorPanels = lazy(async () => {
   const module = await import('@/components/FlowEditorPanels');
@@ -240,9 +241,12 @@ export function FlowEditorChrome({
 
   return (
     <>
-      <Suspense fallback={<TopNavFallback />}>
-        <LazyTopNav {...topNavProps} />
-      </Suspense>
+      {/* Page tabs, import and history stay out of reach during a Flowpilot turn. */}
+      <InertWhileAgentEdits>
+        <Suspense fallback={<TopNavFallback />}>
+          <LazyTopNav {...topNavProps} />
+        </Suspense>
+      </InertWhileAgentEdits>
 
       <div className="flex min-h-0 flex-1 min-w-0 pt-14">
         <div className="relative min-w-0 flex-1">
@@ -273,21 +277,26 @@ export function FlowEditorChrome({
         </Suspense>
       ) : null}
 
+      {/* The toolbar locks itself during a Flowpilot turn but keeps its Flowpilot toggle. */}
       {toolbar.isVisible ? (
         <Suspense fallback={null}>
           <LazyToolbar {...toolbarProps} />
         </Suspense>
       ) : (
-        <Suspense fallback={null}>
-          <LazyPlaybackControls {...playbackProps} />
-        </Suspense>
+        <InertWhileAgentEdits>
+          <Suspense fallback={null}>
+            <LazyPlaybackControls {...playbackProps} />
+          </Suspense>
+        </InertWhileAgentEdits>
       )}
 
-      {emptyStateProps ? (
-        <Suspense fallback={null}>
-          <LazyFlowEditorEmptyState {...emptyStateProps} />
-        </Suspense>
-      ) : null}
+      <InertWhileAgentEdits>
+        {emptyStateProps ? (
+          <Suspense fallback={null}>
+            <LazyFlowEditorEmptyState {...emptyStateProps} />
+          </Suspense>
+        ) : null}
+      </InertWhileAgentEdits>
     </>
   );
 }

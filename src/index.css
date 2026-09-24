@@ -460,6 +460,13 @@ body {
   pointer-events: none !important;
 }
 
+/* While Flowpilot edits the page, pointer input reaches only the pane, which pans and zooms. */
+.flow-agent-editing .react-flow__viewport,
+.flow-agent-editing .react-flow__viewport *,
+.flow-agent-editing .react-flow__nodesselection-rect {
+  pointer-events: none !important;
+}
+
 /* When connecting, make all other nodes' handles glow to invite connection */
 .is-connecting .react-flow__node:not(.selected) .react-flow__handle {
   opacity: 1 !important;
