@@ -276,7 +276,7 @@ describe('Copilot agent runtime', () => {
     expect(messages.at(-1)).toEqual({ v: 1, type: 'done', reply: '' });
   });
 
-  it('streams the reply, separating assistant messages, and never forwards reasoning', async () => {
+  it('streams every message but keeps the last as the reply, and never forwards reasoning', async () => {
     const { turn, messages } = runTurn();
     await sessionStarted();
     const session = sessions[0];
@@ -293,7 +293,8 @@ describe('Copilot agent runtime', () => {
       { v: 1, type: 'reply_delta', text: 'Adding a cache.' },
       { v: 1, type: 'reply_delta', text: '\n\nDone.' },
       { v: 1, type: 'reply_delta', text: ' Redis sits in front of the database.' },
-      { v: 1, type: 'done', reply: 'Adding a cache.\n\nDone. Redis sits in front of the database.' },
+      // The first message narrated work in progress; the user keeps the last one.
+      { v: 1, type: 'done', reply: 'Done. Redis sits in front of the database.' },
     ]);
     expect(JSON.stringify(messages)).not.toContain('secret');
     expect(session.listeners).toBe(0);

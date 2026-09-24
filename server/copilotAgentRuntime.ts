@@ -125,6 +125,10 @@ export function createCopilotAgentRuntime(host: CopilotHost): CopilotAgentRuntim
       const steps = new Map<string, StepName>();
       let reply = '';
       let replyMessageId: string | undefined;
+      // The reply the user keeps is the last message: earlier ones narrate work in progress, and the
+      // browser only shows them while the turn runs.
+      let lastMessage = '';
+      const finalReply = () => (lastMessage.trim() ? lastMessage : reply);
       // Stop and an expired question end the turn with `done`, keeping the reply and canvas work so far.
       let stopped = false;
       let ended = false;
@@ -248,9 +252,11 @@ export function createCopilotAgentRuntime(host: CopilotHost): CopilotAgentRuntim
               switch (event.type) {
                 case 'assistant.message_delta': {
                   if (!event.data.deltaContent) return;
-                  // Successive assistant messages are separated, so the deltas join into the final reply.
-                  const text = reply && event.data.messageId !== replyMessageId ? `\n\n${event.data.deltaContent}` : event.data.deltaContent;
+                  // Successive assistant messages are separated, so the streamed deltas stay readable.
+                  const newMessage = event.data.messageId !== replyMessageId;
+                  const text = reply && newMessage ? `\n\n${event.data.deltaContent}` : event.data.deltaContent;
                   replyMessageId = event.data.messageId;
+                  lastMessage = newMessage ? event.data.deltaContent : lastMessage + event.data.deltaContent;
                   if (reply.length + text.length > COPILOT_MAX_RESPONSE_CHARS) {
                     controller.abort(new CopilotRequestError('bad_response', 'The Copilot reply was too large.', 502));
                     return;
@@ -285,9 +291,9 @@ export function createCopilotAgentRuntime(host: CopilotHost): CopilotAgentRuntim
           clearTimeout(setupDeadline);
           await waitWithSignal(idle, turnSignal);
           completed = true;
-          end({ type: 'done', reply });
+          end({ type: 'done', reply: finalReply() });
         } catch (error) {
-          if (stopped) end({ type: 'done', reply });
+          if (stopped) end({ type: 'done', reply: finalReply() });
           else fail(turnSignal.aborted ? turnSignal.reason : error);
         } finally {
           clearTimeout(setupDeadline);
