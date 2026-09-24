@@ -18,7 +18,11 @@ export function NavigationControls(): React.ReactElement {
     <div className="absolute bottom-8 left-4 z-50">
       <div className="flex flex-col rounded-[var(--radius-lg)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] p-1 shadow-[var(--shadow-md)] ring-1 ring-black/5">
         <Tooltip text={t('navigationControls.zoomIn')} side="right">
-          <button onClick={() => zoomIn({ duration: 300 })} className={controlButtonClassName}>
+          <button
+            onClick={() => zoomIn({ duration: 300 })}
+            aria-label={t('navigationControls.zoomIn')}
+            className={controlButtonClassName}
+          >
             <Plus className="w-4 h-4" />
           </button>
         </Tooltip>
@@ -28,7 +32,11 @@ export function NavigationControls(): React.ReactElement {
         </div>
 
         <Tooltip text={t('navigationControls.zoomOut')} side="right">
-          <button onClick={() => zoomOut({ duration: 300 })} className={controlButtonClassName}>
+          <button
+            onClick={() => zoomOut({ duration: 300 })}
+            aria-label={t('navigationControls.zoomOut')}
+            className={controlButtonClassName}
+          >
             <Minus className="w-4 h-4" />
           </button>
         </Tooltip>
@@ -36,6 +44,7 @@ export function NavigationControls(): React.ReactElement {
         <Tooltip text={t('navigationControls.fitView')} side="right">
           <button
             onClick={() => fitView({ duration: 600, padding: 0.2 })}
+            aria-label={t('navigationControls.fitView')}
             className={controlButtonClassName}
           >
             <Maximize className="w-4 h-4" />
@@ -43,7 +52,11 @@ export function NavigationControls(): React.ReactElement {
         </Tooltip>
         <div className="mx-2 my-1 h-px bg-[var(--color-brand-border)]" />
         <Tooltip text={t('navigationControls.keyboardShortcuts')} side="right">
-          <button onClick={() => setShortcutsHelpOpen(true)} className={controlButtonClassName}>
+          <button
+            onClick={() => setShortcutsHelpOpen(true)}
+            aria-label={t('navigationControls.keyboardShortcuts')}
+            className={controlButtonClassName}
+          >
             <HelpCircle className="w-4 h-4" />
           </button>
         </Tooltip>
