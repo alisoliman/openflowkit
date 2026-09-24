@@ -209,6 +209,13 @@ Old revisions also cost money while active. The earlier EUR 50/month figure is
 a planning target, not a quote or a hard spending cap; assess actual costs and
 load before provisioning. Azure budget alerts do not automatically stop charges.
 
+Where subscription policy disables public network access to storage accounts or
+key vaults, deploy with `privateNetworking=true`. The environment then joins a
+VNet and reaches the table and Key Vault through private endpoints, which add
+their own hourly charge. Decide before the first deployment: an existing
+environment cannot be moved into a VNet, and recreating it changes the generated
+Azure hostname.
+
 After resource and cost approval:
 
 1. Register the GitHub App and prepare secure deployment parameters. Generate
