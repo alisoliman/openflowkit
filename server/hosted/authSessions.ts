@@ -19,10 +19,10 @@ const sessionSchema = z.object({
 });
 const flowSchema = z.object({ verifier: z.string(), returnTo: z.string(), expiresAt: z.number() });
 const ID_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-// Access tokens are renewed this long before they expire. An agent session asks for a new token once its own
-// is within the hour and refuses one that is not good for longer, so agent tokens are renewed further ahead.
+// Access tokens are renewed this long before they expire. An agent turn keeps the token it starts with and has no
+// deadline, so agent sockets start with one good for at least four of its eight hours.
 const REFRESH_MARGIN_MS = 240_000;
-const AGENT_REFRESH_MARGIN_MS = 90 * 60_000;
+const AGENT_REFRESH_MARGIN_MS = 4 * 3600_000;
 type AuthSession = z.infer<typeof sessionSchema>;
 
 export interface HostedIdentity {
@@ -30,8 +30,6 @@ export interface HostedIdentity {
   login: string;
   token: string;
   sessionKey: string;
-  /** Agent sockets only, since a turn can outlast its token. Resolves to undefined once the GitHub connection has ended. */
-  renewToken?: () => Promise<{ token: string; expiresAt: number } | undefined>;
 }
 
 export function appendCookie(response: ServerResponse, cookie: string): void {
@@ -196,7 +194,7 @@ export class AuthSessions {
 
   /**
    * Agent socket upgrades pass no response: the next HTTP request clears a stale cookie, and their token
-   * is renewed further ahead and again during the turn, which has no deadline.
+   * is renewed further ahead, because the turn keeps it and has no deadline.
    */
   async authenticate(request: IncomingMessage, response?: ServerResponse): Promise<HostedIdentity | undefined> {
     const id = this.sessionId(request, response);
@@ -207,15 +205,7 @@ export class AuthSessions {
       if (response) appendCookie(response, this.cookie(this.sessionCookie, '', 0));
       return undefined;
     }
-    const identity = { userId: session.userId, login: session.login, token: session.accessToken, sessionKey: key };
-    if (response) return identity;
-    return {
-      ...identity,
-      renewToken: async () => {
-        const renewed = await this.current(key, AGENT_REFRESH_MARGIN_MS);
-        return renewed && { token: renewed.accessToken, expiresAt: renewed.accessExpiresAt };
-      },
-    };
+    return { userId: session.userId, login: session.login, token: session.accessToken, sessionKey: key };
   }
 
   async disconnect(request: IncomingMessage, response: ServerResponse): Promise<string | undefined> {

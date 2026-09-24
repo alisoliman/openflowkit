@@ -68,12 +68,8 @@ const START: AgentStart = {
   canvas: { pageName: 'Checkout', nodeCount: 2, edgeCount: 1, selectedIds: ['db'] },
 };
 const HOSTED = { hosted: true as const, baseDirectory: '/tmp/test-flowpilot' };
-// Agent sockets renew the token for the whole turn; this one stays valid for another two hours.
-const USER_ONE: HostedIdentity = {
-  userId: '1', login: 'one', token: 'ghu_user_one', sessionKey: 'one',
-  renewToken: async () => ({ token: 'ghu_user_one', expiresAt: Date.now() + 2 * 3600_000 }),
-};
-const USER_TWO: HostedIdentity = { userId: '2', login: 'two', token: 'ghu_user_two', sessionKey: 'two', renewToken: async () => undefined };
+const USER_ONE: HostedIdentity = { userId: '1', login: 'one', token: 'ghu_user_one', sessionKey: 'one' };
+const USER_TWO: HostedIdentity = { userId: '2', login: 'two', token: 'ghu_user_two', sessionKey: 'two' };
 const OPS = { ops: [{ op: 'add_node', id: 'cache', type: 'custom', label: 'Redis' }] };
 
 let sessions: ReturnType<typeof fakeSession>[];
@@ -188,21 +184,18 @@ describe('Copilot agent runtime', () => {
     await turn.finished;
   });
 
-  it('renews the requesting hosted user token and keeps sessions alive through a 10-minute question', async () => {
+  it('uses the requesting hosted user token and keeps sessions alive through a 10-minute question', async () => {
     expect(createCopilotClientOptions(HOSTED).sessionIdleTimeoutSeconds).toBe(900);
     const runtime = createCopilotRuntime(HOSTED);
     const first = runTurn({ runtime, identity: USER_ONE });
     await sessionStarted(1);
     const second = runTurn({ runtime, identity: USER_TWO, start: { model: 'auto' } });
     await sessionStarted(2);
-    // The session asks for the token when it starts and again before it expires, so a long turn outlasts it.
-    expect(config(0)).not.toHaveProperty('gitHubToken');
-    vi.spyOn(Date, 'now').mockReturnValue(Date.now());
-    await expect(config(0).gitHubTokenProvider!({ host: 'https://github.com', reason: 'refresh' }))
-      .resolves.toEqual({ kind: 'token', accessToken: 'ghu_user_one', expiresIn: 7200 });
-    // A user who disconnected gets no token.
-    await expect(config(1).gitHubTokenProvider!({ host: 'https://github.com', reason: 'initial' })).resolves.toEqual({ kind: 'cancelled' });
+    // SDK 1.0.14's gitHubTokenProvider leaves the session unauthenticated, so each session gets its user's token.
+    expect(config(0)).not.toHaveProperty('gitHubTokenProvider');
+    expect(config(1)).toMatchObject({ gitHubToken: 'ghu_user_two' });
     expect(config(0)).toMatchObject({
+      gitHubToken: 'ghu_user_one',
       sessionId: expect.stringMatching(/^flowpilot-[0-9a-f-]{36}$/),
       enableHostGitOperations: false,
       enableOnDemandInstructionDiscovery: false,

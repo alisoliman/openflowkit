@@ -269,9 +269,9 @@ describe('hosted GitHub authentication boundary', () => {
     expect(decryptState(after!.value, config.encryptionKey, `auth:${key}`)).toMatchObject({ accessToken: 'ghu_renewed_test_only' });
   });
 
-  it('renews a token expiring within the hour before an agent turn, but not for a request', async () => {
+  it('renews a token expiring within four hours before an agent turn, but not for a request', async () => {
     const { cookie } = await signIn();
-    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 8 * 3600_000 - 30 * 60_000);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 8 * 3600_000 - 3 * 3600_000);
     expect((await fetch(`${origin}/api/copilot/status`, { headers: headers(cookie) })).status).toBe(200);
     expect(github.refresh).not.toHaveBeenCalled();
 
@@ -282,25 +282,6 @@ describe('hosted GitHub authentication boundary', () => {
     );
     client.socket.send(JSON.stringify({ v: 1, type: 'cancel' }));
     expect(await client.closed).toBe(1000);
-  });
-
-  it('renews the token an agent session asks for during its turn, and gives none once disconnected', async () => {
-    const { cookie } = await signIn();
-    const now = Date.now();
-    const client = await agentTurn(cookie);
-    const identity = vi.mocked(runtime.agent!.startTurn).mock.calls[0][3]!;
-    expect(await identity.renewToken!()).toMatchObject({ token: 'ghu_test_only' });
-    expect(github.refresh).not.toHaveBeenCalled();
-
-    // The session refuses a token good for an hour or less, so one within 90 minutes of expiry is renewed.
-    vi.spyOn(Date, 'now').mockReturnValue(now + 8 * 3600_000 - 80 * 60_000);
-    expect(await identity.renewToken!()).toEqual({ token: 'ghu_renewed_test_only', expiresAt: now + 16 * 3600_000 - 80 * 60_000 });
-    expect(github.refresh).toHaveBeenCalledOnce();
-    client.socket.send(JSON.stringify({ v: 1, type: 'cancel' }));
-    expect(await client.closed).toBe(1000);
-
-    expect((await fetch(`${origin}/api/copilot/auth/logout`, { method: 'POST', headers: headers(cookie) })).status).toBe(200);
-    expect(await identity.renewToken!()).toBeUndefined();
   });
 
   it('expires sessions after seven days and never starts unauthenticated generations', async () => {

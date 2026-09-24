@@ -5,7 +5,6 @@ import {
   CopilotClient,
   RuntimeConnection,
   type CopilotSession,
-  type GitHubTokenProvider,
   type MessageOptions,
   type SessionConfig,
 } from '@github/copilot-sdk';
@@ -112,16 +111,6 @@ export function runtimeUnavailableError(hosted: boolean): CopilotRequestError {
     : 'The Copilot runtime has stopped. Restart the local app.');
 }
 
-/** Lets an agent session ask for a renewed token instead of failing when the one it started with expires. */
-function tokenProvider(renew: NonNullable<HostedIdentity['renewToken']>): GitHubTokenProvider {
-  return async () => {
-    const current = await renew();
-    return current
-      ? { kind: 'token', accessToken: current.token, expiresIn: Math.floor((current.expiresAt - Date.now()) / 1000) }
-      : { kind: 'cancelled' };
-  };
-}
-
 export function imageAttachments(image: string | undefined): MessageOptions['attachments'] {
   const match = image?.match(/^data:(image\/[^;]+);base64,(.+)$/);
   return match ? [{ type: 'blob', mimeType: match[1], data: match[2], displayName: 'Diagram reference' }] : undefined;
@@ -201,8 +190,9 @@ export function createCopilotHost(options?: HostedRuntimeOptions): CopilotHost {
         infiniteSessions: { enabled: false },
         ...(hosted ? {
           sessionId: `flowpilot-${randomUUID()}`,
-          // A one-shot request ends long before its token expires; an agent turn has no deadline.
-          ...(identity?.renewToken ? { gitHubTokenProvider: tokenProvider(identity.renewToken) } : { gitHubToken: identity?.token }),
+          // The session keeps this token. SDK 1.0.14's gitHubTokenProvider leaves the session unauthenticated,
+          // so agent sockets are renewed further ahead instead (authSessions.ts).
+          gitHubToken: identity?.token,
           enableHostGitOperations: false,
           enableOnDemandInstructionDiscovery: false,
           enableSessionTelemetry: false,

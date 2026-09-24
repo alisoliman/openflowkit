@@ -18,8 +18,11 @@ and an organization policy that allows it.
 
 Connections last seven days from sign-in, including across server restarts.
 GitHub's expiring user tokens are renewed server-side; the application session
-does not slide indefinitely. An agent turn asks for a renewed token while it
-runs, so a long turn outlasts the token it started with. **Disconnect GitHub**
+does not slide indefinitely. An agent turn keeps the token it starts with, so
+the server first renews any token with less than four of its eight hours left;
+a turn running longer than that loses Copilot access and keeps the changes it
+already made. The SDK's `gitHubTokenProvider` would renew tokens during a turn,
+but in SDK 1.0.14 it leaves the session unauthenticated. **Disconnect GitHub**
 removes that browser's server-side credential record and clears its cookie. It
 does not delete diagrams, change other AI provider settings, or revoke the
 entire GitHub App grant on other devices. Users can revoke the grant in GitHub's
