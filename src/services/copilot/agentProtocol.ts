@@ -16,6 +16,9 @@ export const AGENT_MAX_ANSWER_CHARS = 4_000;
 export const AGENT_MAX_TOOL_ERROR_CHARS = 20_000;
 export const AGENT_SERVER_MESSAGE_MAX_BYTES = COPILOT_MAX_BODY_BYTES;
 export const AGENT_MAX_ID_CHARS = 200;
+// A canvas picture from capture_canvas; the browser keeps each one below this many base64 characters.
+export const AGENT_MAX_TOOL_IMAGE_CHARS = 2_500_000;
+export const AGENT_MAX_TOOL_IMAGES = 1;
 export const AGENT_INVALID_START_MESSAGE = 'Flowpilot could not send this request. Check the prompt, conversation length, and image format (PNG, JPEG, WebP, or GIF).';
 
 // zod v3, as it reuses the request schemas in protocol.ts. The tool schemas use zod/v4 for JSON Schema output.
@@ -44,6 +47,10 @@ const agentClientMessageSchemas = {
       callId: idSchema,
       ok: z.literal(true),
       result: z.union([z.string(), z.record(z.unknown())]),
+      images: z.array(z.object({
+        mimeType: z.enum(['image/jpeg', 'image/png']),
+        data: z.string().min(1).max(AGENT_MAX_TOOL_IMAGE_CHARS).regex(/^[A-Za-z0-9+/]+={0,2}$/),
+      }).strict()).min(1).max(AGENT_MAX_TOOL_IMAGES).optional(),
     }),
     message('tool_result', {
       callId: idSchema,
@@ -87,7 +94,8 @@ export type AgentServerMessage = z.infer<(typeof agentServerMessageSchemas)[keyo
 
 export const AGENT_CLIENT_MESSAGE_MAX_BYTES = {
   start: COPILOT_MAX_BODY_BYTES,
-  tool_result: 1024 * 1024,
+  // Room for a canvas picture next to the JSON result.
+  tool_result: 4 * 1024 * 1024,
   answer: 16 * 1024,
   cancel: 16 * 1024,
   pong: 16 * 1024,

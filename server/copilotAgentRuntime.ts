@@ -90,7 +90,14 @@ function sessionError(data: { errorType: string; message: string }, hosted: bool
 function toolResult(message: Extract<AgentClientMessage, { type: 'tool_result' }>): ToolResultObject {
   if (!message.ok) return { textResultForLlm: message.error, resultType: message.resultType ?? 'failure' };
   try {
-    return { textResultForLlm: typeof message.result === 'string' ? message.result : JSON.stringify(message.result), resultType: 'success' };
+    return {
+      textResultForLlm: typeof message.result === 'string' ? message.result : JSON.stringify(message.result),
+      resultType: 'success',
+      // capture_canvas pictures; the runtime skips them for models without vision.
+      ...(message.images
+        ? { binaryResultsForLlm: message.images.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType, description: 'The OpenFlowKit canvas' })) }
+        : {}),
+    };
   } catch {
     // JSON.stringify recurses, so a result nested deep enough to overflow the stack fails the call, not the server.
     return { textResultForLlm: 'The browser sent a tool result that could not be read.', resultType: 'failure' };

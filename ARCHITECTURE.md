@@ -113,10 +113,12 @@ block a response indefinitely.
 with the `flowpilot-agent.v1` subprotocol, which stands in for the custom client
 header that browsers cannot set on a socket. Locally the upgrade also requires the
 loopback Origin. The session exposes only `get_canvas`, `edit_canvas`,
-`find_icons`, `layout`, `review_architecture`, `list_templates`, `use_template`,
-and `ask_user`; every other permission request is rejected. Tool handlers are
-relays: the server sends `tool_call`, the browser runs the tool against the live
-store, and its `tool_result` goes back to the model. The server performs no
+`capture_canvas`, `focus_canvas`, `find_icons`, `layout`, `review_architecture`,
+`list_templates`, `use_template`, and `ask_user`; every other permission request
+is rejected. Tool handlers are relays: the server sends `tool_call`, the browser
+runs the tool against the live store, and its `tool_result` goes back to the
+model. `capture_canvas` results also carry a JPEG of the canvas, drawn in the
+browser from the live DOM, which the server hands to the model as an image. The server performs no
 filesystem, environment, or network work for a tool. There are no modes: the
 model decides whether to ask, propose, review, or draw, and Copilot prompts are
 sent without an edit or create prefix.

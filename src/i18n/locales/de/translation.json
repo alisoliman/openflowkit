@@ -31,6 +31,8 @@
       "tools": {
         "get_canvas": "Zeichenfläche gelesen",
         "edit_canvas": "Zeichenfläche bearbeitet",
+        "capture_canvas": "Canvas angesehen",
+        "focus_canvas": "Ansicht verschoben",
         "find_icons": "Symbole gesucht",
         "layout": "Layout angeordnet",
         "review_architecture": "Architektur geprüft",

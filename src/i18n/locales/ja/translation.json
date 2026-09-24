@@ -31,6 +31,8 @@
       "tools": {
         "get_canvas": "キャンバスを読み取りました",
         "edit_canvas": "キャンバスを編集しました",
+        "capture_canvas": "キャンバスを確認しました",
+        "focus_canvas": "表示を移動しました",
         "find_icons": "アイコンを検索しました",
         "layout": "レイアウトを整えました",
         "review_architecture": "アーキテクチャをレビューしました",

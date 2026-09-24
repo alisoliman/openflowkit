@@ -148,7 +148,8 @@ describe('Copilot agent runtime', () => {
       largeOutput: { enabled: false },
     });
     expect(options.availableTools).toEqual([
-      'get_canvas', 'edit_canvas', 'find_icons', 'layout', 'review_architecture', 'list_templates', 'use_template', 'ask_user',
+      'get_canvas', 'edit_canvas', 'capture_canvas', 'focus_canvas', 'find_icons', 'layout', 'review_architecture', 'list_templates',
+      'use_template', 'ask_user',
     ]);
     // ask_user is the SDK's session-isolated built-in; none of ours shadows a built-in.
     expect(BuiltInTools.Isolated).toContain(ASK_USER_TOOL_NAME);
@@ -235,6 +236,15 @@ describe('Copilot agent runtime', () => {
     turn.receive({ v: 1, type: 'tool_result', callId: 'call-3', ok: false, error: 'Unknown node "db".' });
     await expect(invalid).resolves.toEqual({ textResultForLlm: 'Unknown node "db".', resultType: 'failure' });
     session.emit('tool.execution_complete', { toolCallId: 'call-3', success: false });
+
+    // Canvas pictures reach the model as images next to the JSON.
+    const capture = callTool('capture_canvas', {}, 'call-6');
+    turn.receive({ v: 1, type: 'tool_result', callId: 'call-6', ok: true, result: { area: {} }, images: [{ mimeType: 'image/jpeg', data: 'aGk=' }] });
+    await expect(capture).resolves.toEqual({
+      textResultForLlm: '{"area":{}}',
+      resultType: 'success',
+      binaryResultsForLlm: [{ type: 'image', data: 'aGk=', mimeType: 'image/jpeg', description: 'The OpenFlowKit canvas' }],
+    });
 
     const layout = callTool('layout', { scope: 'all' }, 'call-4');
     turn.receive({ v: 1, type: 'tool_result', callId: 'call-4', ok: false, error: 'The user declined.', resultType: 'rejected' });

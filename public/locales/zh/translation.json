@@ -31,6 +31,8 @@
       "tools": {
         "get_canvas": "读取了画布",
         "edit_canvas": "编辑了画布",
+        "capture_canvas": "查看了画布",
+        "focus_canvas": "移动了视图",
         "find_icons": "查找了图标",
         "layout": "整理了布局",
         "review_architecture": "审查了架构",

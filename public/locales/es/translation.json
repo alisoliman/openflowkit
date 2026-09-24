@@ -31,6 +31,8 @@
       "tools": {
         "get_canvas": "Leyó el lienzo",
         "edit_canvas": "Editó el lienzo",
+        "capture_canvas": "Miró el lienzo",
+        "focus_canvas": "Movió la vista",
         "find_icons": "Buscó iconos",
         "layout": "Organizó el diseño",
         "review_architecture": "Revisó la arquitectura",

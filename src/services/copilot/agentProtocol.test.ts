@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
-  AGENT_API_PATH, AGENT_CLIENT_MESSAGE_MAX_BYTES, AGENT_MAX_ANSWER_CHARS, AGENT_MAX_SELECTED_IDS, AGENT_PROTOCOL_VERSION,
+  AGENT_API_PATH, AGENT_CLIENT_MESSAGE_MAX_BYTES, AGENT_MAX_ANSWER_CHARS, AGENT_MAX_SELECTED_IDS, AGENT_MAX_TOOL_IMAGE_CHARS, AGENT_PROTOCOL_VERSION,
   AGENT_SERVER_MESSAGE_MAX_BYTES, AGENT_SUBPROTOCOL, parseAgentClientMessage, parseAgentServerMessage,
 } from './agentProtocol';
 import { AGENT_TOOL_NAMES } from './agentTools';
@@ -55,7 +55,7 @@ describe('Flowpilot agent protocol constants', () => {
     expect(AGENT_API_PATH).toBe('/api/copilot/agent');
     expect(AGENT_SUBPROTOCOL).toBe('flowpilot-agent.v1');
     expect(AGENT_PROTOCOL_VERSION).toBe(1);
-    expect(AGENT_CLIENT_MESSAGE_MAX_BYTES).toEqual({ start: 8 * 1024 * 1024, tool_result: 1024 * 1024, answer: 16 * 1024, cancel: 16 * 1024, pong: 16 * 1024 });
+    expect(AGENT_CLIENT_MESSAGE_MAX_BYTES).toEqual({ start: 8 * 1024 * 1024, tool_result: 4 * 1024 * 1024, answer: 16 * 1024, cancel: 16 * 1024, pong: 16 * 1024 });
     expect(AGENT_SERVER_MESSAGE_MAX_BYTES).toBe(8 * 1024 * 1024);
   });
 
@@ -125,6 +125,20 @@ describe('client messages', () => {
     ]) {
       expect(client(message)).toBeNull();
     }
+  });
+
+  it('carries canvas pictures next to a successful result', () => {
+    const base = { v: 1, type: 'tool_result', callId: 'call-1', ok: true, result: { area: {} } };
+    const image = { mimeType: 'image/jpeg', data: 'aGVsbG8=' };
+    expect(client({ ...base, images: [image] })).toEqual({ ...base, images: [image] });
+    expect(client({ ...base, images: [{ ...image, mimeType: 'image/png' }] })).not.toBeNull();
+    for (const images of [
+      [], [image, image], [{ ...image, mimeType: 'image/gif' }], [{ ...image, data: '' }], [{ ...image, data: 'data:image/jpeg;base64,aGk=' }],
+      [{ ...image, data: 'a'.repeat(AGENT_MAX_TOOL_IMAGE_CHARS + 1) }], [{ ...image, url: 'https://example.com/x.png' }], 'aGk=',
+    ]) {
+      expect(client({ ...base, images })).toBeNull();
+    }
+    expect(client({ v: 1, type: 'tool_result', callId: 'call-1', ok: false, error: 'x', images: [image] })).toBeNull();
   });
 
   it('validates answers', () => {
@@ -230,9 +244,9 @@ describe('frame handling', () => {
 
   it('counts multibyte characters against the byte limit', () => {
     const result = (text: string) => JSON.stringify({ v: 1, type: 'tool_result', callId: 'c', ok: true, result: text });
-    expect(parseAgentClientMessage(result('€'.repeat(340_000)))).not.toBeNull();
-    expect(result('€'.repeat(350_000)).length).toBeLessThan(AGENT_CLIENT_MESSAGE_MAX_BYTES.tool_result);
-    expect(parseAgentClientMessage(result('€'.repeat(350_000)))).toBeNull();
+    expect(parseAgentClientMessage(result('€'.repeat(1_390_000)))).not.toBeNull();
+    expect(result('€'.repeat(1_400_000)).length).toBeLessThan(AGENT_CLIENT_MESSAGE_MAX_BYTES.tool_result);
+    expect(parseAgentClientMessage(result('€'.repeat(1_400_000)))).toBeNull();
     const answer = { v: 1, type: 'answer', questionId: 'q', answer: '\u0001'.repeat(3_000), wasFreeform: true };
     expect(JSON.stringify(answer).length).toBeGreaterThan(AGENT_CLIENT_MESSAGE_MAX_BYTES.answer);
     expect(client(answer)).toBeNull();

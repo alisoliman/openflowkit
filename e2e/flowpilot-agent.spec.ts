@@ -195,6 +195,48 @@ test('a turn ignores delete and undo for a node selected before it started', asy
   await expect(nodes(page)).toHaveCount(1);
 });
 
+test('a turn styles edges and nodes, and looks at the canvas as the user sees it', async ({ page }) => {
+  const nextTurn = await mockAgent(page);
+  await openFlowpilot(page);
+  await send(page, 'Draw an orders flow and make it read well.');
+  const turn = await nextTurn();
+  await turn.accept();
+  expect(await turn.tool('edit_canvas', { ops: ORDERS_OPS })).toMatchObject({ ok: true });
+
+  const canvas = await turn.tool('get_canvas', { detail: 'full' });
+  const [http] = (canvas.result as { edges: Array<{ id: string; style: Record<string, unknown> }> }).edges;
+  expect(http.style).toMatchObject({ arrowheads: 'end', dashPattern: 'solid' });
+  expect((canvas.result as { style: Record<string, unknown> }).style).toMatchObject({ appearance: 'light' });
+
+  const styled = await turn.tool('edit_canvas', {
+    ops: [
+      { op: 'update_edge', id: http.id, data: { color: 'red', arrowheads: 'both', arrowStyle: 'open', path: 'straight', dashPattern: 'dashed', width: 3 } },
+      { op: 'update_node', id: 'api', data: { color: '#4f46e5', colorMode: 'filled', fontWeight: 'bold' } },
+    ],
+  });
+  expect(styled).toMatchObject({ ok: true });
+  const path = page.locator('.react-flow__edge path.react-flow__edge-path').first();
+  await expect(path).toHaveAttribute('marker-start', /url\(/);
+  await expect(path).toHaveAttribute('marker-end', /url\(/);
+  await expect(path).toHaveCSS('stroke-dasharray', '8px, 4px');
+  await expect(path).toHaveCSS('stroke', 'rgb(248, 113, 113)');
+  // A straight line has no curve segments.
+  expect(await path.getAttribute('d')).not.toContain('C');
+
+  const capture = await turn.tool('capture_canvas', {});
+  expect(capture).toMatchObject({
+    ok: true,
+    result: { area: { position: expect.any(Object), size: expect.any(Object) }, image: { width: expect.any(Number) } },
+    images: [{ mimeType: 'image/jpeg', data: expect.stringMatching(/^[A-Za-z0-9+/]{1000,}={0,2}$/) }],
+  });
+  expect(await turn.tool('focus_canvas', { nodeIds: ['api'], select: true })).toMatchObject({ ok: true });
+  await expect(nodes(page).filter({ hasText: 'Orders API' })).toHaveClass(/\bselected\b/);
+  await expect(page.getByText('Looked at the canvas')).toBeVisible();
+
+  turn.finish('Styled the flow.');
+  await expect(page.locator('[data-agent-status="done"]')).toBeVisible();
+});
+
 test('Stop ends the turn, rejects later tool calls, and keeps the work so far', async ({ page }) => {
   const nextTurn = await mockAgent(page);
   await openFlowpilot(page);

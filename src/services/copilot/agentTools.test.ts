@@ -47,7 +47,8 @@ describe('agent tool registry', () => {
     });
     expect(agentToolJsonSchema('layout')).toMatchObject({ required: ['scope'], properties: { scope: { enum: ['new', 'all'] } } });
     expect(agentToolJsonSchema('edit_canvas')).toMatchObject({ required: ['ops'], properties: { ops: { minItems: 1, maxItems: AGENT_MAX_EDIT_OPS } } });
-    expect(JSON.stringify(agentToolJsonSchema('edit_canvas')).length).toBeLessThan(14_000);
+    // Every styling control the properties panel offers costs about 5k tokens of schema.
+    expect(JSON.stringify(agentToolJsonSchema('edit_canvas')).length).toBeLessThan(20_000);
   });
 
   it('matches the app registries it mirrors', () => {
@@ -55,11 +56,14 @@ describe('agent tool registry', () => {
     expect([...AGENT_NODE_COLORS].sort()).toEqual(Object.keys(NODE_COLOR_PALETTE).sort());
     expect([...AGENT_ICON_PROVIDERS].sort()).toEqual(Object.keys(KNOWN_PROVIDER_PACK_IDS).sort());
     expectTypeOf<(typeof AGENT_NODE_SHAPES)[number]>().toEqualTypeOf<NonNullable<NodeData['shape']>>();
+    // Style words that canvasOps translates; the other fields go into node and edge data as they are.
+    type TranslatedNodeField = 'color' | 'fontSize' | 'fontWeight';
+    type TranslatedEdgeField = 'color' | 'arrowheads' | 'arrowStyle' | 'path' | 'width' | 'animated' | 'sourceSide' | 'targetSide';
     expectTypeOf<keyof AgentNodeData>().toExtend<keyof KnownKeys<NodeData>>();
-    expectTypeOf<Omit<AgentNodeData, 'erFields'>>().toExtend<Partial<KnownKeys<NodeData>>>();
+    expectTypeOf<Omit<AgentNodeData, 'erFields' | TranslatedNodeField>>().toExtend<Partial<KnownKeys<NodeData>>>();
     expectTypeOf<NonNullable<AgentNodeData['erFields']>[number]>().toExtend<Partial<ErField>>();
-    expectTypeOf<keyof AgentEdgeData>().toExtend<keyof KnownKeys<EdgeData> | 'seqMessageOrder'>();
-    expectTypeOf<Omit<AgentEdgeData, 'seqMessageOrder'>>().toExtend<Partial<KnownKeys<EdgeData>>>();
+    expectTypeOf<Exclude<keyof AgentEdgeData, TranslatedEdgeField>>().toExtend<keyof KnownKeys<EdgeData> | 'seqMessageOrder'>();
+    expectTypeOf<Omit<AgentEdgeData, 'seqMessageOrder' | TranslatedEdgeField>>().toExtend<Partial<KnownKeys<EdgeData>>>();
     expect(edit({ op: 'add_edge', source: 'a', target: 'b', data: { classRelation: CLASS_RELATION_TOKENS[0] } })).toBe(true);
     expect(edit({ op: 'add_edge', source: 'a', target: 'b', data: { erRelation: ER_RELATION_TOKENS.at(-1) } })).toBe(true);
   });
@@ -113,6 +117,14 @@ describe('agent tool arguments', () => {
       { op: 'update_edge', id: 'e1', label: '', data: { dashPattern: 'solid' } },
       { op: 'remove_edge', id: 'e2' },
       { op: 'group', id: 'vpc', label: 'VPC', nodeIds: ['api', 'existing-2'] },
+      { op: 'add_node', id: 'brand', type: 'process', label: 'Brand', width: 240, height: 90, data: { color: '#4F46E5', fontSize: 16, fontFamily: 'fira', fontWeight: 'bold', fontStyle: 'italic', align: 'left' } },
+      { op: 'add_node', id: 'screen', type: 'browser', label: 'app.example.com', data: { variant: 'dashboard', color: 'green' } },
+      { op: 'update_node', id: 'existing-3', width: 300, order: 'front' },
+      { op: 'add_edge', source: 'api', target: 'users', data: { color: 'red', arrowheads: 'both', arrowStyle: 'open', path: 'rounded', width: 3, dashPattern: 'dotted', animated: true, labelPosition: 0.25, sourceSide: 'right', targetSide: 'auto' } },
+      { op: 'update_edge', id: 'e3', reverse: true, data: { color: 'default', path: 'default' } },
+      { op: 'update_edge', id: 'e4', source: 'api', target: 'users' },
+      { op: 'align', nodeIds: ['api', 'users'], edge: 'middle' },
+      { op: 'distribute', nodeIds: ['api', 'users'], axis: 'horizontal', gap: 80 },
     )).toBe(true);
   });
 
@@ -140,7 +152,11 @@ describe('agent tool arguments', () => {
       { op: 'remove_node', id: 'a', cascade: true },
       { op: 'add_edge', source: 'a', target: 'b', data: { elkPoints: [] } },
       { op: 'group', id: 'g', label: 'G', nodeIds: ['a'], data: { color: 'blue' } },
-      { op: 'update_edge', id: 'e', source: 'x' },
+      { op: 'update_edge', id: 'e', reverse: 'yes' },
+      { op: 'update_node', id: 'a', order: 'top' },
+      { op: 'align', nodeIds: ['a'], edge: 'left' },
+      { op: 'align', nodeIds: ['a', 'b'], edge: 'diagonal' },
+      { op: 'distribute', nodeIds: ['a', 'b', 'c'] },
     ]) {
       expect(edit(op)).toBe(false);
     }
@@ -194,7 +210,8 @@ describe('agent tool arguments', () => {
 
   it('restricts node and edge data values', () => {
     for (const data of [
-      { color: 'custom' }, { color: '#ff0000' }, { colorMode: 'outline' }, { shape: 'star' }, { icon: '' }, { icon: 'x'.repeat(65) },
+      { color: 'custom' }, { color: '#ff00' }, { color: 'ff0000' }, { color: 'teal' }, { colorMode: 'outline' },
+      { fontSize: 4 }, { fontSize: 13.5 }, { fontSize: '13' }, { fontFamily: 'comic' }, { fontWeight: '700' }, { align: 'justify' }, { shape: 'star' }, { icon: '' }, { icon: 'x'.repeat(65) },
       { journeyScore: 0 }, { journeyScore: 6 }, { journeyScore: 3.5 }, { seqParticipantKind: 'boundary' },
       { erFields: ['id uuid'] }, { erFields: [{ name: 'id' }] }, { erFields: [{ name: 'id', dataType: 'uuid', isPrimaryKey: 'yes' }] },
       { erFields: [{ name: 'id', dataType: 'uuid', comment: 'x' }] }, { classAttributes: 'id' },
@@ -203,7 +220,9 @@ describe('agent tool arguments', () => {
       expect(edit(addNode({ data }))).toBe(false);
     }
     for (const data of [
-      { dashPattern: 'wavy' }, { classRelation: '->' }, { erRelation: '1--1' }, { seqMessageKind: 'call' },
+      { dashPattern: 'wavy' }, { color: 'custom' }, { color: '#12345' }, { arrowheads: 'left' }, { arrowStyle: 'diamond' },
+      { path: 'zigzag' }, { width: 0 }, { width: 7 }, { labelPosition: 1.5 }, { sourceSide: 'north' }, { animated: 'yes' },
+      { classRelation: '->' }, { erRelation: '1--1' }, { seqMessageKind: 'call' },
       { seqMessageOrder: -1 }, { seqMessageOrder: 1.5 },
     ]) {
       expect(edit({ op: 'add_edge', source: 'a', target: 'b', data })).toBe(false);
