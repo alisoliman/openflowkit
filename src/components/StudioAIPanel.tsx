@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import {
   ArrowUp,
   Edit3,
@@ -16,7 +16,6 @@ import { FlowpilotControls } from './FlowpilotControls';
 import {
   EMPTY_CANVAS_EXAMPLES,
   ITERATION_EXAMPLES,
-  EXAMPLE_ICON_COLORS,
 } from './studioAiPanelExamples';
 import {
   type AIGenerationMode,
@@ -25,8 +24,8 @@ import {
   PendingDiffBanner,
 } from './StudioAIPanelSections';
 
-function getExampleIconColor(index: number): string {
-  return EXAMPLE_ICON_COLORS[index % EXAMPLE_ICON_COLORS.length];
+function getExampleIconColor(): string {
+  return 'text-[var(--brand-primary)]';
 }
 
 interface StudioAIPanelProps {
@@ -115,19 +114,19 @@ function getPrimaryComposerClassName(isInputEmpty: boolean, isBeveled: boolean):
     return 'cursor-not-allowed border-[var(--color-brand-border)] bg-[var(--brand-background)] text-[var(--brand-secondary)] shadow-none';
   }
 
-  return `border-[color-mix(in_srgb,var(--brand-primary),black_18%)] bg-[var(--brand-primary)] text-white shadow-sm hover:-translate-y-px hover:bg-[var(--brand-primary-600)] hover:shadow-md ${isBeveled ? 'btn-beveled' : ''}`;
+  return `border-[color-mix(in_srgb,var(--brand-primary),black_18%)] bg-[var(--brand-action)] text-white shadow-sm hover:bg-[var(--brand-action-hover)] ${isBeveled ? 'btn-beveled' : ''}`;
 }
 
 function getGenerationModeButtonClassName(isActive: boolean): string {
   if (isActive) {
-    return 'bg-[var(--brand-surface)] text-orange-600 border border-orange-200 shadow-sm';
+    return 'bg-[var(--brand-surface)] text-[var(--brand-primary)] border border-[var(--brand-primary-100)] shadow-sm';
   }
 
   return 'text-[var(--brand-secondary)] hover:bg-[var(--brand-surface)]/50 hover:text-[var(--brand-text)] border border-transparent';
 }
 
 function getInfoIconClassName(isActive: boolean): string {
-  return `h-3.5 w-3.5 focus:outline-none ${isActive ? 'text-orange-400' : 'text-[var(--brand-secondary)]'}`;
+  return `h-3.5 w-3.5 ${isActive ? 'text-[var(--brand-primary)]' : 'text-[var(--brand-secondary)]'}`;
 }
 
 export function StudioAIPanel({
@@ -156,6 +155,10 @@ export function StudioAIPanel({
   const { t } = useTranslation();
   const isBeveled = IS_BEVELED;
   const [generationMode, setGenerationMode] = useState<AIGenerationMode>('edit');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const openingFocus = useRef<{ origin: Element | null; initialized: boolean; considered: boolean }>({
+    origin: null, initialized: false, considered: false,
+  });
   // Copilot has no modes: the agent reads the canvas and decides whether to edit or rebuild.
   const isCopilot = useFlowStore((state) => state.aiSettings.provider === 'copilot');
   const effectiveGenerationMode: AIGenerationMode = nodeCount === 0 ? 'create' : isCopilot ? 'edit' : generationMode;
@@ -171,6 +174,8 @@ export function StudioAIPanel({
     setSelectedImage,
     fileInputRef,
     scrollRef,
+    isScrolledUp,
+    scrollToLatest,
     handleGenerate,
     handleKeyDown,
     handleImageSelect,
@@ -185,7 +190,7 @@ export function StudioAIPanel({
       return onAIGenerate(buildGenerationPrompt(text, effectiveGenerationMode, nodeCount), image);
     },
     onClose: () => setGenerationMode('edit'),
-    scrollKey: getThreadScrollKey(assistantThread),
+    scrollKey: `${getThreadScrollKey(assistantThread)}:${streamingText?.length ?? 0}`,
   });
 
   useEffect(() => {
@@ -196,6 +201,25 @@ export function StudioAIPanel({
   }, [initialPrompt, onInitialPromptConsumed, setPrompt]);
 
   const hasHistory = assistantThread.length > 0;
+  useEffect(() => {
+    const opening = openingFocus.current;
+    if (!opening.initialized) {
+      opening.initialized = true;
+      opening.origin = document.activeElement;
+    }
+    if (opening.considered) return;
+    // Restored conversations and active turns keep the user's current focus.
+    if (isGenerating || hasHistory) {
+      opening.considered = true;
+      return;
+    }
+    // Readiness includes history restoration, so wait before deciding this is a new conversation.
+    if (!aiReadiness.canGenerate) return;
+    opening.considered = true;
+    if (document.activeElement !== opening.origin || opening.origin?.closest('[role="dialog"]')) return;
+    panelRef.current?.querySelector<HTMLTextAreaElement>('[data-flowpilot-composer]')?.focus({ preventScroll: true });
+  }, [aiReadiness.canGenerate, hasHistory, isGenerating]);
+
   const isCanvasEmpty = nodeCount === 0;
   const examplePrompts = isCanvasEmpty ? EMPTY_CANVAS_EXAMPLES : ITERATION_EXAMPLES;
   const isEditMode = effectiveGenerationMode === 'edit' && !isCanvasEmpty;
@@ -225,7 +249,7 @@ export function StudioAIPanel({
   const isInputEmpty = !prompt.trim() && !selectedImage;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div ref={panelRef} className="flex h-full min-h-0 flex-col overflow-hidden">
       {pendingDiff ? (
         <PendingDiffBanner
           pendingDiff={pendingDiff}
@@ -235,7 +259,7 @@ export function StudioAIPanel({
           t={t}
         />
       ) : null}
-        <ChatHistoryView
+      <ChatHistoryView
         hasHistory={hasHistory}
         chatMessages={chatMessages}
         assistantThread={assistantThread}
@@ -254,6 +278,8 @@ export function StudioAIPanel({
         onOpenAISettings={openAISettings}
         onClearChat={onClearChat}
         scrollRef={scrollRef}
+        showScrollToLatest={isScrolledUp}
+        onScrollToLatest={scrollToLatest}
         t={t}
       />
       <FlowpilotControls isGenerating={isGenerating} canUndo={canUndoLastChange} onUndo={undoLastChange} />

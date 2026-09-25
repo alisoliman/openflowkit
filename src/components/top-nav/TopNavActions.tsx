@@ -25,7 +25,7 @@ interface CollaborationState {
         color: string;
         isLocal: boolean;
     }>;
-    onCopyShareLink: () => void;
+    onCopyShareLink: () => Promise<boolean>;
 }
 
 interface TopNavActionsProps {
@@ -138,7 +138,7 @@ export function TopNavActions({
                     <div className="mr-1 hidden items-center gap-2 border-r border-[var(--color-brand-border)]/80 pr-3 md:flex">
                         {/* Status Indicator */}
                         <Tooltip text={getCollaborationStatusLabel(collaboration.status, collaboration.cacheState, t)} side="bottom">
-                            <div className={`w-2 h-2 rounded-full ${getCollaborationStatusDotClass(collaboration.status)}`} />
+                            <div role="status" aria-label={getCollaborationStatusLabel(collaboration.status, collaboration.cacheState, t)} className={`w-2 h-2 rounded-full ${getCollaborationStatusDotClass(collaboration.status)}`} />
                         </Tooltip>
 
                         {/* Avatars */}
@@ -146,7 +146,8 @@ export function TopNavActions({
                             {visibleParticipants.map((participant) => (
                                 <Tooltip key={participant.clientId} text={participant.name} side="bottom">
                                     <div
-                                        className="inline-flex h-8 w-8 rounded-full ring-2 ring-[var(--brand-surface)] flex items-center justify-center text-white text-[10px] font-bold shadow-sm"
+                                        aria-label={participant.name}
+                                        className="inline-flex h-8 w-8 rounded-full ring-2 ring-[var(--brand-surface)] flex items-center justify-center text-white text-[11px] font-semibold shadow-sm"
                                         style={{ backgroundColor: participant.color }}
                                     >
                                         {getAvatarInitial(participant.name)}
@@ -154,7 +155,7 @@ export function TopNavActions({
                                 </Tooltip>
                             ))}
                             {viewerCount > 4 && (
-                                <div className="inline-flex h-8 w-8 rounded-full ring-2 ring-[var(--brand-surface)] bg-[var(--brand-background)] flex items-center justify-center text-[var(--brand-secondary)] text-[10px] font-bold shadow-sm">
+                                <div className="inline-flex h-8 w-8 rounded-full ring-2 ring-[var(--brand-surface)] bg-[var(--brand-background)] flex items-center justify-center text-[var(--brand-secondary)] text-[11px] font-semibold shadow-sm">
                                     +{viewerCount - 4}
                                 </div>
                             )}
@@ -166,8 +167,11 @@ export function TopNavActions({
                                 size="icon"
                                 onClick={() => setIsShareModalOpen(true)}
                                 data-testid="topnav-share"
+                                aria-label={t('share.openDialog', 'Open sharing')}
+                                aria-haspopup="dialog"
+                                aria-expanded={isShareModalOpen}
                                 className={shareButtonClassName}
-                                icon={<Share2 className="w-4 h-4" />}
+                                icon={<Share2 aria-hidden="true" className="w-4 h-4" />}
                             />
                         </Tooltip>
                     </div>
@@ -181,7 +185,7 @@ export function TopNavActions({
                         data-testid="topnav-play"
                         aria-label={playLabel}
                         className={playButtonClassName}
-                        icon={<Play className="h-3.5 w-3.5 sm:mr-1" />}
+                        icon={<Play aria-hidden="true" className="h-3.5 w-3.5 sm:mr-1" />}
                     >
                         <span className="hidden sm:inline">{playLabel}</span>
                     </Button>

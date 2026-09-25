@@ -1,13 +1,20 @@
 import { act, renderHook } from '@testing-library/react';
 import type React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowNode } from '@/lib/types';
 import { useFlowStore } from '@/store';
-import { importDiagramDocumentJson } from './flow-export/diagramDocumentTransfer';
+import { toJpeg } from 'html-to-image';
+import { createDownload } from './flow-export/exportCapture';
+import { buildDiagramDocumentJson, importDiagramDocumentJson } from './flow-export/diagramDocumentTransfer';
 import { useFlowExport } from './useFlowExport';
 
 const { addToast, fitView } = vi.hoisted(() => ({ addToast: vi.fn(), fitView: vi.fn() }));
 
+vi.mock('html-to-image', () => ({ toJpeg: vi.fn(), toPng: vi.fn(), toSvg: vi.fn() }));
+vi.mock('./flow-export/exportCapture', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./flow-export/exportCapture')>()),
+  createDownload: vi.fn(),
+}));
 vi.mock('./flow-export/diagramDocumentTransfer', () => ({
   buildDiagramDocumentJson: vi.fn(),
   importDiagramDocumentJson: vi.fn(),
@@ -66,5 +73,37 @@ describe('useFlowExport JSON import', () => {
     expect(addToast).toHaveBeenCalledWith('Flowpilot is editing this page. Try again after it finishes.', 'warning');
     expect(recordHistory).not.toHaveBeenCalled();
     expect(useFlowStore.getState().nodes).toBe(existing);
+  });
+});
+
+
+afterEach(() => { vi.useRealTimers(); });
+
+describe('useFlowExport completion', () => {
+  it('awaits PDF capture and releases export styles only when the download is ready', async () => {
+    vi.useFakeTimers();
+    let completeCapture!: (url: string) => void;
+    vi.mocked(toJpeg).mockReturnValue(new Promise((resolve) => { completeCapture = resolve; }));
+    const canvas = document.createElement('div');
+    canvas.innerHTML = '<div class="react-flow__viewport"></div>';
+    const { result } = renderHook(() => useFlowExport(vi.fn(), { current: canvas }, { stopPlayback: vi.fn() }));
+    let finished = false;
+    const exportPromise = result.current.handlePdfExport().then((outcome) => { finished = true; return outcome; });
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    expect(finished).toBe(false);
+    expect(canvas).toHaveClass('exporting');
+    expect(createDownload).not.toHaveBeenCalled();
+    completeCapture('data:image/jpeg;base64,YQ==');
+    expect(await exportPromise).toEqual({ status: 'success' });
+    expect(createDownload).toHaveBeenCalledOnce();
+    expect(canvas).not.toHaveClass('exporting');
+  });
+
+  it('reports JSON serialization failure as a handled result for download and copy', async () => {
+    vi.mocked(buildDiagramDocumentJson).mockRejectedValue(new Error('Invalid document'));
+    const { result } = renderHook(() => useFlowExport(vi.fn(), { current: null }, { stopPlayback: vi.fn() }));
+    expect(await result.current.handleExportJSON()).toEqual({ status: 'error', message: 'Failed to export JSON. Please try again.' });
+    expect(await result.current.handleCopyJSON()).toEqual({ status: 'error', message: 'Failed to copy JSON. Please try again.' });
+    expect(createDownload).not.toHaveBeenCalled();
   });
 });

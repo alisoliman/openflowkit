@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { Layout } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, Layout, SearchX, X } from 'lucide-react';
+import { Button } from '../ui/Button';
 import { useTranslation } from 'react-i18next';
 import { SearchField } from '../ui/SearchField';
 import { SegmentedTabs } from '../ui/SegmentedTabs';
@@ -20,6 +21,8 @@ export const TemplatesView = ({
 }: TemplatesViewProps): React.ReactElement => {
   const { t } = useTranslation();
   const [tSearch, setTSearch] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { searchRef.current?.focus({ preventScroll: true }); }, []);
   const [activeCategory, setActiveCategory] = useState('all');
   const templates = useMemo(() => getFlowTemplates(), []);
   const categories = useMemo(
@@ -58,33 +61,63 @@ export const TemplatesView = ({
 
   const categoryItems = useMemo(
     () => [
-      { id: 'all', label: 'ALL', count: templates.length },
+      { id: 'all', label: t('homeTemplates.all', 'All templates'), count: templates.length },
       ...categories.map((category) => ({
         id: category,
         label: category.toUpperCase(),
         count: templates.filter((template) => template.category === category).length,
       })),
     ],
-    [categories, templates]
+    [categories, t, templates]
   );
+
+  function resetFilters(): void {
+    setTSearch('');
+    setActiveCategory('all');
+    searchRef.current?.focus();
+  }
 
   return (
     <div className="flex h-full flex-col bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.08),_transparent_48%)]">
       <ViewHeader
         title={t('commandBar.templates.title')}
         icon={<Layout className="h-4 w-4 text-[var(--brand-primary)]" />}
-        description="Start from a polished workflow or architecture template, then edit the real details on canvas."
+        description={t(
+          'homeTemplates.libraryDescription',
+          'Find a starting point for your next idea. Every template is fully editable.'
+        )}
         onBack={handleBack}
         onClose={onClose}
       />
 
       <div className="border-b border-[var(--color-brand-border)]/70 bg-[var(--brand-surface)]/90 px-4 py-3 backdrop-blur-sm">
         <SearchField
+          ref={searchRef}
           value={tSearch}
           onChange={(e) => setTSearch(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && tSearch) {
+              event.stopPropagation();
+              setTSearch('');
+            }
+          }}
           placeholder={t('commandBar.templates.placeholder')}
-          autoFocus
+          aria-label={t('homeTemplates.search', 'Search templates, use cases, or technologies…')}
+          trailingContent={
+            tSearch ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTSearch('');
+                  searchRef.current?.focus();
+                }}
+                aria-label={t('home.clearSearch', 'Clear search')}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--brand-secondary)] hover:bg-[var(--brand-background)]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : undefined
+          }
         />
 
         <SegmentedTabs
@@ -96,7 +129,10 @@ export const TemplatesView = ({
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
+        <p className="mb-3 text-xs text-[var(--brand-secondary)]" role="status" aria-live="polite">
+          {t('homeTemplates.count', '{{count}} templates', { count: filteredTemplates.length })}
+        </p>
         {filteredTemplates.length > 0 ? (
           <div className="space-y-3">
             {filteredTemplates.map((template) => (
@@ -104,19 +140,30 @@ export const TemplatesView = ({
                 key={template.id}
                 type="button"
                 onClick={() => handleSelect(template)}
-                className="group flex w-full items-stretch overflow-hidden rounded-[16px] border border-[color-mix(in_srgb,var(--color-brand-border),transparent_50%)] bg-[var(--brand-surface)] text-left transition-all duration-200 hover:border-[var(--brand-primary-300)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
+                className="group flex w-full items-stretch overflow-hidden rounded-xl border border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-left transition-all duration-200 hover:border-[var(--brand-primary-300)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
               >
-                <div className="relative hidden w-[190px] shrink-0 border-r border-[color-mix(in_srgb,var(--color-brand-border),transparent_50%)] bg-[var(--brand-background)] sm:block">
+                <div className="relative hidden min-h-[130px] w-[140px] shrink-0 border-r border-[color-mix(in_srgb,var(--color-brand-border),transparent_50%)] bg-[var(--brand-background)] sm:block">
                   <TemplateDiagramPreview template={template} />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col p-4">
-                  <div className="mb-1 text-[13.5px] font-semibold text-[var(--brand-text)] group-hover:text-[var(--brand-primary-900)]">
+                  <div className="mb-1.5 text-sm font-semibold text-[var(--brand-text)] group-hover:text-[var(--brand-primary)]">
                     {template.name}
                   </div>
-                  <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--brand-secondary)]">
+                  <p className="mb-3 line-clamp-2 text-xs leading-relaxed text-[var(--brand-secondary)]">
+                    {template.description}
+                  </p>
+                  <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-[var(--brand-secondary)]">
                     <span className="capitalize">{template.category}</span>
                     <div className="h-[3px] w-[3px] rounded-full bg-[color-mix(in_srgb,var(--brand-secondary),transparent_50%)]" />
-                    <span>{formatNodeCount(template.nodes.length)}</span>
+                    <span>
+                      {t('homeTemplates.nodes', '{{count}} nodes', {
+                        count: template.nodes.length,
+                      })}
+                    </span>
+                    <ArrowRight
+                      className="ml-auto h-4 w-4 text-[var(--brand-secondary)] group-hover:text-[var(--brand-primary)]"
+                      aria-hidden="true"
+                    />
                   </div>
                 </div>
               </button>
@@ -124,15 +171,23 @@ export const TemplatesView = ({
           </div>
         ) : null}
         {filteredTemplates.length === 0 && (
-          <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-brand-border)] bg-[var(--brand-surface)]/80 px-4 py-10 text-center text-sm text-[var(--brand-secondary)]">
-            {t('commandBar.templates.noResults')}
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-4 py-10 text-center">
+            <SearchX className="mb-3 h-7 w-7 text-[var(--brand-secondary)]" aria-hidden="true" />
+            <p className="mb-2 text-sm font-semibold text-[var(--brand-text)]">
+              {t('homeTemplates.noResults', 'No matching templates')}
+            </p>
+            <p className="mb-5 max-w-sm text-xs leading-relaxed text-[var(--brand-secondary)]">
+              {t(
+                'homeTemplates.searchHint',
+                'Try a broader search or another category to find your starting point.'
+              )}
+            </p>
+            <Button variant="secondary" onClick={resetFilters}>
+              {t('homeTemplates.resetFilters', 'Reset filters')}
+            </Button>
           </div>
         )}
       </div>
     </div>
   );
 };
-
-function formatNodeCount(count: number): string {
-  return count === 1 ? '1 node' : `${count} nodes`;
-}

@@ -65,12 +65,19 @@ export async function importDiagramDocumentJson(params: {
   try {
     const raw = JSON.parse(json);
     const parsed = parseDiagramDocumentImport(raw);
-    // The layout cache keys on ids and edges only, so it would hand back an earlier document's nodes.
-    const { clearLayoutCache } = await import('@/services/elkLayout');
-    clearLayoutCache();
-    const { nodes, edges } = await composeDiagramForDisplay(parsed.nodes, parsed.edges, {
-      diagramType: parsed.diagramType,
-    });
+    const preservesNativeLayout = raw.name === 'OpenFlowKit Diagram'
+      && typeof raw.version === 'string' && /^1\./.test(raw.version)
+      && parsed.nodes.every((node) => Number.isFinite(node?.position?.x) && Number.isFinite(node?.position?.y));
+    let nodes = parsed.nodes;
+    let edges = parsed.edges;
+    if (!preservesNativeLayout) {
+      // Legacy/unpositioned graphs need layout. Native exports already include their edited layout.
+      const { clearLayoutCache } = await import('@/services/elkLayout');
+      clearLayoutCache();
+      ({ nodes, edges } = await composeDiagramForDisplay(parsed.nodes, parsed.edges, {
+        diagramType: parsed.diagramType,
+      }));
+    }
     const report = buildImportFidelityReport({
       source: 'json',
       nodeCount: nodes.length,

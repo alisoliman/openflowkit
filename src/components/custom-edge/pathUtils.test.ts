@@ -43,7 +43,59 @@ function getLastPoint(path: string): string {
   return `${lastMatch[1]},${lastMatch[2]}`;
 }
 
+function expectOrthogonalLegs(path: string): void {
+  expect(path).not.toMatch(/[CHVASZT]/);
+  const coordinates = (path.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+  // Q control points represent the corner, so both arms must also remain axis-aligned.
+  for (let index = 2; index < coordinates.length; index += 2) {
+    expect(coordinates[index] === coordinates[index - 2] || coordinates[index + 1] === coordinates[index - 1], path).toBe(true);
+  }
+}
+
 describe('buildEdgePath', () => {
+  it.each(['step', 'stepBefore', 'stepAfter', 'smoothstep'] as const)(
+    'keeps %s manual routing orthogonal when anchors or numeric bends move', (curve) => {
+      const result = buildEdgePath({
+        id: 'manual', source: 'a', target: 'b',
+        sourceX: -25, sourceY: 17, targetX: 235, targetY: 153,
+        sourcePosition: Position.Right, targetPosition: Position.Left,
+      }, [], [NODE_A, NODE_B], 'smoothstep', {
+        routingMode: 'manual', curve,
+        waypoints: [{ x: 45, y: 60 }, { x: 145, y: 120 }],
+      });
+      expect(getMovePoint(result.edgePath)).toBe('-25,17');
+      expect(getLastPoint(result.edgePath)).toBe('235,153');
+      expectOrthogonalLegs(result.edgePath);
+      expect(result.edgePath.includes('Q')).toBe(curve === 'smoothstep');
+    }
+  );
+
+  it('uses sharp orthogonal bends when relation routing forces a smooth curve to step', () => {
+    const result = buildEdgePath({
+      id: 'forced', source: 'a', target: 'b',
+      sourceX: 0, sourceY: 0, targetX: 200, targetY: 150,
+      sourcePosition: Position.Bottom, targetPosition: Position.Top,
+    }, [], [NODE_A, NODE_B], 'bezier', {
+      routingMode: 'manual', curve: 'basis', forceOrthogonal: true,
+      waypoints: [{ x: 60, y: 45 }, { x: 145, y: 120 }],
+    });
+    expectOrthogonalLegs(result.edgePath);
+    expect(result.edgePath).not.toContain('Q');
+    expect(getMovePoint(result.edgePath)).toBe('0,0');
+    expect(getLastPoint(result.edgePath)).toBe('200,150');
+  });
+
+  it('retains free-form curve interpolation for manual smooth connectors', () => {
+    const result = buildEdgePath({
+      id: 'curved', source: 'a', target: 'b',
+      sourceX: 0, sourceY: 0, targetX: 200, targetY: 150,
+      sourcePosition: Position.Right, targetPosition: Position.Left,
+    }, [], [NODE_A, NODE_B], 'bezier', {
+      routingMode: 'manual', curve: 'basis', waypoints: [{ x: 60, y: 45 }, { x: 145, y: 120 }],
+    });
+    expect(result.edgePath).toContain('C');
+  });
+
   it('skips sibling fanout offsets while edge interaction low-detail mode is active', () => {
     const allEdges = [
       { id: 'edge-1', source: 'a', target: 'b', sourceHandle: 'right', targetHandle: 'left' },
@@ -139,7 +191,8 @@ describe('buildEdgePath', () => {
       }
     );
 
-    expect(result.edgePath).toContain('Q 40 60');
+    expect(result.edgePath).toContain('Q 40 0');
+    expect(result.edgePath).toContain('Q 40 100');
     expect(result.edgePath.startsWith('M ')).toBe(true);
     expect(Number.isFinite(result.labelX)).toBe(true);
     expect(Number.isFinite(result.labelY)).toBe(true);
@@ -896,7 +949,8 @@ describe('buildEdgePath', () => {
       }
     );
 
-    expect(result.edgePath).toContain('Q 40 60');
+    expect(result.edgePath).toContain('Q 40 0');
+    expect(result.edgePath).toContain('Q 40 100');
     expect(result.edgePath).not.toContain('Q 20 20');
   });
 

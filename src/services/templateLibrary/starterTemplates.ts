@@ -320,11 +320,11 @@ export const STARTER_TEMPLATE_MANIFESTS: TemplateManifest[] = [
       createAssetNode('aws-saas-2', 'aws', 'Lambda API', 'Compute', 'compute-lambda', 0, 0),
       createAssetNode('aws-saas-3', 'aws', 'EventBridge', 'Application Integration', 'application-integration-eventbridge', 220, 0),
       createAssetNode('aws-saas-4', 'aws', 'SQS Work Queue', 'Application Integration', 'application-integration-simple-queue-service', 220, 240),
-      createAssetNode('aws-saas-5', 'aws', 'Step Functions', 'Application Integration', 'application-integration-step-functions', 460, 240),
-      createAssetNode('aws-saas-6', 'aws', 'DynamoDB Tenant Data', 'Databases', 'databases-dynamodb', 0, 240),
-      createAssetNode('aws-saas-7', 'aws', 'SES Customer Notices', 'Business Applications', 'business-applications-simple-email-service', 460, 480),
+      createAssetNode('aws-saas-5', 'aws', 'Step Functions', 'Application Integration', 'application-integration-step-functions', 560, 240),
+      createAssetNode('aws-saas-6', 'aws', 'DynamoDB Tenant Data', 'Databases', 'databases-dynamodb', 0, 480),
+      createAssetNode('aws-saas-7', 'aws', 'SES Customer Notices', 'Business Applications', 'business-applications-simple-email-service', 560, 480),
       createAssetNode('aws-saas-8', 'aws', 'CloudWatch Alerts', 'Management Tools', 'management-tools-cloudwatch', -220, 480),
-      createFlowNode('aws-saas-note', NodeType.ANNOTATION, 'Replace tenant events, storage, and async handlers with your own platform flow.', 80, 660, 'yellow', {
+      createFlowNode('aws-saas-note', NodeType.ANNOTATION, 'Replace tenant events, storage, and async handlers with your own platform flow.', 560, -140, 'yellow', {
         subLabel: 'Best first edit: tenant event names, queue consumers, and customer notifications',
       }),
     ],
@@ -334,10 +334,25 @@ export const STARTER_TEMPLATE_MANIFESTS: TemplateManifest[] = [
       createDefaultEdge('aws-saas-2', 'aws-saas-6', 'write command state'),
       createDefaultEdge('aws-saas-3', 'aws-saas-4', 'fan out work'),
       createDefaultEdge('aws-saas-4', 'aws-saas-5', 'process async workflow'),
-      createDefaultEdge('aws-saas-5', 'aws-saas-6', 'persist result'),
+      {
+        ...createDefaultEdge('aws-saas-5', 'aws-saas-6', 'persist result'),
+        // Keep persistence in the open corridor below the queue, including after insertion.
+        sourceHandle: 'bottom',
+        targetHandle: 'top',
+        data: { archSourceSide: 'B', archTargetSide: 'T' },
+      },
       createDefaultEdge('aws-saas-5', 'aws-saas-7', 'notify customer'),
-      createDefaultEdge('aws-saas-2', 'aws-saas-8', 'app metrics'),
-      createDefaultEdge('aws-saas-5', 'aws-saas-8', 'workflow alarms'),
+      {
+        ...createDefaultEdge('aws-saas-2', 'aws-saas-8', 'app metrics'),
+        data: { labelPosition: 0.2 },
+      },
+      {
+        ...createDefaultEdge('aws-saas-5', 'aws-saas-8', 'workflow alarms'),
+        // Route monitoring around the outside of the notification and persistence nodes.
+        sourceHandle: 'right',
+        targetHandle: 'bottom',
+        data: { archSourceSide: 'R', archTargetSide: 'B' },
+      },
       createDefaultEdge('aws-saas-note', 'aws-saas-5', 'replace workflow'),
     ],
     {

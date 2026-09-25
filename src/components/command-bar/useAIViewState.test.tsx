@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useAIViewState } from './useAIViewState';
 
@@ -14,7 +14,58 @@ function createHook(onAIGenerate: (prompt: string, imageBase64?: string) => Prom
   );
 }
 
+function ChatHarness({ scrollKey = 0, generate = async () => true }: {
+  scrollKey?: number;
+  generate?: (prompt: string) => Promise<boolean>;
+}) {
+  const { prompt, setPrompt, handleKeyDown, scrollRef, isScrolledUp, scrollToLatest } = useAIViewState({
+    searchQuery: '', isGenerating: false, onAIGenerate: generate, onClose: vi.fn(), scrollKey,
+  });
+  return <>
+    <textarea aria-label="Prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={handleKeyDown} />
+    <div ref={scrollRef} role="log" />
+    {isScrolledUp && <button onClick={scrollToLatest}>Latest message</button>}
+  </>;
+}
+
 describe('useAIViewState', () => {
+  it('keeps IME confirmation and Shift+Enter from submitting the prompt', async () => {
+    const generate = vi.fn(async () => true);
+    render(<ChatHarness generate={generate} />);
+    const prompt = screen.getByRole('textbox', { name: 'Prompt' });
+    fireEvent.change(prompt, { target: { value: '認証の流れ' } });
+    fireEvent.keyDown(prompt, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(prompt, { key: 'Enter', keyCode: 229 });
+    fireEvent.keyDown(prompt, { key: 'Enter', shiftKey: true });
+    expect(generate).not.toHaveBeenCalled();
+    expect(prompt).toHaveValue('認証の流れ');
+    await act(async () => { fireEvent.keyDown(prompt, { key: 'Enter' }); });
+    expect(generate).toHaveBeenCalledWith('認証の流れ', undefined);
+  });
+
+  it('preserves the reading position while streaming and resumes following on demand', () => {
+    const { rerender } = render(<ChatHarness scrollKey={1} />);
+    const log = screen.getByRole('log');
+    Object.defineProperties(log, {
+      scrollHeight: { value: 1000, configurable: true },
+      clientHeight: { value: 300, configurable: true },
+    });
+    rerender(<ChatHarness scrollKey={2} />);
+    expect(log.scrollTop).toBe(1000);
+    log.scrollTop = 150;
+    fireEvent.scroll(log);
+    expect(screen.getByRole('button', { name: 'Latest message' })).toBeInTheDocument();
+    Object.defineProperty(log, 'scrollHeight', { value: 1200, configurable: true });
+    rerender(<ChatHarness scrollKey={3} />);
+    expect(log.scrollTop).toBe(150);
+    fireEvent.click(screen.getByRole('button', { name: 'Latest message' }));
+    expect(log.scrollTop).toBe(1200);
+    expect(screen.queryByRole('button', { name: 'Latest message' })).not.toBeInTheDocument();
+    Object.defineProperty(log, 'scrollHeight', { value: 1400, configurable: true });
+    rerender(<ChatHarness scrollKey={4} />);
+    expect(log.scrollTop).toBe(1400);
+  });
+
   it('clears the submitted text and image before generation finishes', async () => {
     let finish!: (value: boolean) => void;
     const generate = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));

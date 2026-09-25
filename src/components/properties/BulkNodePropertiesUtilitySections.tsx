@@ -143,7 +143,7 @@ export function FindReplaceBulkSection({
           />
         </InspectorField>
         <div className="flex items-center gap-2">
-          <Switch checked={useRegex} onCheckedChange={onUseRegexChange} />
+          <Switch aria-label={t('properties.useRegex', 'Use Regular Expression')} checked={useRegex} onCheckedChange={onUseRegexChange} />
           <span className="text-xs flex items-center gap-1 cursor-pointer">
             <Regex className="w-3 h-3" />
             {t('properties.useRegex', 'Use Regular Expression')}

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useModalDialog } from '@/hooks/useModalDialog';
 import { X, Keyboard, PenSquare, Plug, WandSparkles } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -26,28 +27,17 @@ function OpenSettingsModalContent({
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'canvas' | 'shortcuts' | 'ai' | 'mcp'>(initialTab);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    closeButtonRef.current?.focus();
-
-    function handleEscape(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+  const dialogRef = useModalDialog({ onClose, initialFocusRef: closeButtonRef });
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 p-4 sm:p-6">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
         aria-describedby="settings-modal-description"
-        className="bg-[var(--brand-surface)]/95 backdrop-blur-xl w-full max-w-3xl max-h-full md:h-[80vh] rounded-[var(--radius-xl)] shadow-[var(--shadow-overlay)] border border-[var(--color-brand-border)] ring-1 ring-black/5 flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200"
+        className="bg-[var(--brand-surface)] w-full max-w-3xl max-h-[calc(100dvh-2rem)] h-[min(80dvh,760px)] rounded-[var(--radius-xl)] shadow-[var(--shadow-overlay)] border border-[var(--color-brand-border)] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sidebar */}
@@ -127,7 +117,7 @@ function OpenSettingsModalContent({
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {activeTab === 'canvas' && <CanvasSettings />}
               {activeTab === 'ai' && <AISettings />}
               {activeTab === 'mcp' && <MCPSettings />}
@@ -140,6 +130,8 @@ function OpenSettingsModalContent({
       {/* Backdrop click to close */}
       <button
         type="button"
+        tabIndex={-1}
+        aria-hidden="true"
         className="absolute inset-0 -z-10"
         onClick={onClose}
         aria-label={t('settingsModal.closeDialog', 'Close settings dialog')}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Copy,
   Layout,
@@ -9,14 +9,17 @@ import {
   LayoutTemplate,
   FileInput,
   ShieldCheck,
+  SearchX,
+  X,
+  ArrowUpRight,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/Button';
 import { Tooltip } from '../Tooltip';
+import { SearchField } from '../ui/SearchField';
+import { WorkspaceDiagramPreview } from './WorkspaceDiagramPreview';
 import type { WorkspaceDocumentPreview } from '@/store/workspaceDocumentModel';
 import { recordOnboardingEvent } from '@/services/onboarding/events';
-
-const AUTOSAVED_LABEL = 'Autosaved';
 
 export interface HomeFlowCard {
   id: string;
@@ -30,6 +33,7 @@ export interface HomeFlowCard {
 
 interface HomeDashboardProps {
   flows: HomeFlowCard[];
+  createButtonRef?: React.Ref<HTMLButtonElement>;
   onCreateNew: () => void;
   onOpenTemplates: () => void;
   onPromptWithAI: () => void;
@@ -42,6 +46,7 @@ interface HomeDashboardProps {
 
 export function HomeDashboard({
   flows,
+  createButtonRef,
   onCreateNew,
   onOpenTemplates,
   onPromptWithAI,
@@ -51,8 +56,25 @@ export function HomeDashboard({
   onDuplicateFlow,
   onDeleteFlow,
 }: HomeDashboardProps): React.ReactElement {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const hasFlows = flows.length > 0;
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('recent');
+  const searchRef = useRef<HTMLInputElement>(null);
+  const visibleFlows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return flows
+      .filter((flow) => !query || flow.name.toLocaleLowerCase().includes(query))
+      .sort((left, right) => {
+        if (sort === 'name') return left.name.localeCompare(right.name);
+        return (Date.parse(right.updatedAt ?? '') || 0) - (Date.parse(left.updatedAt ?? '') || 0);
+      });
+  }, [flows, search, sort]);
+
+  function clearSearch(): void {
+    setSearch('');
+    searchRef.current?.focus();
+  }
   const secondaryActionIconClass =
     'h-4 w-4 text-[var(--brand-secondary)] transition-transform duration-300 group-hover:scale-110';
 
@@ -77,54 +99,124 @@ export function HomeDashboard({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 animate-in fade-in duration-300 sm:px-6 md:px-10 md:py-12">
-      <div className="mb-8 flex flex-col gap-4 md:mb-12 md:flex-row md:items-end md:justify-between">
+    <div className="mx-auto w-full max-w-[1600px] flex-1 overflow-y-auto px-4 py-6 animate-in fade-in duration-300 sm:px-6 md:px-10 md:py-10">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--brand-text)] tracking-tight mb-1">
-            {t('home.title', 'Dashboard')}
+            {t('home.workspaceTitle', 'Your workspace')}
           </h1>
           <p className="text-[var(--brand-secondary)] text-sm">
-            {t('home.description', 'Manage your flows and diagrams.')}
+            {t(
+              'home.workspaceDescription',
+              'A place for your ideas, systems, and the connections between them.'
+            )}
           </p>
         </div>
         <Button
+          ref={createButtonRef}
           onClick={handleCreateNew}
           data-testid="home-create-new-header"
           variant="primary"
-          size="sm"
+          size="md"
+          className="self-start sm:shrink-0"
         >
           <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
           {t('home.createNew', 'Create new')}
         </Button>
       </div>
 
-      <section>
-        <div className="flex items-center justify-between mb-6">
+      {hasFlows && (
+        <div className="mb-9 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <QuickStartAction
+            icon={<WandSparkles className="h-5 w-5" />}
+            title={t('home.homeFlowpilotAI', 'Flowpilot AI')}
+            description={t('home.aiActionDescription', 'Describe an idea. Build it together.')}
+            testId="home-generate-with-ai"
+            onClick={handlePromptWithAI}
+          />
+          <QuickStartAction
+            icon={<LayoutTemplate className="h-5 w-5" />}
+            title={t('home.homeTemplates', 'Templates')}
+            description={t('home.templateActionDescription', 'Start with a ready-to-edit diagram.')}
+            testId="home-open-templates"
+            onClick={handleOpenTemplates}
+          />
+          <QuickStartAction
+            icon={<FileInput className="h-5 w-5" />}
+            title={t('home.importFile', 'Import a file')}
+            description={t('home.importActionDescription', 'Bring an existing diagram with you.')}
+            testId="home-import-file"
+            onClick={handleImportJSON}
+          />
+        </div>
+      )}
+
+      <section aria-labelledby="home-files-heading">
+        <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-semibold text-[var(--brand-secondary)] uppercase tracking-wider">
-              {t('home.recentFiles', 'Recent Files')}
+            <h2
+              id="home-files-heading"
+              className="text-base font-semibold tracking-tight text-[var(--brand-text)]"
+            >
+              {t('home.yourDiagrams', 'Your diagrams')}
             </h2>
             <Tooltip
               text={t(
-                'home.localStorageHint',
-                'Autosaved on this device. We do not upload your diagram data to our servers.'
+                'home.localSaveHint',
+                'Diagrams are saved in this browser. Export a backup to keep a separate copy.'
               )}
               side="right"
             >
-              <div className="flex cursor-default items-center justify-center text-[var(--brand-primary)] hover:brightness-110 transition-all duration-200">
-                <ShieldCheck
-                  className="w-[13px] h-[13px]"
-                  fill="currentColor"
-                  stroke="white"
-                  strokeWidth={1.5}
-                />
-              </div>
+              <button
+                type="button"
+                aria-label={t('home.localSaveLabel', 'About local saving')}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-background)] hover:text-[var(--brand-text)]"
+              >
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              </button>
             </Tooltip>
           </div>
           {hasFlows && (
-            <span className="text-xs text-[var(--brand-secondary)]">
-              {flows.length} {t('home.files', 'files')}
-            </span>
+            <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
+              <div className="w-full sm:max-w-sm xl:w-64">
+                <SearchField
+                  ref={searchRef}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={t('home.searchDiagrams', 'Search diagrams…')}
+                  aria-label={t('home.searchDiagrams', 'Search diagrams…')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape' && search) {
+                      event.stopPropagation();
+                      clearSearch();
+                    }
+                  }}
+                  trailingContent={
+                    search ? (
+                      <button
+                        type="button"
+                        onClick={clearSearch}
+                        aria-label={t('home.clearSearch', 'Clear search')}
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--brand-secondary)] hover:bg-[var(--brand-background)]"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : undefined
+                  }
+                />
+              </div>
+              <label className="flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-3 text-sm text-[var(--brand-secondary)]">
+                <span className="sr-only">{t('home.sortDiagrams', 'Sort diagrams')}</span>
+                <select
+                  value={sort}
+                  onChange={(event) => setSort(event.target.value)}
+                  className="h-full w-full cursor-pointer bg-transparent text-sm text-[var(--brand-text)] outline-none"
+                >
+                  <option value="recent">{t('home.sortRecent', 'Last edited')}</option>
+                  <option value="name">{t('home.sortName', 'Name, A–Z')}</option>
+                </select>
+              </label>
+            </div>
           )}
         </div>
 
@@ -153,8 +245,8 @@ export function HomeDashboard({
                 </h2>
                 <p className="text-[14px] text-[var(--brand-secondary)] max-w-[500px] mb-8 leading-relaxed">
                   {t(
-                    'home.homeEmptySubtitle',
-                    'Design enterprise-grade architectures instantly. Start from a blank canvas, describe your infrastructure with our AI builder, or use a tailored template.'
+                    'home.firstDiagramDescription',
+                    'Start from a blank canvas, turn an idea into a diagram with AI, or make a template your own.'
                   )}
                 </p>
 
@@ -203,161 +295,136 @@ export function HomeDashboard({
               </div>
             </div>
           </div>
+        ) : visibleFlows.length === 0 ? (
+          <div
+            className="flex flex-col items-center rounded-2xl border border-dashed border-[var(--color-brand-border)] bg-[var(--brand-background)] px-6 py-14 text-center"
+            role="status"
+          >
+            <SearchX className="mb-4 h-8 w-8 text-[var(--brand-secondary)]" aria-hidden="true" />
+            <h3 className="mb-2 text-base font-semibold text-[var(--brand-text)]">
+              {t('home.noMatchingDiagrams', 'No matching diagrams')}
+            </h3>
+            <p className="mb-5 max-w-sm break-words text-sm text-[var(--brand-secondary)]">
+              {t(
+                'home.searchHint',
+                'Try a different name, or clear your search to see all diagrams.'
+              )}
+            </p>
+            <Button variant="secondary" onClick={clearSearch}>
+              {t('home.clearSearch', 'Clear search')}
+            </Button>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {flows.map((flow) => (
-              <div
-                key={flow.id}
-                onClick={() => onOpenFlow(flow.id)}
-                className="group relative cursor-pointer flex flex-col overflow-hidden rounded-[16px] border border-[color-mix(in_srgb,var(--color-brand-border),transparent_50%)] bg-[var(--brand-surface)] transition-all duration-300 hover:border-[var(--brand-primary-400)]/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-0.5"
-              >
-                <div className="relative flex h-[160px] w-full items-center justify-center overflow-hidden border-b border-[color-mix(in_srgb,var(--color-brand-border),transparent_50%)] bg-[var(--brand-background)]">
-                  <FlowPreview preview={flow.preview} />
-
-                  {/* Sleek Floating Actions Pill */}
-                  <div className="absolute right-3 top-3 z-20 flex items-center gap-0.5 rounded-full border border-[color-mix(in_srgb,var(--color-brand-border),white_10%)] bg-[var(--brand-surface)]/80 backdrop-blur-md p-1 opacity-0 transform translate-y-[-4px] transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:translate-y-0 shadow-lg">
+          <>
+            <p
+              className="mb-4 text-xs text-[var(--brand-secondary)]"
+              role="status"
+              aria-live="polite"
+            >
+              {t('home.diagramCount', '{{count}} diagrams', { count: visibleFlows.length })}
+            </p>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {visibleFlows.map((flow) => (
+                <article
+                  key={flow.id}
+                  style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 290px' }}
+                  className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--color-brand-border)] bg-[var(--brand-surface)] transition-shadow duration-200 hover:shadow-[var(--shadow-md)] focus-within:border-[var(--brand-primary)]"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onOpenFlow(flow.id)}
+                    aria-label={t('home.openDiagram', 'Open {{name}}', { name: flow.name })}
+                    className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
+                  >
+                    <div className="relative flex h-40 w-full items-center justify-center overflow-hidden border-b border-[var(--color-brand-border)] bg-[var(--brand-background)]">
+                      {flow.preview && flow.preview.nodes.length > 0 ? (
+                        <WorkspaceDiagramPreview preview={flow.preview} />
+                      ) : (
+                        <EmptyFlowPreview />
+                      )}
+                      {flow.isActive && (
+                        <span className="absolute left-3 top-3 rounded-full border border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-2.5 py-1 text-xs font-medium text-[var(--brand-secondary)]">
+                          {t('home.currentFlow', 'Current')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4 pb-3">
+                      <h3
+                        title={flow.name}
+                        className="mb-2 truncate text-sm font-semibold tracking-tight text-[var(--brand-text)] transition-colors group-hover:text-[var(--brand-primary)]"
+                      >
+                        {flow.name}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--brand-secondary)]">
+                        <span>
+                          {formatUpdatedAt(
+                            flow.updatedAt,
+                            i18n?.language,
+                            t('home.autosaved', 'Autosaved')
+                          )}
+                        </span>
+                        <span>
+                          {t('home.nodeCount', '{{count}} nodes', { count: flow.nodeCount })}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                  <div
+                    className="flex items-center justify-end gap-1 border-t border-[var(--color-brand-border)] px-2 py-1.5"
+                    aria-label={flow.name}
+                  >
                     <FlowCardActionButton
                       label={t('common.rename', 'Rename')}
                       onClick={() => onRenameFlow(flow.id)}
                       hoverClassName="hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)] focus-visible:ring-[var(--brand-primary)]"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="h-4 w-4" />
                     </FlowCardActionButton>
                     <FlowCardActionButton
                       label={t('common.duplicate', 'Duplicate')}
                       onClick={() => onDuplicateFlow(flow.id)}
                       hoverClassName="hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)] focus-visible:ring-[var(--brand-primary)]"
                     >
-                      <Copy className="h-3 w-3" />
+                      <Copy className="h-4 w-4" />
                     </FlowCardActionButton>
-                    {/* Divider */}
-                    <div className="h-3 w-[1px] bg-[var(--color-brand-border)] mx-0.5"></div>
                     <FlowCardActionButton
                       label={t('common.delete', 'Delete')}
                       onClick={() => onDeleteFlow(flow.id)}
                       hoverClassName="hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-4 w-4" />
                     </FlowCardActionButton>
                   </div>
-                </div>
-                <div className="flex flex-col p-4 bg-[var(--brand-surface)] transition-colors group-hover:bg-[color-mix(in_srgb,var(--brand-surface),white_2%)]">
-                  <h3 className="font-semibold text-[13.5px] text-[var(--brand-text)] tracking-tight truncate mb-1.5 group-hover:text-[var(--brand-primary)] transition-colors">
-                    {flow.name}
-                  </h3>
-                  <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--brand-secondary)]">
-                    <span>{formatUpdatedAt(flow.updatedAt)}</span>
-                    <div className="h-[3px] w-[3px] rounded-full bg-[color-mix(in_srgb,var(--brand-secondary),transparent_50%)]"></div>
-                    <span>
-                      {flow.nodeCount} node{flow.nodeCount !== 1 ? 's' : ''}
-                    </span>
-                    {flow.isActive && (
-                      <>
-                        <div className="h-[3px] w-[3px] rounded-full bg-[color-mix(in_srgb,var(--brand-secondary),transparent_50%)]"></div>
-                        <span className="text-[var(--brand-primary)]">
-                          {t('home.currentFlow', 'Current')}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>
   );
 }
 
-function formatUpdatedAt(updatedAt?: string): string {
+function formatUpdatedAt(
+  updatedAt: string | undefined,
+  locale: string | undefined,
+  autosavedLabel: string
+): string {
   if (!updatedAt) {
-    return AUTOSAVED_LABEL;
+    return autosavedLabel;
   }
 
   const parsed = Date.parse(updatedAt);
   if (Number.isNaN(parsed)) {
-    return AUTOSAVED_LABEL;
+    return autosavedLabel;
   }
 
-  return new Date(parsed).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function getPreviewNodeRadius(node: WorkspaceDocumentPreview['nodes'][number]): number {
-  if (node.shape === 'capsule') {
-    return node.height / 2;
-  }
-
-  if (node.shape === 'rectangle') {
-    return 12;
-  }
-
-  return 20;
-}
-
-interface FlowPreviewProps {
-  preview: WorkspaceDocumentPreview | null;
-}
-
-function FlowPreview({ preview }: FlowPreviewProps): React.ReactElement {
-  if (!preview || preview.nodes.length === 0) {
-    return <EmptyFlowPreview />;
-  }
-
-  const padding = 24;
-  const minX = Math.min(...preview.nodes.map((node) => node.x));
-  const minY = Math.min(...preview.nodes.map((node) => node.y));
-  const maxX = Math.max(...preview.nodes.map((node) => node.x + node.width));
-  const maxY = Math.max(...preview.nodes.map((node) => node.y + node.height));
-  const width = Math.max(maxX - minX, 1);
-  const height = Math.max(maxY - minY, 1);
-  const viewBox = `${minX - padding} ${minY - padding} ${width + padding * 2} ${height + padding * 2}`;
-
-  return (
-    <div className="absolute inset-0 text-[var(--brand-secondary)] overflow-hidden w-full h-full">
-      <div
-        className="absolute inset-0 dark:hidden opacity-[0.06] transition-opacity duration-500 group-hover:opacity-[0.15]"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 1px 1px, var(--brand-secondary) 1px, transparent 0)',
-          backgroundSize: '14px 14px',
-        }}
-      />
-      <div
-        className="absolute inset-0 hidden dark:block opacity-[0.35] transition-opacity duration-500 group-hover:opacity-[0.5]"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 1px 1px, var(--color-brand-border) 1px, transparent 0)',
-          backgroundSize: '14px 14px',
-        }}
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--brand-primary)_4%,transparent),transparent_60%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-
-      <svg
-        viewBox={viewBox}
-        className="absolute inset-[10%] h-[80%] w-[80%] transition-transform duration-700 ease-out group-hover:scale-[1.03]"
-        preserveAspectRatio="xMidYMid meet"
-        aria-hidden="true"
-      >
-        {preview.nodes.map((node) => (
-          <rect
-            key={node.id}
-            x={node.x}
-            y={node.y}
-            width={node.width}
-            height={node.height}
-            rx={getPreviewNodeRadius(node)}
-            fill="currentColor"
-            fillOpacity="0.12"
-            stroke="currentColor"
-            strokeOpacity="0.4"
-            strokeWidth="2"
-          />
-        ))}
-      </svg>
-      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_20px_var(--brand-background)] opacity-[0.85]" />
-    </div>
-  );
+  const date = new Date(parsed);
+  return date.toLocaleDateString(locale, {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+  });
 }
 
 interface ImportExistingFileButtonProps {
@@ -373,7 +440,7 @@ function ImportExistingFileButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--brand-secondary)] transition-colors hover:text-[var(--brand-text)] focus:outline-none focus-visible:underline"
+      className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-[var(--brand-secondary)] transition-colors hover:text-[var(--brand-text)] focus:outline-none focus-visible:underline"
     >
       <FileInput className="w-[14px] h-[14px]" />
       {label}
@@ -405,7 +472,7 @@ function FlowCardActionButton({
         type="button"
         onClick={handleClick}
         aria-label={label}
-        className={`flex h-[26px] w-[26px] items-center justify-center rounded-full text-[var(--brand-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 ${hoverClassName}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-lg text-[var(--brand-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 ${hoverClassName}`}
       >
         {children}
       </button>
@@ -437,5 +504,45 @@ function EmptyFlowPreview(): React.ReactElement {
         <Layout className="w-4 h-4" />
       </div>
     </>
+  );
+}
+
+function QuickStartAction({
+  icon,
+  title,
+  description,
+  testId,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  testId: string;
+  onClick: () => void;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testId}
+      className="group flex min-w-0 items-center gap-3 rounded-xl border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-4 text-left transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[var(--brand-primary)]/5"
+    >
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-[var(--brand-primary)]"
+        aria-hidden="true"
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-[var(--brand-text)]">{title}</span>
+        <span className="mt-1 block text-xs leading-relaxed text-[var(--brand-secondary)]">
+          {description}
+        </span>
+      </span>
+      <ArrowUpRight
+        className="h-4 w-4 shrink-0 text-[var(--brand-secondary)] transition-colors group-hover:text-[var(--brand-primary)]"
+        aria-hidden="true"
+      />
+    </button>
   );
 }

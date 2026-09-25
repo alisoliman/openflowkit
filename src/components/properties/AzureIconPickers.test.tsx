@@ -16,9 +16,12 @@ describe('Azure icon picker labels', () => {
                 onCustomIconChange={vi.fn()}
             />
         );
-        fireEvent.change(screen.getByPlaceholderText('Search azure icons...'), { target: { value: 'DocumentDB' } });
+        expect(screen.getByRole('combobox', { name: 'Icon provider' })).toHaveTextContent('Azure');
+        fireEvent.change(screen.getByRole('textbox', { name: 'Search azure icons...' }), { target: { value: 'DocumentDB' } });
 
         const tile = await screen.findByRole('button', { name: 'Azure DocumentDB' });
+        expect(tile).toHaveAttribute('aria-pressed', 'false');
+        expect(screen.getByRole('combobox', { name: 'Icon category' })).toBeTruthy();
         expect(within(tile).getByText('Azure DocumentDB')).toBeVisible();
         fireEvent.click(tile);
         await waitFor(() => expect(onSelectProviderIcon).toHaveBeenCalledWith(expect.objectContaining({

@@ -33,8 +33,10 @@ import {
     buildCurvedPath,
     curveFromLegacyVariant,
     isSmoothCurve,
+    isOrthogonalStepCurve,
     type EdgeCurve,
 } from './edgeCurve';
+import { orthogonalizeRoute } from './orthogonalRouteControls';
 
 const EDGE_ROUTING_FAST_PATH_THRESHOLD = 600;
 
@@ -270,13 +272,18 @@ export function buildEdgePath(
                 : [];
 
         if (manualWaypoints.length > 0) {
-            const pathPoints = [{ x: sourceX, y: sourceY }, ...manualWaypoints, { x: targetX, y: targetY }];
+            const rawPoints = [{ x: sourceX, y: sourceY }, ...manualWaypoints, { x: targetX, y: targetY }];
+            const orthogonal = effectiveForceOrthogonal || isOrthogonalStepCurve(resolvedCurve);
+            const pathPoints = orthogonal
+                ? orthogonalizeRoute(rawPoints, params.sourcePosition, params.targetPosition)
+                : rawPoints;
             const midpoint = getPathMidpoint(pathPoints);
             const smoothedManual = (!effectiveForceOrthogonal && isSmoothCurve(resolvedCurve))
                 ? buildCurvedPath(pathPoints, resolvedCurve)
                 : null;
+            const cornerRadius = orthogonal && resolvedCurve !== 'smoothstep' ? 0 : 20;
             return withBundledLabelOffset(
-                smoothedManual ?? buildRoundedPolylinePath(pathPoints, 20),
+                smoothedManual ?? buildRoundedPolylinePath(pathPoints, cornerRadius),
                 midpoint.x,
                 midpoint.y,
                 params,

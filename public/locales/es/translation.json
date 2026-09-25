@@ -61,8 +61,30 @@
       "undo": "Deshacer los cambios de Copilot",
       "undone": "Se deshicieron los cambios de Copilot.",
       "locked": "Copilot está editando esta página. La edición del lienzo está en pausa hasta que termine.",
-      "stop": "Detener"
-    }
+      "stop": "Detener",
+      "yourReply": "Tu respuesta",
+      "runningStep": "En curso",
+      "failedStep": "Error",
+      "waitingForYou": "Esperando tu respuesta"
+    },
+    "you": "Tú",
+    "conversation": "Conversación",
+    "clear": "Borrar",
+    "latestMessage": "Último mensaje",
+    "generationMode": "Modo de generación",
+    "referenceImage": "Imagen de referencia adjunta",
+    "removeImage": "Quitar imagen adjunta",
+    "messageLabel": "Mensaje para Flowpilot",
+    "stop": "Detener",
+    "stopGeneration": "Detener generación",
+    "draftWhileWorking": "Puedes redactar tu próximo mensaje mientras Flowpilot trabaja.",
+    "keyboardHint": "Intro para enviar · Mayús + Intro para una nueva línea",
+    "aiSettings": "Ajustes de IA",
+    "readingCanvas": "Leyendo tu diagrama y planificando el siguiente paso.",
+    "writingReply": "Escribiendo una respuesta a tu solicitud.",
+    "planningReply": "Preparando una respuesta a tu solicitud.",
+    "draftingResponse": "Redactando respuesta",
+    "thinking": "Pensando"
   },
   "copilot": {
     "hostedHelp": "Conecta tu cuenta de GitHub en el navegador. Necesitas tu propio acceso a Copilot; no hace falta instalar la CLI.",
@@ -189,7 +211,14 @@
     "playbackMode": "Modo reproducción",
     "privacyMessage": "Sus diagramas permanecen con usted y no llegan a nuestros servidores.",
     "templates": "Plantillas",
-    "mcp": "MCP"
+    "mcp": "MCP",
+    "openMenu": "Abrir menú principal",
+    "closeMenu": "Cerrar menú",
+    "switchToLight": "Modo claro",
+    "switchToDark": "Modo oscuro",
+    "localStorage": "Almacenamiento local",
+    "localStorageHelp": "Los diagramas se guardan en este navegador. Exporta una copia para tener un respaldo. El contenido que compartas o envíes a la IA lo procesa el servicio que elijas.",
+    "localStorageBackup": "Los diagramas se guardan en este navegador. Exporta una copia para tener un respaldo."
   },
   "menu": {
     "file": "Archivo",
@@ -262,7 +291,20 @@
     "speed": "Velocidad",
     "resolution": "Resolución",
     "transparentBackground": "Fondo transparente",
-    "headingFormat": "Formato de exportación"
+    "headingFormat": "Formato de exportación",
+    "category": "Categoría de exportación",
+    "close": "Cerrar exportación",
+    "format": "Formato",
+    "hintJpg": "Imagen de alta resolución con fondo blanco",
+    "hintJsonBackup": "Copia de seguridad del diagrama editable en esta aplicación",
+    "hintMermaid": "Código fuente de texto para Markdown y documentación",
+    "hintOpenflow": "Código nativo del diagrama con diseño y estilos",
+    "hintPdf": "Documento para imprimir y compartir",
+    "hintPlantuml": "Código fuente de texto para herramientas PlantUML",
+    "hintPng": "Imagen de alta resolución con transparencia opcional",
+    "openflowLabel": "DSL de OpenFlow",
+    "preparing": "Preparando…",
+    "preparingHelp": "Preparando la exportación. Puedes cerrar este panel mientras termina."
   },
   "import": {
     "title": "Importar",
@@ -380,7 +422,36 @@
     "suggestionImportDesc": "Traer trabajo existente",
     "suggestionTemplates": "Plantillas",
     "suggestionTemplatesDesc": "Empezar desde un patrón probado",
-    "continueTitle": "Continuar con una acción reciente"
+    "continueTitle": "Continuar con una acción reciente",
+    "clearSearch": "Borrar búsqueda",
+    "workspaceNavigation": "Navegación del espacio de trabajo",
+    "workspaceTitle": "Tu espacio de trabajo",
+    "workspaceDescription": "Un lugar para tus ideas, sistemas y las conexiones entre ellos.",
+    "aiActionDescription": "Describe una idea. Dadle forma juntos.",
+    "templateActionDescription": "Empieza con un diagrama listo para editar.",
+    "importFile": "Importar un archivo",
+    "importActionDescription": "Trae un diagrama que ya tengas.",
+    "yourDiagrams": "Tus diagramas",
+    "localSaveHint": "Los diagramas se guardan en este navegador. Exporta una copia de seguridad para conservarla por separado.",
+    "localSaveLabel": "Acerca del guardado local",
+    "searchDiagrams": "Buscar diagramas…",
+    "sortDiagrams": "Ordenar diagramas",
+    "sortRecent": "Última edición",
+    "sortName": "Nombre, A–Z",
+    "firstDiagramDescription": "Empieza con un lienzo en blanco, convierte una idea en un diagrama con IA o adapta una plantilla a tu gusto.",
+    "noMatchingDiagrams": "No hay diagramas que coincidan",
+    "searchHint": "Prueba con otro nombre o borra la búsqueda para ver todos los diagramas.",
+    "diagramCount": "{{count}} diagramas",
+    "openDiagram": "Abrir {{name}}",
+    "nodeCount": "{{count}} nodos",
+    "switchToLight": "Cambiar al modo claro",
+    "switchToDark": "Cambiar al modo oscuro",
+    "changeLanguage": "Cambiar idioma",
+    "languageError": "No se pudo cambiar el idioma. Inténtalo de nuevo.",
+    "diagramCount_one": "{{count}} diagrama",
+    "diagramCount_other": "{{count}} diagramas",
+    "nodeCount_one": "{{count}} nodo",
+    "nodeCount_other": "{{count}} nodos"
   },
   "settings": {
     "title": "Configuración",
@@ -435,7 +506,27 @@
     "applyToSelectedNodes": "Aplicar a nodos seleccionados",
     "selectFieldToApply": "Seleccionar campo para aplicar",
     "previewSummary": "Resumen de vista previa",
-    "selectionSummary": "Resumen de selección"
+    "selectionSummary": "Resumen de selección",
+    "nodeLabel": "Etiqueta",
+    "nodeDescription": "Descripción",
+    "labelFont": "Fuente de la etiqueta",
+    "labelFontSize": "Tamaño de fuente de la etiqueta",
+    "descriptionFont": "Fuente de la descripción",
+    "descriptionFontSize": "Tamaño de fuente de la descripción",
+    "bold": "Negrita",
+    "italic": "Cursiva",
+    "iconProvider": "Proveedor de iconos",
+    "iconCategory": "Categoría de iconos",
+    "shapes": {
+      "rectangle": "Rectángulo",
+      "rounded": "Rectángulo redondeado",
+      "capsule": "Cápsula",
+      "diamond": "Rombo",
+      "hexagon": "Hexágono",
+      "cylinder": "Cilindro",
+      "parallelogram": "Paralelogramo",
+      "circle": "Círculo"
+    }
   },
   "saveStatus": {
     "saved": "Guardado"
@@ -496,8 +587,8 @@
     "feature2Desc": "Generate complete architectures with a single intelligent prompt.",
     "feature3Title": "Code to diagram",
     "feature3Desc": "Instantly construct stunning visual infrastructure from text.",
-    "feature4Title": "Export in many formats",
-    "feature4Desc": "Export into beautiful, fully animated presentation diagrams.",
+    "feature4Title": "Empieza con una plantilla",
+    "feature4Desc": "Explora diagramas ya preparados y adáptalos a tu gusto.",
     "analyticsTitle": "Anonymous Analytics",
     "analyticsDesc": "We collect diagnostic data. We never read your diagrams or prompts.",
     "getStarted": "Get Started",
@@ -1326,7 +1417,10 @@
     "clearCanvas": "Limpiar lienzo",
     "undo": "Deshacer (Ctrl+Z)",
     "redo": "Rehacer (Ctrl+Y)",
-    "commandCenter": "Abrir centro de comandos"
+    "commandCenter": "Abrir centro de comandos",
+    "diagramTools": "Herramientas de diagrama",
+    "interactionMode": "Modo de interacción",
+    "history": "Historial de edición"
   },
   "flowEditor": {
     "cannotCloseLastTab": "No se puede cerrar la última pestaña.",
@@ -1338,11 +1432,11 @@
     "figmaExportFailed": "Error de exportación a Figma: {{message}}",
     "applyingLayout": "Aplicando diseño…",
     "emptyState": {
-      "title": "Comenzar a construir",
-      "description": "Su lienzo está vacío. Genere un flujo con Flowpilot o comience desde cero.",
+      "title": "Empieza tu diagrama",
+      "description": "Describe una idea, elige una plantilla o añade tu primera forma.",
       "generateWithFlowpilot": "Generar con Flowpilot",
-      "browseTemplates": "Explorar plantillas",
-      "addBlankNode": "Agregar forma en blanco"
+      "browseTemplates": "Plantillas",
+      "addBlankNode": "Añadir una forma"
     },
     "dslExportSkippedEdges": "Se omitieron {{count}} arista(s) no válidas en la exportación DSL."
   },
@@ -1368,7 +1462,9 @@
   "errorBoundary": {
     "title": "Algo salió mal",
     "description": "Se encontró un error inesperado. Por favor actualice la página.",
-    "reloadPage": "Recargar página"
+    "reloadPage": "Recargar página",
+    "recoveryHint": "Recarga para volver a abrir el editor. Esto no borrará los diagramas guardados en este navegador.",
+    "technicalDetails": "Detalles técnicos"
   },
   "navigationControls": {
     "zoomIn": "Acercar",
@@ -1377,7 +1473,9 @@
     "keyboardShortcuts": "Atajos de teclado"
   },
   "playbackControls": {
-    "stop": "Detener"
+    "stop": "Detener",
+    "previous": "Paso anterior",
+    "next": "Paso siguiente"
   },
   "snapshotsPanel": {
     "title": "Historial de versiones",
@@ -1416,7 +1514,16 @@
     "bestFirstEdits": "Primeras ediciones recomendadas",
     "perfectFor": "Ideal para",
     "useTemplate": "Usar plantilla",
-    "closePreview": "Cerrar vista previa de plantilla"
+    "closePreview": "Cerrar vista previa de plantilla",
+    "all": "Todas las plantillas",
+    "libraryDescription": "Encuentra un punto de partida para tu próxima idea. Todas las plantillas son totalmente editables.",
+    "search": "Buscar plantillas, casos de uso o tecnologías…",
+    "noResults": "No hay plantillas que coincidan",
+    "searchHint": "Prueba una búsqueda más amplia u otra categoría para encontrar un punto de partida.",
+    "resetFilters": "Restablecer filtros",
+    "featuredFilter": "Destacadas",
+    "browse": "Explorar plantillas",
+    "library": "Biblioteca de plantillas"
   },
   "propertiesPanel": {
     "stickyNote": "Nota adhesiva",
@@ -1430,7 +1537,12 @@
   },
   "flowTabs": {
     "closeTab": "Cerrar pestaña",
-    "newFlowTab": "Nueva pestaña de flujo"
+    "newFlowTab": "Nueva pestaña de flujo",
+    "keyboardHelp": "Usa las flechas para cambiar de página, F2 para renombrar y Alt+Mayús+flechas para reordenar.",
+    "pages": "Páginas del diagrama",
+    "pageName": "Nombre de la página",
+    "renamePage": "Renombrar página",
+    "renamePageHint": "Renombrar página (F2)"
   },
   "nodes": {
     "note": "Nota",
@@ -1519,7 +1631,9 @@
         "title": "Sin caché local de sala",
         "body": "Esta sesión de colaboración no está usando la persistencia IndexedDB de sala del navegador actualmente."
       }
-    }
+    },
+    "copying": "Copiando…",
+    "copyError": "No se pudo copiar. Selecciona el enlace de arriba y cópialo manualmente, o inténtalo de nuevo."
   },
   "connectionPanel": {
     "architecture": "Arquitectura",
@@ -1611,5 +1725,24 @@
     "visualResult": "Diagramas editables",
     "visualResultHint": "Valida, visualiza, comparte",
     "visualCaption": "Las herramientas se ejecutan localmente por stdio. Tu cliente de IA gestiona las solicitudes al modelo. No necesitas una clave de API de OpenFlowKit."
+  },
+  "shareEmbed": {
+    "copyLabel": "Copiar {{label}}",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyError": "No se pudo copiar. Selecciona el texto de arriba y cópialo manualmente, o inténtalo de nuevo.",
+    "title": "Compartir e insertar diagrama",
+    "description": "Cualquier persona con el enlace puede ver esta versión. Los cambios posteriores no la actualizarán.",
+    "viewerLink": "Enlace de visualización",
+    "markdownLink": "Enlace Markdown",
+    "readmeLink": "Enlace para README",
+    "iframe": "Código iframe",
+    "openViewer": "Abrir vista de tarjeta",
+    "newTab": "(se abre en una pestaña nueva)",
+    "invalidLink": "Este enlace de visualización no está disponible. Cierra este diálogo y crea un nuevo enlace para compartir.",
+    "help": "Usa un enlace Markdown en los README de GitHub, o el iframe en sitios web que permitan contenido insertado.",
+    "markdownText": "Abrir diagrama interactivo en OpenFlowKit",
+    "readmeText": "Ver diagrama de arquitectura",
+    "frameTitle": "Diagrama de OpenFlowKit"
   }
 }

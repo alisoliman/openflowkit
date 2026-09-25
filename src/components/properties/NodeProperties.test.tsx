@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Node } from '@/lib/reactflowCompat';
 import type { NodeData } from '@/lib/types';
@@ -53,10 +53,60 @@ describe('NodeProperties', () => {
 
     expect(container.querySelector('select')).toBeNull();
     expect(screen.getByRole('button', { name: 'Content' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByPlaceholderText('Enter primary text...')).toBeTruthy();
-    expect(screen.getByPlaceholderText('Add descriptive text (Markdown supported)...')).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Label' })).toHaveValue('API Gateway');
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Routes traffic to downstream services');
+    expect(screen.getByRole('combobox', { name: 'Label font' })).toHaveTextContent('Inter');
+    expect(screen.getByRole('combobox', { name: 'Label font size' })).toHaveTextContent('14px');
+    expect(screen.getByRole('combobox', { name: 'Description font' })).toHaveTextContent('Inter');
+    expect(screen.getByRole('combobox', { name: 'Description font size' })).toHaveTextContent('12px');
     expect(screen.getByText('Secondary Style')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Text Style' })).toBeNull();
+  });
+
+  it('exposes formatting state and activates styles through native button clicks', () => {
+    const onChange = vi.fn();
+    render(
+      <NodeProperties
+        selectedNode={createNode({ data: { label: 'API Gateway', fontWeight: 'bold', align: 'right' } })}
+        onChange={onChange}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    const bold = screen.getByRole('button', { name: 'Bold', pressed: true });
+    const italic = screen.getByRole('button', { name: 'Italic', pressed: false });
+    expect(bold).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Align Right' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Align Center' })).toHaveAttribute('aria-pressed', 'false');
+
+    // Mousedown preserves a textarea selection; activation also supports the
+    // native click produced by Enter, Space, and assistive technology.
+    fireEvent.mouseDown(bold);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(bold);
+    expect(onChange).toHaveBeenCalledWith('node-1', { fontWeight: 'normal' });
+    fireEvent.click(italic);
+    expect(onChange).toHaveBeenCalledWith('node-1', { fontStyle: 'italic' });
+  });
+
+  it('preserves the focused text selection when applying inline formatting', () => {
+    const onChange = vi.fn();
+    render(
+      <NodeProperties
+        selectedNode={createNode()}
+        onChange={onChange}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    const label = screen.getByRole('textbox', { name: 'Label' }) as HTMLTextAreaElement;
+    fireEvent.focus(label);
+    label.setSelectionRange(0, 3);
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Bold' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Bold' }));
+    expect(onChange).toHaveBeenCalledWith('node-1', { label: '**API** Gateway' });
   });
 
   it('uses the shared icon picker for icon-backed asset nodes', () => {

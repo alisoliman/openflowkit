@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Node } from '@/lib/reactflowCompat';
 import { NodeData } from '@/lib/types';
 import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, FileText } from 'lucide-react';
@@ -83,6 +84,8 @@ export function NodeContentSection({
     onLabelKeyDown,
     onDescKeyDown,
 }: NodeContentSectionProps): React.ReactElement {
+    const { t } = useTranslation();
+    const fieldId = useId();
     function handleContentKeyDown(
         event: React.KeyboardEvent<HTMLTextAreaElement>,
         delegate: (nextEvent: React.KeyboardEvent) => void
@@ -103,7 +106,11 @@ export function NodeContentSection({
         >
             <div className="px-1 pb-4 pt-2">
                 <div className="flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-sm transition-all focus-within:border-[var(--brand-primary)]/40 focus-within:ring-4 focus-within:ring-[var(--brand-primary)]/10 text-[var(--brand-text)]">
+                    <label htmlFor={`${fieldId}-label`} className="px-3.5 pt-3 text-xs font-medium text-[var(--brand-secondary)]">
+                        {t('properties.nodeLabel', 'Label')}
+                    </label>
                     <textarea
+                        id={`${fieldId}-label`}
                         ref={labelInputRef}
                         value={selectedNode.data?.label || ''}
                         onFocus={onLabelFocus}
@@ -116,12 +123,16 @@ export function NodeContentSection({
                         placeholder="Enter primary text..."
                         rows={1}
                         style={{ minHeight: '56px' }}
-                        className="w-full resize-none border-0 bg-transparent px-3.5 py-3.5 text-[14px] font-semibold leading-relaxed outline-none placeholder:text-[var(--brand-secondary)]/50 focus:ring-0"
+                        className="w-full resize-none border-0 bg-transparent px-3.5 pb-3.5 pt-1.5 text-[14px] font-semibold leading-relaxed outline-none placeholder:text-[var(--brand-secondary)]/50 focus:ring-0"
                     />
 
                     {showDescriptionInput && (
                         <div className="relative border-t border-[var(--color-brand-border)]/60 bg-[var(--brand-background)]/30 transition-colors focus-within:bg-[var(--brand-surface)]">
+                            <label htmlFor={`${fieldId}-description`} className="block px-3.5 pt-3 text-xs font-medium text-[var(--brand-secondary)]">
+                                {t('properties.nodeDescription', 'Description')}
+                            </label>
                             <textarea
+                                id={`${fieldId}-description`}
                                 ref={descInputRef}
                                 value={selectedNode.data?.subLabel || ''}
                                 onFocus={onDescFocus}
@@ -134,7 +145,7 @@ export function NodeContentSection({
                                 placeholder="Add descriptive text (Markdown supported)..."
                                 rows={1}
                                 style={{ minHeight: '48px' }}
-                                className="w-full resize-none border-0 bg-transparent px-3.5 py-3 text-[12px] font-medium leading-relaxed text-[var(--brand-secondary)] outline-none placeholder:text-[var(--brand-secondary)]/50 focus:text-[var(--brand-text)] focus:ring-0"
+                                className="w-full resize-none border-0 bg-transparent px-3.5 pb-3 pt-1.5 text-[12px] font-medium leading-relaxed text-[var(--brand-secondary)] outline-none placeholder:text-[var(--brand-secondary)]/50 focus:text-[var(--brand-text)] focus:ring-0"
                             />
                         </div>
                     )}
@@ -142,6 +153,7 @@ export function NodeContentSection({
                     <div className="flex flex-col gap-2.5 border-t border-[var(--color-brand-border)] bg-[var(--brand-background)]/40 p-2.5">
                         <div className="w-full">
                             <Select
+                                aria-label={t('properties.labelFont', 'Label font')}
                                 value={selectedNode.data?.fontFamily || 'inter'}
                                 onChange={(val) => onChange(selectedNode.id, { fontFamily: val })}
                                 options={FONT_FAMILY_OPTIONS}
@@ -152,6 +164,7 @@ export function NodeContentSection({
                         <div className="flex items-center gap-2">
                             <div className="w-[85px] shrink-0">
                                 <Select
+                                    aria-label={t('properties.labelFontSize', 'Label font size')}
                                     value={selectedNode.data?.fontSize || (isText ? '16' : '14')}
                                     onChange={(val) => onChange(selectedNode.id, { fontSize: val })}
                                     options={LABEL_SIZE_OPTIONS}
@@ -162,14 +175,22 @@ export function NodeContentSection({
                             <div className="flex flex-1 items-center justify-end gap-1.5">
                                 <div className={SEGMENT_GROUP_CLASS}>
                                     <button
-                                        onMouseDown={(e) => { e.preventDefault(); onBold(); }}
+                                        type="button"
+                                        aria-label={t('properties.bold', 'Bold')}
+                                        aria-pressed={selectedNode.data?.fontWeight === 'bold'}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={onBold}
                                         className={getSegmentButtonClassName(selectedNode.data?.fontWeight === 'bold')}
                                         title="Bold (Cmd+B)"
                                     >
                                         <Bold className="h-3.5 w-3.5" strokeWidth={selectedNode.data?.fontWeight === 'bold' ? 2.5 : 2} />
                                     </button>
                                     <button
-                                        onMouseDown={(e) => { e.preventDefault(); onItalic(); }}
+                                        type="button"
+                                        aria-label={t('properties.italic', 'Italic')}
+                                        aria-pressed={selectedNode.data?.fontStyle === 'italic'}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={onItalic}
                                         className={getSegmentButtonClassName(selectedNode.data?.fontStyle === 'italic')}
                                         title="Italic (Cmd+I)"
                                     >
@@ -179,6 +200,9 @@ export function NodeContentSection({
 
                                 <div className={SEGMENT_GROUP_CLASS}>
                                     <button
+                                        type="button"
+                                        aria-label={t('common.alignLeft', 'Align Left')}
+                                        aria-pressed={selectedNode.data?.align === 'left'}
                                         onClick={() => onChange(selectedNode.id, { align: 'left' })}
                                         className={getSegmentButtonClassName(selectedNode.data?.align === 'left')}
                                         title="Align Left"
@@ -186,6 +210,9 @@ export function NodeContentSection({
                                         <AlignLeft className="h-3.5 w-3.5" />
                                     </button>
                                     <button
+                                        type="button"
+                                        aria-label={t('common.alignCenter', 'Align Center')}
+                                        aria-pressed={!selectedNode.data?.align || selectedNode.data?.align === 'center'}
                                         onClick={() => onChange(selectedNode.id, { align: 'center' })}
                                         className={getSegmentButtonClassName(!selectedNode.data?.align || selectedNode.data?.align === 'center')}
                                         title="Align Center"
@@ -193,6 +220,9 @@ export function NodeContentSection({
                                         <AlignCenter className="h-3.5 w-3.5" />
                                     </button>
                                     <button
+                                        type="button"
+                                        aria-label={t('common.alignRight', 'Align Right')}
+                                        aria-pressed={selectedNode.data?.align === 'right'}
                                         onClick={() => onChange(selectedNode.id, { align: 'right' })}
                                         className={getSegmentButtonClassName(selectedNode.data?.align === 'right')}
                                         title="Align Right"
@@ -214,6 +244,7 @@ export function NodeContentSection({
                             <div className="flex items-center gap-2">
                                 <div className="flex-1">
                                     <Select
+                                        aria-label={t('properties.descriptionFont', 'Description font')}
                                         value={selectedNode.data?.subLabelFontFamily || selectedNode.data?.fontFamily || 'inter'}
                                         onChange={(val) => onChange(selectedNode.id, { subLabelFontFamily: val })}
                                         options={FONT_FAMILY_OPTIONS}
@@ -222,6 +253,7 @@ export function NodeContentSection({
                                 </div>
                                 <div className="w-[85px] shrink-0">
                                     <Select
+                                        aria-label={t('properties.descriptionFontSize', 'Description font size')}
                                         value={selectedNode.data?.subLabelFontSize || '12'}
                                         onChange={(val) => onChange(selectedNode.id, { subLabelFontSize: val })}
                                         options={DESCRIPTION_SIZE_OPTIONS}

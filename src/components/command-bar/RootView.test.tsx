@@ -64,15 +64,16 @@ describe('RootView', () => {
       useFlowStore.getState().setAgentTurn({ turnId: 'turn-1', pageId: 'tab-1' });
     });
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
-    fireEvent.keyDown(window, { key: 'Enter' });
+    const input = screen.getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
     expect(setSelectedIndex).not.toHaveBeenCalled();
     expect(action).not.toHaveBeenCalled();
 
     act(() => {
       useFlowStore.getState().setAgentTurn(null);
     });
-    fireEvent.keyDown(window, { key: 'Enter' });
+    fireEvent.keyDown(input, { key: 'Enter' });
     expect(action).toHaveBeenCalledTimes(1);
   });
 });

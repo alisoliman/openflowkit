@@ -1,3 +1,4 @@
+import type { ExportResult } from '@/services/export/exportResult';
 import type { TFunction } from 'i18next';
 import { createLogger } from '@/lib/logger';
 import type { FlowEdge, FlowNode } from '@/lib/types';
@@ -83,15 +84,16 @@ async function exportFlowTextToClipboard({
     processingMessage,
     errorMessage,
     addToast,
-}: ExportFlowTextParams): Promise<void> {
+}: ExportFlowTextParams): Promise<ExportResult> {
     addToast(processingMessage, 'info');
     const copied = await copyTextToClipboard(text);
     if (copied) {
         addToast(successMessage, 'success');
-        return;
+        return { status: 'success' };
     }
 
     addToast(errorMessage, 'error');
+    return { status: 'error', message: errorMessage };
 }
 
 function downloadTextFile({
@@ -102,7 +104,7 @@ function downloadTextFile({
     successMessage,
     errorMessage,
     addToast,
-}: DownloadTextFileParams): void {
+}: DownloadTextFileParams): ExportResult {
     addToast(processingMessage, 'info');
 
     try {
@@ -114,9 +116,11 @@ function downloadTextFile({
         link.click();
         URL.revokeObjectURL(url);
         addToast(successMessage, 'success');
+        return { status: 'success' };
     } catch (error) {
         logger.error('Text file download failed.', { error, fileName });
         addToast(errorMessage, 'error');
+        return { status: 'error', message: errorMessage };
     }
 }
 
@@ -125,8 +129,8 @@ export async function exportMermaidToClipboard({
     edges,
     t,
     addToast,
-}: ExportFlowDiagramParams & Pick<ExportOpenFlowDSLParams, 'addToast'>): Promise<void> {
-    await exportFlowTextToClipboard({
+}: ExportFlowDiagramParams & Pick<ExportOpenFlowDSLParams, 'addToast'>): Promise<ExportResult> {
+    return exportFlowTextToClipboard({
         text: toMermaid(nodes, edges),
         successMessage: t('flowEditor.mermaidCopied'),
         processingMessage: 'Copying Mermaid…',
@@ -140,8 +144,8 @@ export function downloadMermaidToFile({
     edges,
     addToast,
     baseFileName,
-}: Omit<ExportFlowDiagramParams, 't'> & Pick<ExportOpenFlowDSLParams, 'addToast' | 'baseFileName'>): void {
-    downloadTextFile({
+}: Omit<ExportFlowDiagramParams, 't'> & Pick<ExportOpenFlowDSLParams, 'addToast' | 'baseFileName'>): ExportResult {
+    return downloadTextFile({
         text: toMermaid(nodes, edges),
         fileName: buildExportFileName(baseFileName, 'mmd'),
         processingMessage: 'Preparing Mermaid download…',
@@ -156,8 +160,8 @@ export async function exportPlantUMLToClipboard({
     edges,
     t,
     addToast,
-}: ExportFlowDiagramParams & Pick<ExportOpenFlowDSLParams, 'addToast'>): Promise<void> {
-    await exportFlowTextToClipboard({
+}: ExportFlowDiagramParams & Pick<ExportOpenFlowDSLParams, 'addToast'>): Promise<ExportResult> {
+    return exportFlowTextToClipboard({
         text: toPlantUML(nodes, edges),
         successMessage: t('flowEditor.plantUMLCopied'),
         processingMessage: 'Copying PlantUML…',
@@ -171,8 +175,8 @@ export function downloadPlantUMLToFile({
     edges,
     addToast,
     baseFileName,
-}: Omit<ExportFlowDiagramParams, 't'> & Pick<ExportOpenFlowDSLParams, 'addToast' | 'baseFileName'>): void {
-    downloadTextFile({
+}: Omit<ExportFlowDiagramParams, 't'> & Pick<ExportOpenFlowDSLParams, 'addToast' | 'baseFileName'>): ExportResult {
+    return downloadTextFile({
         text: toPlantUML(nodes, edges),
         fileName: buildExportFileName(baseFileName, 'puml'),
         processingMessage: 'Preparing PlantUML download…',
@@ -188,7 +192,7 @@ export async function exportOpenFlowDSLToClipboard({
     addToast,
     t,
     exportSerializationMode,
-}: ExportOpenFlowDSLParams): Promise<void> {
+}: ExportOpenFlowDSLParams): Promise<ExportResult> {
     addToast('Copying OpenFlow DSL…', 'info');
     const exportDiagnostics = getOpenFlowDSLExportDiagnostics(nodes, edges);
     const text = toOpenFlowDSL(nodes, edges, { mode: exportSerializationMode });
@@ -202,10 +206,12 @@ export async function exportOpenFlowDSLToClipboard({
             );
             addToast(warningMessage, 'warning');
         }
-        return;
+        return { status: 'success' };
     }
 
-    addToast(t('flowEditor.dslCopyFailed'), 'error');
+    const errorMessage = t('flowEditor.dslCopyFailed');
+    addToast(errorMessage, 'error');
+    return { status: 'error', message: errorMessage };
 }
 
 export function downloadOpenFlowDSLToFile({
@@ -214,8 +220,8 @@ export function downloadOpenFlowDSLToFile({
     exportSerializationMode,
     addToast,
     baseFileName,
-}: Pick<ExportOpenFlowDSLParams, 'nodes' | 'edges' | 'exportSerializationMode' | 'addToast' | 'baseFileName'>): void {
-    downloadTextFile({
+}: Pick<ExportOpenFlowDSLParams, 'nodes' | 'edges' | 'exportSerializationMode' | 'addToast' | 'baseFileName'>): ExportResult {
+    return downloadTextFile({
         text: toOpenFlowDSL(nodes, edges, { mode: exportSerializationMode }),
         fileName: buildExportFileName(baseFileName, 'ofk'),
         processingMessage: 'Preparing OpenFlow DSL download…',
@@ -230,7 +236,7 @@ export async function exportFigmaToClipboard({
     edges,
     addToast,
     t,
-}: ExportFigmaParams): Promise<void> {
+}: ExportFigmaParams): Promise<ExportResult> {
     try {
         addToast('Copying Figma SVG…', 'info');
         const svg = await toFigmaSVG(nodes, edges);
@@ -240,10 +246,13 @@ export async function exportFigmaToClipboard({
         }
 
         addToast(t('flowEditor.figmaCopied'), 'success');
+        return { status: 'success' };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error('Failed to copy Figma SVG.', { error });
-        addToast(t('flowEditor.figmaExportFailed', { message }), 'error');
+        const failureMessage = t('flowEditor.figmaExportFailed', { message });
+        addToast(failureMessage, 'error');
+        return { status: 'error', message: failureMessage };
     }
 }
 
@@ -253,10 +262,10 @@ export async function downloadFigmaToFile({
     addToast,
     t,
     baseFileName,
-}: ExportFigmaParams): Promise<void> {
+}: ExportFigmaParams): Promise<ExportResult> {
     try {
         const svg = await toFigmaSVG(nodes, edges);
-        downloadTextFile({
+        return downloadTextFile({
             text: svg,
             fileName: buildVariantExportFileName(baseFileName, 'figma', 'svg'),
             mimeType: 'image/svg+xml;charset=utf-8',
@@ -268,6 +277,8 @@ export async function downloadFigmaToFile({
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error('Failed to download Figma SVG.', { error });
-        addToast(t('flowEditor.figmaExportFailed', { message }), 'error');
+        const failureMessage = t('flowEditor.figmaExportFailed', { message });
+        addToast(failureMessage, 'error');
+        return { status: 'error', message: failureMessage };
     }
 }

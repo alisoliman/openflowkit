@@ -1,10 +1,10 @@
-import { useState, type ReactElement } from 'react';
-import { CheckCircle2, Loader2, RotateCcw, Undo2, X } from 'lucide-react';
+import { useId, useState, type ReactElement } from 'react';
+import { CheckCircle2, Loader2, MessageCircle, RotateCcw, Undo2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { AgentTurnControls } from '@/hooks/ai-generation/useFlowpilotAgent';
 import { AGENT_MAX_ANSWER_CHARS } from '@/services/copilot/agentProtocol';
 import type { AgentTurnQuestion, AgentTurnStep, AssistantThreadItem } from '@/services/flowpilot/types';
-import { SECTION_SURFACE_CLASS } from '@/lib/designTokens';
+import { SECTION_SURFACE_CLASS, STATUS_SURFACE_CLASS } from '@/lib/designTokens';
 import { FlowpilotChangeSummary } from './FlowpilotChangeSummary';
 
 type TFunction = ReturnType<typeof useTranslation>['t'];
@@ -18,7 +18,7 @@ interface FlowpilotAgentTurnProps {
   busy: boolean;
 }
 
-const ACTION_BUTTON_CLASS = `inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors hover:bg-[var(--brand-background)] disabled:cursor-not-allowed disabled:opacity-50 ${SECTION_SURFACE_CLASS}`;
+const ACTION_BUTTON_CLASS = `inline-flex min-h-9 items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--brand-background)] disabled:cursor-not-allowed disabled:opacity-50 ${SECTION_SURFACE_CLASS}`;
 
 function getStepLabel(t: TFunction, name: string): string {
   switch (name) {
@@ -37,8 +37,8 @@ function getStepLabel(t: TFunction, name: string): string {
 }
 
 function StepIcon({ status }: { status: AgentTurnStep['status'] }): ReactElement {
-  if (status === 'started') return <Loader2 aria-hidden="true" className="h-3 w-3 shrink-0 animate-spin" />;
-  if (status === 'failed') return <X aria-hidden="true" className="h-3 w-3 shrink-0 text-red-500" />;
+  if (status === 'started') return <Loader2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />;
+  if (status === 'failed') return <X aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[var(--color-surface-danger-text)]" />;
   return <CheckCircle2 aria-hidden="true" className="h-3 w-3 shrink-0 text-[var(--color-surface-success-text)]" />;
 }
 
@@ -50,6 +50,8 @@ function QuestionCard({ question, controls, busy }: {
 }): ReactElement {
   const { t } = useTranslation();
   const [draft, setDraft] = useState('');
+  const answerId = useId();
+  const questionId = useId();
   const ended = question.status === 'expired' || question.status === 'closed';
   const canReply = Boolean(controls) && (question.status === 'waiting' || (ended && !busy));
 
@@ -60,10 +62,10 @@ function QuestionCard({ question, controls, busy }: {
   return (
     <div
       data-question-status={question.status}
-      className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-brand-border)]/70 bg-[var(--brand-background)] px-2.5 py-2"
+      className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-3"
     >
       {question.kind === 'question' ? (
-        <p className="whitespace-pre-wrap font-medium">{question.question}</p>
+        <p id={questionId} className="whitespace-pre-wrap font-medium leading-6">{question.question}</p>
       ) : (
         <>
           <p className="font-medium">
@@ -102,7 +104,7 @@ function QuestionCard({ question, controls, busy }: {
           <button
             type="button"
             onClick={() => void controls.confirm(question.id, true, t('flowpilot.agent.approveRemovalMessage', 'Go ahead with the removal.'))}
-            className="rounded-full bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-red-700"
+            className="min-h-9 rounded-[var(--radius-sm)] bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-700"
           >
             {t('flowpilot.agent.remove', 'Remove')}
           </button>
@@ -124,25 +126,32 @@ function QuestionCard({ question, controls, busy }: {
           ) : null}
           {question.allowFreeform ? (
             <form
-              className="flex gap-2"
+              className="space-y-1.5"
               onSubmit={(event) => {
                 event.preventDefault();
                 sendAnswer(draft, true);
               }}
             >
-              <input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                // Keeps canvas shortcuts from reacting to typing.
-                onKeyDown={(event) => event.stopPropagation()}
-                maxLength={AGENT_MAX_ANSWER_CHARS}
-                placeholder={t('flowpilot.agent.answerPlaceholder', 'Type your answer')}
-                aria-label={t('flowpilot.agent.answerPlaceholder', 'Type your answer')}
-                className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text)] outline-none focus:border-[var(--brand-primary)]"
-              />
-              <button type="submit" disabled={!draft.trim()} className={ACTION_BUTTON_CLASS}>
-                {t('flowpilot.agent.sendAnswer', 'Send')}
-              </button>
+              <label htmlFor={answerId} className="block text-xs font-medium text-[var(--brand-secondary)]">{t('flowpilot.agent.yourReply', 'Your reply')}</label>
+              <div className="flex gap-2">
+                <input
+                  id={answerId}
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  // Keeps canvas shortcuts from reacting to typing.
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault();
+                  }}
+                  maxLength={AGENT_MAX_ANSWER_CHARS}
+                  placeholder={t('flowpilot.agent.answerPlaceholder', 'Type your answer')}
+                  aria-describedby={questionId}
+                  className="min-h-9 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-sm text-[var(--brand-text)] outline-none focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)]"
+                />
+                <button type="submit" disabled={!draft.trim()} className={ACTION_BUTTON_CLASS}>
+                  {t('flowpilot.agent.sendAnswer', 'Send')}
+                </button>
+              </div>
             </form>
           ) : null}
         </>
@@ -158,17 +167,21 @@ export function FlowpilotAgentTurn({ item, controls, isLatest, busy }: Flowpilot
   const live = turn.status === 'running' || turn.status === 'waiting';
 
   return (
-    <div className="space-y-2 whitespace-normal" data-agent-status={turn.status}>
+    <div className="space-y-3 whitespace-normal" data-agent-status={turn.status}>
       {turn.steps.length > 0 ? (
         <details open={live} className="text-xs text-[var(--brand-secondary)]">
-          <summary className="cursor-pointer">
+          <summary className="cursor-pointer rounded-[var(--radius-xs)] py-1.5 font-medium text-[var(--brand-text)]">
             {t('flowpilot.agent.steps', { count: turn.steps.length, defaultValue: 'Steps: {{count}}' })}
           </summary>
-          <ul className="mt-1.5 space-y-1">
+          <ul className="mt-1.5 max-h-48 space-y-2 overflow-y-auto overscroll-contain rounded-[var(--radius-sm)] bg-[var(--brand-background)] p-2.5">
             {turn.steps.map((step) => (
-              <li key={step.callId} className="flex items-center gap-1.5" data-step-status={step.status}>
-                <StepIcon status={step.status} />
-                {getStepLabel(t, step.name)}
+              <li key={step.callId} className="flex items-start gap-2 leading-5" data-step-status={step.status}>
+                <span className="pt-0.5">
+                  <StepIcon status={step.status} />
+                </span>
+                <span className="min-w-0 flex-1">{getStepLabel(t, step.name)}</span>
+                {step.status === 'started' ? <span className="text-[var(--brand-primary)]">{t('flowpilot.agent.runningStep', 'Running')}</span> : null}
+                {step.status === 'failed' ? <span className="text-[var(--color-surface-danger-text)]">{t('flowpilot.agent.failedStep', 'Failed')}</span> : null}
               </li>
             ))}
           </ul>
@@ -183,8 +196,14 @@ export function FlowpilotAgentTurn({ item, controls, isLatest, busy }: Flowpilot
 
       {turn.status === 'running' ? (
         <p role="status" className="flex items-center gap-1.5 text-xs text-[var(--brand-secondary)]">
-          <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
           {t('flowpilot.agent.working', 'Working on it…')}
+        </p>
+      ) : null}
+      {turn.status === 'waiting' ? (
+        <p role="status" className="flex items-center gap-2 text-xs font-medium text-[var(--brand-primary)]">
+          <MessageCircle aria-hidden="true" className="h-3.5 w-3.5" />
+          {t('flowpilot.agent.waitingForYou', 'Waiting for your answer')}
         </p>
       ) : null}
 
@@ -196,7 +215,7 @@ export function FlowpilotAgentTurn({ item, controls, isLatest, busy }: Flowpilot
         </p>
       ) : null}
       {turn.status === 'failed' ? (
-        <div className="text-xs text-red-600">
+        <div role="alert" className={`rounded-[var(--radius-sm)] border p-2.5 text-xs leading-5 ${STATUS_SURFACE_CLASS.danger}`}>
           <p className="font-medium">{t('flowpilot.agent.failed', 'Copilot could not finish this turn.')}</p>
           {turn.error ? <p className="mt-0.5 break-words">{turn.error}</p> : null}
         </div>

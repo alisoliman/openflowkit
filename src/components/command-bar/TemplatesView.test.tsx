@@ -28,11 +28,25 @@ describe('TemplatesView', () => {
     expect(screen.getAllByText(/nodes?/i).length).toBeGreaterThan(0);
     expect(screen.queryByText('Domain events')).toBeNull();
 
-    fireEvent.click(screen.getByText('AWS Event-Driven SaaS Platform').closest('button') as HTMLButtonElement);
+    fireEvent.click(
+      screen.getByText('AWS Event-Driven SaaS Platform').closest('button') as HTMLButtonElement
+    );
 
     expect(onSelectTemplate).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'aws-event-driven-saas-platform' })
     );
+  });
+
+  it('resets search and category filters from a no-results state', () => {
+    render(<TemplatesView onSelectTemplate={vi.fn()} onClose={vi.fn()} handleBack={vi.fn()} />);
+    const search = screen.getByRole('textbox');
+    fireEvent.click(screen.getByRole('tab', { name: /^AWS/i }));
+    fireEvent.change(search, { target: { value: 'missing template' } });
+    expect(screen.getByText('No matching templates')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
+    expect(screen.getByText('Product Discovery Workshop Map')).toBeTruthy();
+    expect(screen.getByText('AWS Event-Driven SaaS Platform')).toBeTruthy();
+    expect(document.activeElement).toBe(search);
   });
 
   it('searches across use cases and replacement hints, not just names', () => {

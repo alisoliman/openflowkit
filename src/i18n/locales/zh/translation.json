@@ -61,8 +61,30 @@
       "undo": "撤销 Copilot 的更改",
       "undone": "已撤销 Copilot 的更改。",
       "locked": "Copilot 正在编辑此页面。完成前画布编辑已暂停。",
-      "stop": "停止"
-    }
+      "stop": "停止",
+      "yourReply": "你的回答",
+      "runningStep": "执行中",
+      "failedStep": "失败",
+      "waitingForYou": "等待你的回答"
+    },
+    "you": "你",
+    "conversation": "对话",
+    "clear": "清空",
+    "latestMessage": "最新消息",
+    "generationMode": "生成模式",
+    "referenceImage": "已附加参考图片",
+    "removeImage": "移除附加图片",
+    "messageLabel": "给 Flowpilot 的消息",
+    "stop": "停止",
+    "stopGeneration": "停止生成",
+    "draftWhileWorking": "Flowpilot 处理时，你可以起草下一条消息。",
+    "keyboardHint": "按 Enter 发送 · Shift + Enter 换行",
+    "aiSettings": "AI 设置",
+    "readingCanvas": "正在阅读图表并规划下一步。",
+    "writingReply": "正在撰写回复。",
+    "planningReply": "正在构思回复。",
+    "draftingResponse": "正在起草回复",
+    "thinking": "正在思考"
   },
   "copilot": {
     "hostedHelp": "在浏览器中连接 GitHub 账户。你需要拥有自己的 Copilot 使用权限，无需安装 CLI。",
@@ -189,7 +211,14 @@
     "playbackMode": "回放模式",
     "privacyMessage": "您的图表只留在您这里，不会发送到我们的服务器。",
     "templates": "模板",
-    "mcp": "MCP"
+    "mcp": "MCP",
+    "openMenu": "打开主菜单",
+    "closeMenu": "关闭菜单",
+    "switchToLight": "浅色模式",
+    "switchToDark": "深色模式",
+    "localStorage": "本地存储",
+    "localStorageHelp": "图表保存在此浏览器中。请导出副本作为备份。你分享或发送给 AI 的内容由所选服务处理。",
+    "localStorageBackup": "图表保存在此浏览器中。请导出副本作为备份。"
   },
   "menu": {
     "file": "文件",
@@ -262,7 +291,20 @@
     "speed": "速度",
     "resolution": "分辨率",
     "transparentBackground": "透明背景",
-    "headingFormat": "导出格式"
+    "headingFormat": "导出格式",
+    "category": "导出类别",
+    "close": "关闭导出面板",
+    "format": "格式",
+    "hintJpg": "白色背景的高分辨率图片",
+    "hintJsonBackup": "可在此应用中编辑的图表备份",
+    "hintMermaid": "用于 Markdown 和文档的文本源码",
+    "hintOpenflow": "包含布局和样式的原生图表源码",
+    "hintPdf": "用于打印和分享的文档",
+    "hintPlantuml": "用于 PlantUML 工具的文本源码",
+    "hintPng": "可选透明背景的高分辨率图片",
+    "openflowLabel": "OpenFlow 描述语言",
+    "preparing": "正在准备…",
+    "preparingHelp": "正在准备导出，完成前你可以关闭此面板。"
   },
   "import": {
     "title": "导入",
@@ -380,7 +422,36 @@
     "suggestionImportDesc": "导入现有工作",
     "suggestionTemplates": "模板",
     "suggestionTemplatesDesc": "从经过验证的模式开始",
-    "continueTitle": "继续最近的操作"
+    "continueTitle": "继续最近的操作",
+    "clearSearch": "清除搜索",
+    "workspaceNavigation": "工作区导航",
+    "workspaceTitle": "你的工作区",
+    "workspaceDescription": "记录想法、系统以及它们之间的联系。",
+    "aiActionDescription": "描述一个想法，一起把它变成图表。",
+    "templateActionDescription": "从可直接编辑的图表开始。",
+    "importFile": "导入文件",
+    "importActionDescription": "导入已有的图表。",
+    "yourDiagrams": "你的图表",
+    "localSaveHint": "图表保存在此浏览器中。导出备份可另外保留一份副本。",
+    "localSaveLabel": "关于本地保存",
+    "searchDiagrams": "搜索图表…",
+    "sortDiagrams": "图表排序",
+    "sortRecent": "最近编辑",
+    "sortName": "名称，A–Z",
+    "firstDiagramDescription": "从空白画布开始，用 AI 将想法变成图表，或按需修改模板。",
+    "noMatchingDiagrams": "没有匹配的图表",
+    "searchHint": "试试其他名称，或清除搜索以查看所有图表。",
+    "diagramCount": "{{count}} 个图表",
+    "openDiagram": "打开 {{name}}",
+    "nodeCount": "{{count}} 个节点",
+    "switchToLight": "切换到浅色模式",
+    "switchToDark": "切换到深色模式",
+    "changeLanguage": "更改语言",
+    "languageError": "无法更改语言，请重试。",
+    "diagramCount_one": "{{count}} 个图表",
+    "diagramCount_other": "{{count}} 个图表",
+    "nodeCount_one": "{{count}} 个节点",
+    "nodeCount_other": "{{count}} 个节点"
   },
   "settings": {
     "title": "设置",
@@ -435,7 +506,27 @@
     "applyToSelectedNodes": "应用于所选节点",
     "selectFieldToApply": "选择要应用的字段",
     "previewSummary": "预览摘要",
-    "selectionSummary": "选择摘要"
+    "selectionSummary": "选择摘要",
+    "nodeLabel": "标签",
+    "nodeDescription": "描述",
+    "labelFont": "标签字体",
+    "labelFontSize": "标签字号",
+    "descriptionFont": "描述字体",
+    "descriptionFontSize": "描述字号",
+    "bold": "粗体",
+    "italic": "斜体",
+    "iconProvider": "图标提供方",
+    "iconCategory": "图标类别",
+    "shapes": {
+      "rectangle": "矩形",
+      "rounded": "圆角矩形",
+      "capsule": "胶囊形",
+      "diamond": "菱形",
+      "hexagon": "六边形",
+      "cylinder": "圆柱体",
+      "parallelogram": "平行四边形",
+      "circle": "圆形"
+    }
   },
   "saveStatus": {
     "saved": "已保存"
@@ -496,8 +587,8 @@
     "feature2Desc": "Generate complete architectures with a single intelligent prompt.",
     "feature3Title": "Code to diagram",
     "feature3Desc": "Instantly construct stunning visual infrastructure from text.",
-    "feature4Title": "Export in many formats",
-    "feature4Desc": "Export into beautiful, fully animated presentation diagrams.",
+    "feature4Title": "从模板开始",
+    "feature4Desc": "浏览现成的图表，并按需修改。",
     "analyticsTitle": "Anonymous Analytics",
     "analyticsDesc": "We collect diagnostic data. We never read your diagrams or prompts.",
     "getStarted": "Get Started",
@@ -1326,7 +1417,10 @@
     "clearCanvas": "清除画布",
     "undo": "撤销 (Ctrl+Z)",
     "redo": "重做 (Ctrl+Y)",
-    "commandCenter": "打开命令中心"
+    "commandCenter": "打开命令中心",
+    "diagramTools": "图表工具",
+    "interactionMode": "交互模式",
+    "history": "编辑历史"
   },
   "flowEditor": {
     "cannotCloseLastTab": "无法关闭最后一个标签页。",
@@ -1338,11 +1432,11 @@
     "figmaExportFailed": "Figma 导出失败：{{message}}",
     "applyingLayout": "正在应用布局…",
     "emptyState": {
-      "title": "开始构建",
-      "description": "您的画布是空的。使用 Flowpilot 生成流程，或从空白开始。",
+      "title": "开始绘制图表",
+      "description": "描述一个想法、选择模板，或添加第一个图形。",
       "generateWithFlowpilot": "使用 Flowpilot 生成",
-      "browseTemplates": "浏览模板",
-      "addBlankNode": "添加空白形状"
+      "browseTemplates": "模板",
+      "addBlankNode": "添加图形"
     },
     "dslExportSkippedEdges": "DSL 导出时跳过了 {{count}} 条无效边。"
   },
@@ -1368,7 +1462,9 @@
   "errorBoundary": {
     "title": "出现了错误",
     "description": "遇到了意外错误。请刷新页面重试。",
-    "reloadPage": "重新加载页面"
+    "reloadPage": "重新加载页面",
+    "recoveryHint": "重新加载以打开编辑器。此操作不会清除保存在此浏览器中的图表。",
+    "technicalDetails": "技术详情"
   },
   "navigationControls": {
     "zoomIn": "放大",
@@ -1377,7 +1473,9 @@
     "keyboardShortcuts": "键盘快捷键"
   },
   "playbackControls": {
-    "stop": "停止"
+    "stop": "停止",
+    "previous": "上一步",
+    "next": "下一步"
   },
   "snapshotsPanel": {
     "title": "版本历史",
@@ -1416,7 +1514,16 @@
     "bestFirstEdits": "建议优先修改",
     "perfectFor": "适合用于",
     "useTemplate": "使用模板",
-    "closePreview": "关闭模板预览"
+    "closePreview": "关闭模板预览",
+    "all": "所有模板",
+    "libraryDescription": "为下一个想法找到起点。所有模板均可自由编辑。",
+    "search": "搜索模板、使用场景或技术…",
+    "noResults": "没有匹配的模板",
+    "searchHint": "试试更宽泛的搜索词或其他分类，找到合适的起点。",
+    "resetFilters": "重置筛选",
+    "featuredFilter": "精选",
+    "browse": "浏览模板",
+    "library": "模板库"
   },
   "propertiesPanel": {
     "stickyNote": "便利贴",
@@ -1430,7 +1537,12 @@
   },
   "flowTabs": {
     "closeTab": "关闭标签页",
-    "newFlowTab": "新建流程标签页"
+    "newFlowTab": "新建流程标签页",
+    "keyboardHelp": "使用方向键切换页面，按 F2 重命名，按 Alt+Shift+方向键调整顺序。",
+    "pages": "图表页面",
+    "pageName": "页面名称",
+    "renamePage": "重命名页面",
+    "renamePageHint": "重命名页面（F2）"
   },
   "nodes": {
     "note": "便签",
@@ -1519,7 +1631,9 @@
         "title": "无本地房间缓存",
         "body": "此协作会话当前未使用浏览器 IndexedDB 房间持久化。"
       }
-    }
+    },
+    "copying": "正在复制…",
+    "copyError": "无法复制。请选中上方链接手动复制，或重试。"
   },
   "connectionPanel": {
     "architecture": "架构",
@@ -1611,5 +1725,24 @@
     "visualResult": "可编辑的图表",
     "visualResultHint": "验证、预览、分享",
     "visualCaption": "工具通过 stdio 在本地运行。AI 客户端负责模型请求。无需 OpenFlowKit API 密钥。"
+  },
+  "shareEmbed": {
+    "copyLabel": "复制{{label}}",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyError": "无法复制。请选中上方文本手动复制，或重试。",
+    "title": "分享和嵌入图表",
+    "description": "任何拥有链接的人都可以查看此版本。后续编辑不会更新此链接中的内容。",
+    "viewerLink": "查看链接",
+    "markdownLink": "Markdown 链接",
+    "readmeLink": "README 链接",
+    "iframe": "iframe 嵌入代码",
+    "openViewer": "打开卡片视图",
+    "newTab": "（在新标签页中打开）",
+    "invalidLink": "此查看链接不可用。请关闭此对话框并创建新的分享链接。",
+    "help": "在 GitHub README 中使用 Markdown 链接，在支持嵌入内容的网站中使用 iframe。",
+    "markdownText": "在 OpenFlowKit 中打开交互式图表",
+    "readmeText": "查看架构图",
+    "frameTitle": "OpenFlowKit 图表"
   }
 }

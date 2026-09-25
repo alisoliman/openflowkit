@@ -1,7 +1,11 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
+import { ReactFlowProvider } from '@/lib/reactflowCompat';
 import { CommandBar } from './CommandBar';
+
+const { commandAction } = vi.hoisted(() => ({ commandAction: vi.fn() }));
 
 vi.mock('./command-bar/useCommandBarCommands', () => ({
   useCommandBarCommands: () => [
@@ -10,7 +14,7 @@ vi.mock('./command-bar/useCommandBarCommands', () => ({
       label: 'Open AI',
       description: 'Open AI tools',
       type: 'action',
-      action: vi.fn(),
+      action: commandAction,
     },
     {
       id: 'command-2',
@@ -23,6 +27,7 @@ vi.mock('./command-bar/useCommandBarCommands', () => ({
 }));
 
 describe('CommandBar', () => {
+  beforeEach(() => vi.clearAllMocks());
   const baseProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -57,7 +62,7 @@ describe('CommandBar', () => {
     trigger.focus();
     fireEvent.click(trigger);
 
-    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' });
 
     await vi.waitFor(() => {
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open command bar' }));
@@ -68,10 +73,54 @@ describe('CommandBar', () => {
     render(<CommandBar {...baseProps} />);
 
     const input = screen.getByRole('combobox', { name: 'Search command bar actions' });
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
 
     expect(input.getAttribute('aria-controls')).toBeTruthy();
     expect(input.getAttribute('aria-activedescendant')).toContain('-option-0');
     expect(screen.getByRole('listbox')).toBeTruthy();
+  });
+
+  it('wraps Shift+Tab from command search and leaves focused button keys out of command navigation', () => {
+    render(<CommandBar {...baseProps} />);
+    const input = screen.getByRole('combobox');
+    const close = within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: 'Enter' });
+    expect(commandAction).not.toHaveBeenCalled();
+    fireEvent.keyDown(close, { key: 'Tab' });
+    expect(input).toHaveFocus();
+  });
+
+  it('filters while typing, ignores composition, and runs the keyboard-selected command once', () => {
+    render(<CommandBar {...baseProps} />);
+    const input = screen.getByRole('combobox');
+    fireEvent.change(input, { target: { value: 'Open AI' } });
+    expect(input).toHaveValue('Open AI');
+    expect(screen.queryByRole('option', { name: /Open Search/ })).not.toBeInTheDocument();
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(commandAction).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(commandAction).toHaveBeenCalledOnce();
+    expect(baseProps.onClose).toHaveBeenCalledOnce();
+  });
+
+  it('allows Escape from the node-search input to close its dialog', async () => {
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter>
+        <ReactFlowProvider>
+          <CommandBar {...baseProps} initialView="search" onClose={onClose} />
+        </ReactFlowProvider>
+      </MemoryRouter>
+    );
+    const input = await screen.findByPlaceholderText('commandBar.search.placeholder');
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: 'service' } });
+    expect(input).toHaveValue('service');
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

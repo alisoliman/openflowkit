@@ -97,7 +97,7 @@ describe('AssetsView', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Analytics Athena/i })).toBeTruthy()
     );
-    expect(screen.getByRole('button', { name: /All categories/i })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Asset category' }).textContent).toContain('All categories');
     expect(screen.queryByText('Sticky Note')).toBeNull();
   });
 

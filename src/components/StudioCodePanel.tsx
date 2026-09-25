@@ -144,7 +144,7 @@ export function StudioCodePanel({
   };
 
   const canApplyChanges = draftPreview.state === 'ready' && hasDraftChanges && !isApplying;
-  const applyButtonClassName = `h-8 ${mode === 'mermaid' ? 'flex-1' : 'min-w-[148px]'} justify-center px-3 py-1.5 text-xs ${canApplyChanges ? `border-transparent bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-600)] ${IS_BEVELED ? 'btn-beveled' : ''}` : ''}`;
+  const applyButtonClassName = `h-8 ${mode === 'mermaid' ? 'flex-1' : 'min-w-[148px]'} justify-center px-3 py-1.5 text-xs ${canApplyChanges ? `border-transparent bg-[var(--brand-action)] text-white hover:bg-[var(--brand-action-hover)] ${IS_BEVELED ? 'btn-beveled' : ''}` : ''}`;
   const livePreviewTitle = liveSync
     ? 'Live preview is on and auto-applies valid Mermaid changes.'
     : 'Enable live preview for Mermaid changes.';
@@ -189,6 +189,7 @@ export function StudioCodePanel({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors focus-within:border-[var(--brand-primary-300)] focus-within:ring-1 focus-within:ring-[var(--brand-primary-100)]">
         <div className="min-h-0 flex-1 overflow-hidden bg-[var(--brand-surface)]">
           <Textarea
+            aria-label={mode === 'mermaid' ? 'Mermaid source' : 'OpenFlow DSL source'}
             ref={textareaRef}
             value={code}
             onChange={(event) => handleCodeChange(event.target.value)}
@@ -252,7 +253,7 @@ export function StudioCodePanel({
                 </div>
                 {hasDraftChanges ? (
                   <span className="inline-flex items-center gap-1 text-[var(--brand-primary)]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand-action)]" />
                     <span className="font-medium">Unsaved</span>
                   </span>
                 ) : null}

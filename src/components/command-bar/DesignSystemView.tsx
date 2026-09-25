@@ -74,7 +74,7 @@ export const DesignSystemView: React.FC<DesignSystemViewProps> = ({ onClose: _on
                                 className="flex-1 text-left outline-none"
                                 onClick={() => setActiveDesignSystem(ds.id)}
                             >
-                                <div className={`font-medium text-sm ${activeDesignSystemId === ds.id ? 'text-[var(--brand-primary-900)]' : 'text-[var(--brand-text)]'}`}>
+                                <div className={`font-medium text-sm ${activeDesignSystemId === ds.id ? 'text-[var(--brand-primary)]' : 'text-[var(--brand-text)]'}`}>
                                     {ds.name}
                                 </div>
                                 {ds.description && (

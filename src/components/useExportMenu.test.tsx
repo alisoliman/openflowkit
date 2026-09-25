@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CinematicExportRequest } from '@/services/export/cinematicExport';
 import { useExportMenu } from './useExportMenu';
@@ -38,12 +38,12 @@ const baseProps = {
 };
 
 function Harness(): React.ReactElement {
-  const { isOpen, menuRef, toggleMenu, handleSelect } = useExportMenu(baseProps);
+  const { isOpen, pendingAction, errorMessage, triggerRef, menuRef, toggleMenu, handleSelect } = useExportMenu(baseProps);
 
   return (
     <div>
       <div ref={menuRef}>
-        <button type="button" onClick={toggleMenu}>
+        <button type="button" ref={triggerRef} onClick={toggleMenu}>
           Toggle export
         </button>
         <button type="button" onClick={() => void handleSelect('figma', 'copy')}>
@@ -51,6 +51,8 @@ function Harness(): React.ReactElement {
         </button>
         {isOpen ? <div data-testid="export-menu-open">Export menu</div> : null}
       </div>
+      {pendingAction && <div role="status">Preparing</div>}
+      {errorMessage && <div role="alert">{errorMessage}</div>}
       <button type="button">Outside target</button>
     </div>
   );
@@ -72,7 +74,7 @@ describe('useExportMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle export' }));
     expect(screen.getByTestId('export-menu-open')).toBeTruthy();
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Outside target' }));
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Outside target' }));
 
     expect(screen.queryByTestId('export-menu-open')).toBeNull();
   });
@@ -102,4 +104,54 @@ describe('useExportMenu', () => {
       );
     });
   });
+
+  it('waits for completion and suppresses duplicate actions while an export is in flight', async () => {
+    let finish!: () => void;
+    baseProps.onExportFigma.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle export' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run export' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run export' }));
+    expect(baseProps.onExportFigma).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('export-menu-open')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Preparing');
+    await act(async () => finish());
+    expect(screen.queryByTestId('export-menu-open')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('retains the menu for a handled failure without duplicating its toast', async () => {
+    baseProps.onExportFigma.mockResolvedValueOnce({ status: 'error', message: 'Clipboard unavailable' });
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle export' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run export' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Clipboard unavailable');
+    expect(screen.getByTestId('export-menu-open')).toBeInTheDocument();
+    expect(addToast).not.toHaveBeenCalled();
+  });
+
+
+  it('restores the trigger after success and preserves outside focus when dismissed during export', async () => {
+    let finish!: () => void;
+    baseProps.onExportFigma.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
+    render(<Harness />);
+    const trigger = screen.getByRole('button', { name: 'Toggle export' });
+    fireEvent.click(trigger);
+    const run = screen.getByRole('button', { name: 'Run export' });
+    run.focus();
+    fireEvent.click(run);
+    await act(async () => finish());
+    expect(trigger).toHaveFocus();
+
+    baseProps.onExportFigma.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
+    fireEvent.click(trigger);
+    run.focus();
+    fireEvent.click(run);
+    const outside = screen.getByRole('button', { name: 'Outside target' });
+    act(() => outside.focus());
+    expect(screen.queryByTestId('export-menu-open')).toBeNull();
+    await act(async () => finish());
+    expect(outside).toHaveFocus();
+  });
+
 });

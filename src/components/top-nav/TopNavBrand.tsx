@@ -35,11 +35,11 @@ export function TopNavBrand({
   const showTextLogo = shouldShowTextLogo(logoStyle);
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="hidden min-w-0 items-center gap-2 md:flex">
       {showIconLogo && (
         <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
+            <img src={logoUrl} alt={appName} className="h-full w-full object-contain" />
           ) : (
             <OpenFlowLogo className="h-9 w-9" />
           )}
@@ -52,7 +52,7 @@ export function TopNavBrand({
             <div className="flex h-full items-center justify-start">
               <img
                 src={logoUrl}
-                alt="Logo"
+                alt={appName}
                 className="h-[70%] w-auto max-w-full object-contain object-left"
               />
             </div>
@@ -73,7 +73,7 @@ export function TopNavBrand({
       )}
 
       {showTextLogo && (
-        <div className="flex min-w-0 flex-col">
+        <div className="hidden min-w-0 flex-col md:flex">
           <span className="truncate text-base font-bold leading-none tracking-tight text-[var(--brand-text)] sm:text-lg">
             {appName}
           </span>

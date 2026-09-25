@@ -12,6 +12,7 @@ const TEMPLATE_PREVIEW_MAX_NODE_HEIGHT = 72;
 
 interface TemplatePreviewNode {
   id: string;
+  label: string;
   x: number;
   y: number;
   width: number;
@@ -87,7 +88,7 @@ export function TemplateDiagramPreview({
         preserveAspectRatio="xMidYMid meet"
         aria-hidden="true"
       >
-        <g opacity="0.38" stroke="currentColor" strokeWidth="2.5" fill="none">
+        <g opacity="0.65" stroke="currentColor" strokeWidth="2.5" fill="none">
           {preview.edges.map((edge) => {
             const source = preview.nodeIndex.get(edge.source);
             const target = preview.nodeIndex.get(edge.target);
@@ -100,10 +101,25 @@ export function TemplateDiagramPreview({
           })}
         </g>
         {preview.nodes.map((node) => (
-          <PreviewNodeShape key={node.id} node={node} variant={template.previewVariant} />
+          <g key={node.id}>
+            <PreviewNodeShape node={node} variant={template.previewVariant} />
+            <text
+              x={node.x + node.width / 2}
+              y={node.y + (node.type === 'sequence_participant' ? Math.min(node.height, 38) : node.height) / 2}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="var(--brand-text)"
+              fontSize={11}
+              fontFamily="var(--brand-font-family)"
+              fontWeight={500}
+            >
+              {node.label.length > Math.floor(node.width / 6)
+                ? `${node.label.slice(0, Math.max(3, Math.floor(node.width / 6) - 1))}…`
+                : node.label}
+            </text>
+          </g>
         ))}
       </svg>
-      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_18px_var(--brand-background)] opacity-[0.88]" />
     </div>
   );
 }
@@ -115,8 +131,8 @@ function PreviewNodeShape({
   node: TemplatePreviewNode;
   variant?: FlowTemplate['previewVariant'];
 }): React.ReactElement {
-  const strokeOpacity = variant === 'asset-rich' ? 0.58 : 0.45;
-  const fillOpacity = variant === 'asset-rich' ? 0.2 : 0.12;
+  const strokeOpacity = 0.65;
+  const fillOpacity = 0.22;
   const fill = getPreviewNodeColor(node, variant);
 
   if (node.type === 'sequence_participant' || variant === 'sequence') {
@@ -177,6 +193,7 @@ function createTemplatePreview(template: FlowTemplate): {
       const size = resolveCanvasNodeSize(node);
       return {
         id: node.id,
+        label: String(node.data?.label || node.type || '').replace(/\s+/g, ' ').trim(),
         x: node.position.x,
         y: node.position.y,
         width: clamp(size.width, TEMPLATE_PREVIEW_MIN_NODE_WIDTH, TEMPLATE_PREVIEW_MAX_NODE_WIDTH),

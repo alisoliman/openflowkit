@@ -4,12 +4,10 @@ import i18n from '@/i18n/config';
 import { useFlowStore } from '@/store';
 import { loadPersistedAISettings } from '@/store/aiSettingsPersistence';
 import { FlowpilotControls } from './FlowpilotControls';
+import { useCopilotConnection } from '@/hooks/ai-generation/useCopilotConnection';
 
 vi.mock('@/hooks/ai-generation/useCopilotConnection', () => ({
-  useCopilotConnection: () => ({ connection: { state: 'ready', status: {
-    runtime: 'github-copilot-sdk', authenticated: true,
-    models: [{ id: 'account-model', name: 'Account model', multiplier: 0.5 }],
-  } } }),
+  useCopilotConnection: vi.fn(),
 }));
 
 beforeEach(async () => {
@@ -17,9 +15,26 @@ beforeEach(async () => {
   localStorage.clear();
   sessionStorage.clear();
   useFlowStore.getState().setAISettings({ provider: 'copilot', model: 'auto', storageMode: 'local', autoApply: false });
+  vi.mocked(useCopilotConnection).mockReturnValue({ connection: { state: 'ready', status: {
+    runtime: 'github-copilot-sdk', authenticated: true,
+    models: [{ id: 'account-model', name: 'Account model', multiplier: 0.5 }],
+  } }, refresh: vi.fn() });
 });
 
 describe('Flowpilot runtime controls', () => {
+  it('explains an unavailable model picker and offers a connection retry', () => {
+    const refresh = vi.fn();
+    vi.mocked(useCopilotConnection).mockReturnValue({
+      connection: { state: 'unavailable', message: 'The local Copilot runtime is unavailable.' }, refresh,
+    });
+    render(<FlowpilotControls isGenerating={false} />);
+    const model = screen.getByRole('combobox', { name: 'Copilot model' });
+    expect(model).toBeDisabled();
+    expect(model).toHaveAccessibleDescription('The local Copilot runtime is unavailable.');
+    fireEvent.click(screen.getByRole('button', { name: 'Check connection' }));
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
   it('selects an account model and persists it for subsequent requests', () => {
     render(<FlowpilotControls isGenerating={false} />);
     fireEvent.change(screen.getByRole('combobox', { name: 'Copilot model' }), { target: { value: 'account-model' } });

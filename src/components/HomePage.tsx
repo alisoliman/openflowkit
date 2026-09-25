@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useFlowStore } from '../store';
 import { useWorkspaceDocumentActions, useWorkspaceDocumentsState } from '@/store/documentHooks';
 import { HomeDashboard, type HomeFlowCard } from './home/HomeDashboard';
@@ -45,7 +45,16 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [activeSettingsTab, setActiveSettingsTab] = useState<HomeSettingsTab>('general');
   const [flowPendingRename, setFlowPendingRename] = useState<HomeFlowCard | null>(null);
   const [flowPendingDelete, setFlowPendingDelete] = useState<HomeFlowCard | null>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreCreateFocusAfterDelete = useRef(false);
   const showWelcomeModal = shouldShowWelcomeModal();
+
+  useEffect(() => {
+    if (!flowPendingDelete && restoreCreateFocusAfterDelete.current) {
+      restoreCreateFocusAfterDelete.current = false;
+      createButtonRef.current?.focus();
+    }
+  }, [flowPendingDelete]);
 
   const activeTab = propActiveTab ?? internalActiveTab;
   const flows: HomeFlowCard[] = hasWorkspaceDocuments ? documents : [];
@@ -96,6 +105,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       return;
     }
 
+    restoreCreateFocusAfterDelete.current = true;
     deleteDocument(flowPendingDelete.id);
     setFlowPendingDelete(null);
   }
@@ -114,11 +124,13 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Main Content */}
       <main
         id="main-content"
+        tabIndex={-1}
         className="flex-1 flex min-w-0 flex-col bg-[var(--brand-surface)] md:ml-64"
       >
         {activeTab === 'home' && (
           <HomeDashboard
             flows={flows}
+            createButtonRef={createButtonRef}
             onCreateNew={onLaunch}
             onOpenTemplates={onLaunchWithTemplates}
             onPromptWithAI={onLaunchWithAI}
@@ -130,9 +142,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           />
         )}
 
-        {activeTab === 'templates' && (
-          <HomeTemplatesView onUseTemplate={onLaunchWithTemplate} />
-        )}
+        {activeTab === 'templates' && <HomeTemplatesView onUseTemplate={onLaunchWithTemplate} />}
 
         {activeTab === 'mcp' && <HomeMCPView />}
 

@@ -1,5 +1,5 @@
-import React, { Suspense, lazy, useState } from 'react';
-import { Download } from 'lucide-react';
+import React, { Suspense, lazy, useId, useState } from 'react';
+import { Download, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   createDefaultCinematicExportRequest,
@@ -63,6 +63,7 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
   cinematicThemeMode,
 }) => {
   const { t } = useTranslation();
+  const panelId = useId();
   const exportLabel = t('export.title', 'Export');
   const defaultRequest = createDefaultCinematicExportRequest(cinematicThemeMode);
   const [cinematicSpeedState, setCinematicSpeedState] = useState<CinematicExportSpeed>(
@@ -82,6 +83,11 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
   };
   const {
     isOpen,
+    pendingAction,
+    errorMessage,
+    triggerRef,
+    closeMenu,
+    clearError,
     menuRef,
     toggleMenu,
     handleSelect,
@@ -108,13 +114,18 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
     <div className="relative" ref={menuRef}>
       <Tooltip text={t('export.exportDiagram', 'Export Diagram')} side="bottom">
         <Button
+          ref={triggerRef}
           onClick={toggleMenu}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
+          aria-controls={isOpen ? panelId : undefined}
+          aria-busy={pendingAction !== null}
           data-testid="topnav-export"
           size="sm"
           aria-label={exportLabel}
           className="h-10 w-10 px-0 sm:h-9 sm:w-auto sm:px-3"
         >
-          <Download className="h-4 w-4 sm:mr-2" />
+          {pendingAction ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Download aria-hidden="true" className="h-4 w-4" />}
           <span className="hidden sm:inline">{exportLabel}</span>
         </Button>
       </Tooltip>
@@ -122,6 +133,11 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
       {isOpen && (
         <Suspense fallback={null}>
           <LazyExportMenuPanel
+            id={panelId}
+            onClose={() => closeMenu(true)}
+            pendingAction={pendingAction}
+            errorMessage={errorMessage}
+            onClearError={clearError}
             onSelect={handleSelect}
             cinematicSpeed={effectiveSpeed}
             onCinematicSpeedChange={effectiveSpeedChange}

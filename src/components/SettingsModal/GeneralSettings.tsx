@@ -134,7 +134,7 @@ function SettingRow({
           <p className="text-[11px] text-[var(--brand-secondary)]">{description}</p>
         </div>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </div>
   );
 }

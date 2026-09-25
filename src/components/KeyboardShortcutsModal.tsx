@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import { useModalDialog } from '@/hooks/useModalDialog';
+import React, { useMemo, useRef } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { X, Keyboard, Command, MousePointer2, Pencil } from 'lucide-react';
 import { getKeyboardShortcuts, isMacLikePlatform } from '../constants';
@@ -14,37 +15,23 @@ export function KeyboardShortcutsModal(): React.JSX.Element | null {
         []
     );
 
-    useEffect(() => {
-        if (!isShortcutsHelpOpen) {
-            return undefined;
-        }
-
-        closeButtonRef.current?.focus();
-
-        const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setShortcutsHelpOpen(false);
-            }
-        };
-
-        window.addEventListener('keydown', handleEscape);
-        return () => window.removeEventListener('keydown', handleEscape);
-    }, [isShortcutsHelpOpen, setShortcutsHelpOpen]);
+    const dialogRef = useModalDialog({ isOpen: isShortcutsHelpOpen, onClose: () => setShortcutsHelpOpen(false), initialFocusRef: closeButtonRef });
 
     if (!isShortcutsHelpOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="keyboard-shortcuts-title"
                 aria-describedby="keyboard-shortcuts-description"
-                className="max-w-2xl w-full overflow-hidden border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-overlay)] flex flex-col animate-in zoom-in duration-200"
+                className="max-w-2xl max-h-[calc(100dvh-2rem)] w-full overflow-hidden border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-overlay)] flex flex-col animate-in zoom-in duration-200"
                 style={{ borderRadius: 'var(--radius-xl)' }}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-[var(--color-brand-border)]">
+                <div className="flex items-center justify-between shrink-0 p-5 sm:p-6 border-b border-[var(--color-brand-border)]">
                     <div className="flex items-center gap-3 text-[var(--brand-text)]">
                         <div
                             className="w-10 h-10 flex items-center justify-center"
@@ -72,7 +59,7 @@ export function KeyboardShortcutsModal(): React.JSX.Element | null {
                 </div>
 
                 {/* Content */}
-                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 overflow-y-auto max-h-[70vh]">
+                <div className="min-h-0 p-5 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 overflow-y-auto max-h-[70vh]">
                     {keyboardShortcuts.map((section) => (
                         <ShortcutGroup
                             key={section.title}
@@ -87,7 +74,7 @@ export function KeyboardShortcutsModal(): React.JSX.Element | null {
                 </div>
 
                 {/* Footer Info */}
-                <div className="px-8 py-5 bg-[var(--brand-background)] text-center border-t border-[var(--color-brand-border)]">
+                <div className="shrink-0 px-5 py-4 sm:px-8 bg-[var(--brand-background)] text-center border-t border-[var(--color-brand-border)]">
                     <p className="text-[11px] font-medium text-[var(--brand-secondary)] uppercase tracking-widest leading-relaxed">
                         <Trans
                             i18nKey="keyboardShortcutsModal.proTip"

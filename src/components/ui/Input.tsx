@@ -17,6 +17,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
 }, ref) => {
     const generatedId = React.useId();
     const inputId = id ?? generatedId;
+    const descriptionId = `${inputId}-description`;
+    const describedBy = [props['aria-describedby'], (error || helperText) ? descriptionId : undefined].filter(Boolean).join(' ') || undefined;
 
     return (
         <div className="space-y-1.5">
@@ -30,9 +32,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
                 ref={ref}
                 className={`${EDITOR_FIELD_DEFAULT_CLASS} h-9 px-3 py-1 file:border-0 file:bg-transparent file:text-sm file:font-medium ${error ? 'border-red-300 focus:ring-red-500/20' : ''} ${className}`.trim()}
                 {...props}
+                aria-invalid={error ? true : props['aria-invalid']}
+                aria-describedby={describedBy}
             />
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            {helperText && !error && <p className="text-xs text-[var(--brand-secondary)]">{helperText}</p>}
+            {error && <p id={descriptionId} role="alert" className="text-xs text-[var(--color-surface-danger-text)]">{error}</p>}
+            {helperText && !error && <p id={descriptionId} className="text-xs text-[var(--brand-secondary)]">{helperText}</p>}
         </div>
     );
 });

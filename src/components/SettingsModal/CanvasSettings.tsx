@@ -107,7 +107,7 @@ export function CanvasSettings(): React.ReactElement {
                     onClick={() => setGlobalEdgeOptions({ type: style.type, curve: style.curve })}
                     className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-colors ${
                       active
-                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)]'
+                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)]'
                         : 'border-[var(--color-brand-border)] text-[var(--brand-text)] hover:border-[var(--brand-primary)]'
                     }`}
                   >
@@ -147,7 +147,7 @@ export function CanvasSettings(): React.ReactElement {
                   }
                   className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-colors ${
                     viewSettings.smartRoutingProfile === option.profile
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)]'
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)]'
                       : 'border-[var(--color-brand-border)] text-[var(--brand-text)] hover:border-[var(--brand-primary)]'
                   }`}
                 >
@@ -220,7 +220,7 @@ export function CanvasSettings(): React.ReactElement {
                   }
                   className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-colors ${
                     viewSettings.mermaidImportMode === option.mode
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)]'
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)]'
                       : 'border-[var(--color-brand-border)] text-[var(--brand-text)] hover:border-[var(--brand-primary)]'
                   }`}
                 >
@@ -247,7 +247,7 @@ export function CanvasSettings(): React.ReactElement {
                   onClick={() => setGlobalEdgeOptions({ strokeWidth: width })}
                   className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-colors ${
                     globalEdgeOptions.strokeWidth === width
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)]'
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)]'
                       : 'border-[var(--color-brand-border)] text-[var(--brand-text)] hover:border-[var(--brand-primary)]'
                   }`}
                 >
@@ -272,7 +272,7 @@ export function CanvasSettings(): React.ReactElement {
                   onClick={() => setLargeGraphSafetyMode(option.mode as 'auto' | 'on' | 'off')}
                   className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-colors ${
                     viewSettings.largeGraphSafetyMode === option.mode
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)]'
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)]'
                       : 'border-[var(--color-brand-border)] text-[var(--brand-text)] hover:border-[var(--brand-primary)]'
                   }`}
                 >
@@ -298,7 +298,7 @@ export function CanvasSettings(): React.ReactElement {
                   }
                   className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-colors ${
                     viewSettings.largeGraphSafetyProfile === option.profile
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)]'
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)]'
                       : 'border-[var(--color-brand-border)] text-[var(--brand-text)] hover:border-[var(--brand-primary)]'
                   }`}
                 >
@@ -339,6 +339,6 @@ const SettingRow = ({
         <p className="text-[11px] text-[var(--brand-secondary)]">{description}</p>
       </div>
     </div>
-    <Switch checked={checked} onCheckedChange={onChange} />
+    <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
   </div>
 );

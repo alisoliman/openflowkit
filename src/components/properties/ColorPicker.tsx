@@ -85,6 +85,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
                                 <button
                                     key={mode}
                                     type="button"
+                                    aria-pressed={selected}
                                     onClick={() => onColorModeChange(mode)}
                                     className={`rounded-[var(--radius-xs)] px-2 py-1 text-xs font-medium transition-colors ${
                                         selected

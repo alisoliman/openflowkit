@@ -54,7 +54,7 @@ describe('diagramDocumentTransfer', () => {
     expect(result.report.status).toBe('success');
   });
 
-  it('lays out a re-imported document that moved and renamed a node, not the earlier one', async () => {
+  it('restores the latest native document after a node moves and is renamed', async () => {
     const section = (id: string): FlowNode =>
       ({ ...createNode(id), type: 'section', style: { width: 400, height: 300 } }) as FlowNode;
     const importNodes = async (nodes: FlowNode[]) => {
@@ -78,6 +78,40 @@ describe('diagramDocumentTransfer', () => {
 
     expect(moved?.parentId).toBe('a');
     expect(moved?.data.label).toBe('Renamed');
+  });
+
+  it('round-trips native node positions, handles, and manual bends without relayout', async () => {
+    const nodes = [
+      { ...createNode('a'), position: { x: -450, y: 230 } },
+      { ...createNode('b'), position: { x: 900, y: 620 } },
+    ];
+    const edges: FlowEdge[] = [{
+      ...createEdge('ab', 'a', 'b'), sourceHandle: 'top', targetHandle: 'bottom',
+      data: {
+        routingMode: 'manual', curve: 'smoothstep',
+        waypoint: { x: 120, y: -240 },
+        waypoints: [{ x: -400, y: -100 }, { x: 900, y: -100 }],
+        elkPoints: [{ x: -390, y: 230 }, { x: 960, y: 680 }],
+        labelPosition: 0.7,
+      },
+    }];
+    const json = await buildDiagramDocumentJson({ nodes, edges, exportSerializationMode: 'deterministic' });
+    const result = await importDiagramDocumentJson({ json, importStart: performance.now() });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.nodes).toEqual(nodes);
+    expect(result.edges).toEqual(edges);
+  });
+
+  it('still lays out legacy graph JSON without a native document envelope', async () => {
+    const result = await importDiagramDocumentJson({
+      json: JSON.stringify({ nodes: [createNode('a'), createNode('b')], edges: [createEdge('ab', 'a', 'b')] }),
+      importStart: performance.now(),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.nodes[0].position).not.toEqual(result.nodes[1].position);
+    expect(result.warnings).toContain('Imported legacy JSON without version metadata; loaded with compatibility mode.');
   });
 
   it('returns a structured failure report for invalid diagram json', async () => {

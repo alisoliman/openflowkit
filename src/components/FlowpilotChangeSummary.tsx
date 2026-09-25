@@ -36,7 +36,7 @@ export function FlowpilotChangeSummary({ changes, compact = false }: {
           </ul>
           {changes.details.length > 6 && (
             <details className="text-sm">
-              <summary className="cursor-pointer text-[var(--brand-secondary)]">
+              <summary className="cursor-pointer rounded-[var(--radius-xs)] py-1.5 text-[var(--brand-secondary)]">
                 {t('flowpilot.moreChanges', { count: changes.details.length - 6, defaultValue: 'Show {{count}} more changes' })}
               </summary>
               <ul className="mt-2 space-y-1.5 break-words">

@@ -61,8 +61,30 @@
       "undo": "Änderungen von Copilot rückgängig machen",
       "undone": "Die Änderungen von Copilot wurden rückgängig gemacht.",
       "locked": "Copilot bearbeitet diese Seite. Die Bearbeitung der Zeichenfläche ist pausiert, bis Copilot fertig ist.",
-      "stop": "Stoppen"
-    }
+      "stop": "Stoppen",
+      "yourReply": "Deine Antwort",
+      "runningStep": "Läuft",
+      "failedStep": "Fehlgeschlagen",
+      "waitingForYou": "Wartet auf deine Antwort"
+    },
+    "you": "Du",
+    "conversation": "Unterhaltung",
+    "clear": "Leeren",
+    "latestMessage": "Neueste Nachricht",
+    "generationMode": "Generierungsmodus",
+    "referenceImage": "Referenzbild angehängt",
+    "removeImage": "Angehängtes Bild entfernen",
+    "messageLabel": "Nachricht an Flowpilot",
+    "stop": "Stoppen",
+    "stopGeneration": "Generierung stoppen",
+    "draftWhileWorking": "Während Flowpilot arbeitet, kannst du deine nächste Nachricht entwerfen.",
+    "keyboardHint": "Enter zum Senden · Umschalt + Enter für eine neue Zeile",
+    "aiSettings": "KI-Einstellungen",
+    "readingCanvas": "Dein Diagramm wird gelesen und der nächste Schritt geplant.",
+    "writingReply": "Eine Antwort auf deine Anfrage wird geschrieben.",
+    "planningReply": "Eine Antwort auf deine Anfrage wird vorbereitet.",
+    "draftingResponse": "Antwort wird verfasst",
+    "thinking": "Denkt nach"
   },
   "copilot": {
     "hostedHelp": "Verbinde dein GitHub-Konto im Browser. Du benötigst eigenen Copilot-Zugang; eine CLI-Installation ist nicht erforderlich.",
@@ -189,7 +211,14 @@
     "playbackMode": "Wiedergabemodus",
     "privacyMessage": "Ihre Diagramme bleiben bei Ihnen und erreichen unsere Server nicht.",
     "templates": "Vorlagen",
-    "mcp": "MCP"
+    "mcp": "MCP",
+    "openMenu": "Hauptmenü öffnen",
+    "closeMenu": "Menü schließen",
+    "switchToLight": "Heller Modus",
+    "switchToDark": "Dunkler Modus",
+    "localStorage": "Lokale Speicherung",
+    "localStorageHelp": "Diagramme werden in diesem Browser gespeichert. Exportiere eine Kopie als Sicherung. Inhalte, die du teilst oder an KI sendest, werden vom gewählten Dienst verarbeitet.",
+    "localStorageBackup": "Diagramme werden in diesem Browser gespeichert. Exportiere eine Kopie als Sicherung."
   },
   "menu": {
     "file": "Datei",
@@ -262,7 +291,20 @@
     "speed": "Geschwindigkeit",
     "resolution": "Auflösung",
     "transparentBackground": "Transparenter Hintergrund",
-    "headingFormat": "Exportformat"
+    "headingFormat": "Exportformat",
+    "category": "Exportkategorie",
+    "close": "Export schließen",
+    "format": "Format",
+    "hintJpg": "Hochauflösendes Bild mit weißem Hintergrund",
+    "hintJsonBackup": "Bearbeitbare Diagrammsicherung für diese App",
+    "hintMermaid": "Textquellcode für Markdown und Dokumentation",
+    "hintOpenflow": "Natives Diagrammformat mit Layout und Stil",
+    "hintPdf": "Dokument zum Drucken und Teilen",
+    "hintPlantuml": "Textquellcode für PlantUML-Werkzeuge",
+    "hintPng": "Hochauflösendes Bild, optional mit transparentem Hintergrund",
+    "openflowLabel": "OpenFlow-DSL",
+    "preparing": "Wird vorbereitet…",
+    "preparingHelp": "Dein Export wird vorbereitet. Du kannst dieses Fenster schließen, während der Vorgang abgeschlossen wird."
   },
   "import": {
     "title": "Importieren",
@@ -380,7 +422,36 @@
     "suggestionImportDesc": "Bestehende Arbeit einbringen",
     "suggestionTemplates": "Vorlagen",
     "suggestionTemplatesDesc": "Mit einem bewährten Muster beginnen",
-    "continueTitle": "Mit einer kürzlichen Aktion fortfahren"
+    "continueTitle": "Mit einer kürzlichen Aktion fortfahren",
+    "clearSearch": "Suche löschen",
+    "workspaceNavigation": "Arbeitsbereich-Navigation",
+    "workspaceTitle": "Dein Arbeitsbereich",
+    "workspaceDescription": "Ein Ort für deine Ideen, Systeme und die Verbindungen dazwischen.",
+    "aiActionDescription": "Beschreibe eine Idee. Setzt sie gemeinsam um.",
+    "templateActionDescription": "Starte mit einem Diagramm, das du direkt bearbeiten kannst.",
+    "importFile": "Datei importieren",
+    "importActionDescription": "Bring ein vorhandenes Diagramm mit.",
+    "yourDiagrams": "Deine Diagramme",
+    "localSaveHint": "Diagramme werden in diesem Browser gespeichert. Exportiere eine Sicherung, um eine separate Kopie aufzubewahren.",
+    "localSaveLabel": "Über die lokale Speicherung",
+    "searchDiagrams": "Diagramme suchen…",
+    "sortDiagrams": "Diagramme sortieren",
+    "sortRecent": "Zuletzt bearbeitet",
+    "sortName": "Name, A–Z",
+    "firstDiagramDescription": "Starte mit einer leeren Zeichenfläche, verwandle eine Idee mit KI in ein Diagramm oder passe eine Vorlage an.",
+    "noMatchingDiagrams": "Keine passenden Diagramme",
+    "searchHint": "Versuche einen anderen Namen oder lösche die Suche, um alle Diagramme zu sehen.",
+    "diagramCount": "{{count}} Diagramme",
+    "openDiagram": "{{name}} öffnen",
+    "nodeCount": "{{count}} Knoten",
+    "switchToLight": "Zum hellen Modus wechseln",
+    "switchToDark": "Zum dunklen Modus wechseln",
+    "changeLanguage": "Sprache ändern",
+    "languageError": "Die Sprache konnte nicht geändert werden. Bitte versuche es erneut.",
+    "diagramCount_one": "{{count}} Diagramm",
+    "diagramCount_other": "{{count}} Diagramme",
+    "nodeCount_one": "{{count}} Knoten",
+    "nodeCount_other": "{{count}} Knoten"
   },
   "settings": {
     "title": "Einstellungen",
@@ -435,7 +506,27 @@
     "applyToSelectedNodes": "Auf ausgewählte Knoten anwenden",
     "selectFieldToApply": "Feld zum Anwenden auswählen",
     "previewSummary": "Vorschau-Zusammenfassung",
-    "selectionSummary": "Auswahlübersicht"
+    "selectionSummary": "Auswahlübersicht",
+    "nodeLabel": "Beschriftung",
+    "nodeDescription": "Beschreibung",
+    "labelFont": "Schriftart der Beschriftung",
+    "labelFontSize": "Schriftgröße der Beschriftung",
+    "descriptionFont": "Schriftart der Beschreibung",
+    "descriptionFontSize": "Schriftgröße der Beschreibung",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "iconProvider": "Symbolanbieter",
+    "iconCategory": "Symbolkategorie",
+    "shapes": {
+      "rectangle": "Rechteck",
+      "rounded": "Abgerundetes Rechteck",
+      "capsule": "Kapsel",
+      "diamond": "Raute",
+      "hexagon": "Sechseck",
+      "cylinder": "Zylinder",
+      "parallelogram": "Parallelogramm",
+      "circle": "Kreis"
+    }
   },
   "saveStatus": {
     "saved": "Gespeichert"
@@ -496,8 +587,8 @@
     "feature2Desc": "Generate complete architectures with a single intelligent prompt.",
     "feature3Title": "Code to diagram",
     "feature3Desc": "Instantly construct stunning visual infrastructure from text.",
-    "feature4Title": "Export in many formats",
-    "feature4Desc": "Export into beautiful, fully animated presentation diagrams.",
+    "feature4Title": "Mit einer Vorlage starten",
+    "feature4Desc": "Entdecke fertige Diagramme und passe sie an deine Ideen an.",
     "analyticsTitle": "Anonymous Analytics",
     "analyticsDesc": "We collect diagnostic data. We never read your diagrams or prompts.",
     "getStarted": "Get Started",
@@ -1326,7 +1417,10 @@
     "clearCanvas": "Canvas löschen",
     "undo": "Rückgängig (Ctrl+Z)",
     "redo": "Wiederholen (Ctrl+Y)",
-    "commandCenter": "Command Center öffnen"
+    "commandCenter": "Command Center öffnen",
+    "diagramTools": "Diagrammwerkzeuge",
+    "interactionMode": "Interaktionsmodus",
+    "history": "Bearbeitungsverlauf"
   },
   "flowEditor": {
     "cannotCloseLastTab": "Der letzte Tab kann nicht geschlossen werden.",
@@ -1338,11 +1432,11 @@
     "figmaExportFailed": "Figma-Export fehlgeschlagen: {{message}}",
     "applyingLayout": "Layout wird angewendet…",
     "emptyState": {
-      "title": "Aufbauen beginnen",
-      "description": "Ihr Canvas ist leer. Generieren Sie einen Fluss mit Flowpilot oder starten Sie von Grund auf.",
+      "title": "Starte dein Diagramm",
+      "description": "Beschreibe eine Idee, wähle eine Vorlage oder füge deine erste Form hinzu.",
       "generateWithFlowpilot": "Mit Flowpilot generieren",
-      "browseTemplates": "Vorlagen durchsuchen",
-      "addBlankNode": "Leere Form hinzufügen"
+      "browseTemplates": "Vorlagen",
+      "addBlankNode": "Form hinzufügen"
     },
     "dslExportSkippedEdges": "{{count}} ungültige Kante(n) wurden beim DSL-Export übersprungen."
   },
@@ -1368,7 +1462,9 @@
   "errorBoundary": {
     "title": "Etwas ist schiefgelaufen",
     "description": "Ein unerwarteter Fehler ist aufgetreten. Bitte aktualisieren Sie die Seite.",
-    "reloadPage": "Seite neu laden"
+    "reloadPage": "Seite neu laden",
+    "recoveryHint": "Lade die Seite neu, um den Editor wieder zu öffnen. Dabei werden die in diesem Browser gespeicherten Diagramme nicht gelöscht.",
+    "technicalDetails": "Technische Details"
   },
   "navigationControls": {
     "zoomIn": "Vergrößern",
@@ -1377,7 +1473,9 @@
     "keyboardShortcuts": "Tastaturkürzel"
   },
   "playbackControls": {
-    "stop": "Stoppen"
+    "stop": "Stoppen",
+    "previous": "Vorheriger Schritt",
+    "next": "Nächster Schritt"
   },
   "snapshotsPanel": {
     "title": "Versionsverlauf",
@@ -1416,7 +1514,16 @@
     "bestFirstEdits": "Beste erste Anpassungen",
     "perfectFor": "Ideal für",
     "useTemplate": "Vorlage verwenden",
-    "closePreview": "Vorlagenvorschau schließen"
+    "closePreview": "Vorlagenvorschau schließen",
+    "all": "Alle Vorlagen",
+    "libraryDescription": "Finde den passenden Einstieg für deine nächste Idee. Jede Vorlage lässt sich vollständig bearbeiten.",
+    "search": "Vorlagen, Anwendungsfälle oder Technologien suchen…",
+    "noResults": "Keine passenden Vorlagen",
+    "searchHint": "Suche allgemeiner oder wähle eine andere Kategorie, um einen passenden Einstieg zu finden.",
+    "resetFilters": "Filter zurücksetzen",
+    "featuredFilter": "Empfohlen",
+    "browse": "Vorlagen ansehen",
+    "library": "Vorlagenbibliothek"
   },
   "propertiesPanel": {
     "stickyNote": "Haftnotiz",
@@ -1430,7 +1537,12 @@
   },
   "flowTabs": {
     "closeTab": "Tab schließen",
-    "newFlowTab": "Neuer Flow-Tab"
+    "newFlowTab": "Neuer Flow-Tab",
+    "keyboardHelp": "Mit den Pfeiltasten wechselst du Seiten, mit F2 benennst du sie um und mit Alt+Umschalt+Pfeiltasten änderst du die Reihenfolge.",
+    "pages": "Diagrammseiten",
+    "pageName": "Seitenname",
+    "renamePage": "Seite umbenennen",
+    "renamePageHint": "Seite umbenennen (F2)"
   },
   "nodes": {
     "note": "Notiz",
@@ -1519,7 +1631,9 @@
         "title": "Kein lokaler Raumcache",
         "body": "Diese Zusammenarbeitssitzung verwendet derzeit keine browserseitige IndexedDB-Raumpersistenz."
       }
-    }
+    },
+    "copying": "Wird kopiert…",
+    "copyError": "Kopieren fehlgeschlagen. Wähle den Link oben aus und kopiere ihn manuell oder versuche es erneut."
   },
   "connectionPanel": {
     "architecture": "Architektur",
@@ -1611,5 +1725,24 @@
     "visualResult": "Bearbeitbare Diagramme",
     "visualResultHint": "Validieren, ansehen, teilen",
     "visualCaption": "Die Tools laufen lokal über stdio. Dein KI-Client übernimmt Modellanfragen. Kein OpenFlowKit-API-Schlüssel erforderlich."
+  },
+  "shareEmbed": {
+    "copyLabel": "{{label}} kopieren",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "copyError": "Kopieren fehlgeschlagen. Wähle den Text oben aus und kopiere ihn manuell oder versuche es erneut.",
+    "title": "Diagramm teilen und einbetten",
+    "description": "Jeder mit dem Link kann diesen Stand ansehen. Spätere Änderungen werden darin nicht übernommen.",
+    "viewerLink": "Ansichtslink",
+    "markdownLink": "Markdown-Link",
+    "readmeLink": "README-Link",
+    "iframe": "Iframe-Einbettung",
+    "openViewer": "Kartenansicht öffnen",
+    "newTab": "(öffnet in einem neuen Tab)",
+    "invalidLink": "Dieser Ansichtslink ist nicht verfügbar. Schließe das Fenster und erstelle einen neuen Freigabelink.",
+    "help": "Verwende einen Markdown-Link in GitHub-READMEs oder das Iframe auf Websites, die eingebettete Inhalte unterstützen.",
+    "markdownText": "Interaktives Diagramm auf OpenFlowKit öffnen",
+    "readmeText": "Architekturdiagramm ansehen",
+    "frameTitle": "OpenFlowKit-Diagramm"
   }
 }

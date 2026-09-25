@@ -195,6 +195,7 @@ export function AssetsView({
                         <div className="space-y-3">
                             {activeCloudCategories.length > 1 ? (
                                 <Select
+                                    aria-label="Asset category"
                                     value={categoryFilters[activeCloudTab.id] || 'all'}
                                     onChange={(value) => setCategoryFilters((current) => ({ ...current, [activeCloudTab.id]: value }))}
                                     options={[
@@ -220,7 +221,7 @@ export function AssetsView({
                                         </button>
                                         <button
                                             type="button"
-                                            className="rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                                            className="rounded-[var(--radius-md)] bg-[var(--brand-action)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
                                             onClick={async () => {
                                                 for (const item of pendingSelectedItems) {
                                                     await insertProviderItem(item);

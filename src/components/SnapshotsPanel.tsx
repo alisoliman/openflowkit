@@ -156,7 +156,7 @@ export const SnapshotsPanel: React.FC<SnapshotsPanelProps> = ({
                         onClick={handleSave}
                         disabled={!newSnapshotName.trim()}
                         aria-label={t('snapshotsPanel.saveCurrentVersion', 'Save current version')}
-                        className="p-2 bg-[var(--brand-primary)] text-white rounded-[var(--radius-md)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95"
+                        className="p-2 bg-[var(--brand-action)] text-white rounded-[var(--radius-md)] hover:bg-[var(--brand-action-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95"
                     >
                         <Save className="w-4 h-4" />
                     </button>

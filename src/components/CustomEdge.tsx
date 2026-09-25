@@ -8,7 +8,7 @@ import type { NodeData } from '@/lib/types';
 import { useCinematicExportState } from '@/context/CinematicExportContext';
 import { CustomEdgeWrapper } from './custom-edge/CustomEdgeWrapper';
 import { buildEdgePath } from './custom-edge/pathUtils';
-import { curveFromLegacyVariant, coerceEdgeCurve, type EdgeCurve } from './custom-edge/edgeCurve';
+import { curveFromLegacyVariant, coerceEdgeCurve, isOrthogonalStepCurve, type EdgeCurve } from './custom-edge/edgeCurve';
 import { shouldUseOrthogonalRelationRouting } from './custom-edge/relationRoutingSemantics';
 import { readMermaidImportedEdgeMetadata } from '@/services/mermaid/importProvenance';
 import { readMermaidImportedNodeMetadataFromData } from '@/services/mermaid/importProvenance';
@@ -102,6 +102,8 @@ function createEdgeRenderer(variant: 'bezier' | 'smoothstep' | 'step' | 'straigh
                 markerStart={props.markerStart}
                 markerStartConfig={currentEdge?.markerStart as FlowEdge['markerStart']}
                 selected={props.selected}
+                routeEditable={props.source !== props.target}
+                routeOrthogonal={Boolean(forceOrthogonal || importedEdgeMetadata?.hasFixedRoute === false || isOrthogonalStepCurve(resolvedCurve))}
                 edgeAnimated={Boolean(currentEdge?.animated)}
                 cinematicExportState={cinematicExportState}
             />

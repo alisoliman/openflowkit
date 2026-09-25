@@ -157,16 +157,16 @@ export function buildFlowEditorEmptyStateProps({
     title: t('flowEditor.emptyState.title', { defaultValue: 'Start your diagram' }),
     description: t('flowEditor.emptyState.description', {
       defaultValue:
-        'Choose the fastest way to get a first draft on the canvas, then refine it with layout, properties, and Studio tools.',
+        'Describe an idea, choose a template, or add your first shape.',
     }),
     generateLabel: t('flowEditor.emptyState.generateWithFlowpilot', {
       defaultValue: 'Generate with Flowpilot',
     }),
     templatesLabel: t('flowEditor.emptyState.browseTemplates', {
-      defaultValue: 'Browse templates',
+      defaultValue: 'Templates',
     }),
     addNodeLabel: t('flowEditor.emptyState.addBlankNode', {
-      defaultValue: 'Start from a blank node',
+      defaultValue: 'Add a shape',
     }),
     onGenerate: () => openStudioPanel('ai'),
     onTemplates: () => openCommandBar('templates'),

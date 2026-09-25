@@ -27,6 +27,7 @@ export function EdgeStyleSection({ selectedEdge, onChange }: EdgeStyleSectionPro
             <div className="flex items-center justify-between rounded-[var(--brand-radius)] border border-[var(--color-brand-border)] bg-[var(--brand-background)]/70 px-3 py-2">
                 <span className="text-sm font-medium text-[var(--brand-text)]">Animated</span>
                 <Switch
+                    aria-label="Animated"
                     checked={selectedEdge.animated || false}
                     onCheckedChange={(checked) => onChange(selectedEdge.id, { animated: checked })}
                 />

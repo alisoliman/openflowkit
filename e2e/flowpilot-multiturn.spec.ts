@@ -75,7 +75,7 @@ for (const method of ['enter', 'button']) {
     });
     await openFlowpilot(page);
     await send(page, 'Plan an order diagram before drawing it.', method === 'enter');
-    await expect(page.getByRole('button', { name: 'Cancel generation' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Stop generation' })).toBeVisible();
     await expect(page.getByRole('textbox')).toHaveValue('');
     await page.getByRole('textbox').fill('Add Redis after this.');
     finish();

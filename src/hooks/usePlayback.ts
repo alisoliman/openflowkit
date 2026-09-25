@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { useReactFlow } from '@/lib/reactflowCompat';
 import { useFlowStore } from '../store';
 import { useEditorPagesState } from '@/store/editorPageHooks';
@@ -14,6 +15,7 @@ export function usePlayback() {
     const { nodes, setNodes } = useFlowStore();
     const { pages, activePageId } = useEditorPagesState();
     const { fitView } = useReactFlow();
+    const reduceMotion = useReducedMotion();
 
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentStepIndex, setCurrentStepIndex] = useState(-1);
@@ -111,12 +113,12 @@ export function usePlayback() {
 
         fitView({
             nodes: [{ id: step.nodeId }],
-            duration: step.viewport.duration,
+            duration: reduceMotion ? 0 : step.viewport.duration,
             padding: step.viewport.padding,
             minZoom: step.viewport.minZoom,
             maxZoom: step.viewport.maxZoom
         });
-    }, [currentStepIndex, steps, fitView, setNodes]);
+    }, [currentStepIndex, steps, fitView, setNodes, reduceMotion]);
 
     return {
         isPlaying,

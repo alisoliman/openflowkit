@@ -249,11 +249,30 @@ export function FlowEditorChrome({
       </InertWhileAgentEdits>
 
       <div className="flex min-h-0 flex-1 min-w-0 pt-14">
-        <div className="relative min-w-0 flex-1">
+        <div className="@container/canvas relative min-w-0 flex-1">
           <ErrorBoundary className="h-full">{canvas}</ErrorBoundary>
+          <InertWhileAgentEdits>
+            {emptyStateProps ? (
+              <Suspense fallback={null}>
+                <LazyFlowEditorEmptyState {...emptyStateProps} />
+              </Suspense>
+            ) : null}
+          </InertWhileAgentEdits>
           <Suspense fallback={null}>
             <LazyDiffModeBanner />
           </Suspense>
+          {/* The toolbar locks itself during a Flowpilot turn but keeps its Flowpilot toggle. */}
+          {toolbar.isVisible ? (
+            <Suspense fallback={null}>
+              <LazyToolbar {...toolbarProps} />
+            </Suspense>
+          ) : (
+            <InertWhileAgentEdits>
+              <Suspense fallback={null}>
+                <LazyPlaybackControls {...playbackProps} />
+              </Suspense>
+            </InertWhileAgentEdits>
+          )}
         </div>
         {shouldRenderPanels ? (
           <Suspense fallback={null}>
@@ -277,26 +296,8 @@ export function FlowEditorChrome({
         </Suspense>
       ) : null}
 
-      {/* The toolbar locks itself during a Flowpilot turn but keeps its Flowpilot toggle. */}
-      {toolbar.isVisible ? (
-        <Suspense fallback={null}>
-          <LazyToolbar {...toolbarProps} />
-        </Suspense>
-      ) : (
-        <InertWhileAgentEdits>
-          <Suspense fallback={null}>
-            <LazyPlaybackControls {...playbackProps} />
-          </Suspense>
-        </InertWhileAgentEdits>
-      )}
 
-      <InertWhileAgentEdits>
-        {emptyStateProps ? (
-          <Suspense fallback={null}>
-            <LazyFlowEditorEmptyState {...emptyStateProps} />
-          </Suspense>
-        ) : null}
-      </InertWhileAgentEdits>
+
     </>
   );
 }

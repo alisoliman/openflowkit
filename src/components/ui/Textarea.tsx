@@ -16,6 +16,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({
 }, ref) => {
     const generatedId = React.useId();
     const inputId = id ?? generatedId;
+    const descriptionId = error || helperText ? `${inputId}-description` : undefined;
 
     return (
         <div className="space-y-1.5 h-full flex flex-col">
@@ -33,9 +34,11 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({
                     ${className}
                 `}
                 {...props}
+                aria-invalid={error ? true : props['aria-invalid']}
+                aria-describedby={[props['aria-describedby'], descriptionId].filter(Boolean).join(' ') || undefined}
             />
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            {helperText && !error && <p className="text-xs text-[var(--brand-secondary)]">{helperText}</p>}
+            {error && <p id={descriptionId} role="alert" className="text-xs text-[var(--color-surface-danger-text)]">{error}</p>}
+            {helperText && !error && <p id={descriptionId} className="text-xs text-[var(--brand-secondary)]">{helperText}</p>}
         </div>
     );
 });

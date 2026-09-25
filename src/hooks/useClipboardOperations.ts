@@ -4,6 +4,7 @@ import { createId } from '../lib/id';
 import { APP_STORAGE_KEYS } from '@/lib/legacyBranding';
 import { createLogger } from '@/lib/logger';
 import { clearNodeParent } from '@/lib/nodeParent';
+import { translateEdgeRouteData } from '@/lib/translateEdgeRouteData';
 import { readLocalStorageString, writeLocalStorageJson } from '@/services/storage/uiLocalStorage';
 import { useCanvasActions, useCanvasState } from '@/store/canvasHooks';
 import { useSelectionActions } from '@/store/selectionHooks';
@@ -75,6 +76,7 @@ export const useClipboardOperations = (recordHistory: () => void) => {
                     id: createId('e'),
                     source: idMap.get(edge.source)!,
                     target: idMap.get(edge.target)!,
+                    data: translateEdgeRouteData(edge.data, { x: offsetX, y: offsetY }),
                     selected: true
                 }));
 

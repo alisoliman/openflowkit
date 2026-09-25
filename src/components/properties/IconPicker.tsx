@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Ban, Image as ImageIcon, Upload } from 'lucide-react';
 import type { DomainLibraryCategory, DomainLibraryItem } from '@/services/domainLibrary';
 import { getAssetCategoryDisplayName } from '@/services/assetPresentation';
@@ -83,6 +84,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
     onSelectProviderIcon,
     onCustomIconChange,
 }) => {
+    const { t } = useTranslation();
     const [iconSearch, setIconSearch] = useState('');
     const [userIconSource, setUserIconSource] = useState<IconSource | null>(null);
     const [userProvider, setUserProvider] = useState<DomainLibraryCategory | null>(null);
@@ -236,6 +238,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                     }
                                 `}
                                 aria-label="No Icon"
+                                aria-pressed={selectedIcon === 'none'}
                             >
                                 <Ban className="h-5 w-5" />
                             </button>
@@ -255,6 +258,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                         }
                                     `}
                                     aria-label={iconName}
+                                    aria-pressed={selectedIcon === iconName}
                                 >
                                     <NamedIcon name={iconName} className="h-5 w-5" />
                                 </button>
@@ -267,6 +271,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
             {iconSource === 'provider' ? (
                 <div className="space-y-3">
                     <Select
+                        aria-label={t('properties.iconProvider', 'Icon provider')}
                         value={provider}
                         onChange={(value) => setUserProvider(value as DomainLibraryCategory)}
                         options={PROVIDER_OPTIONS}
@@ -281,6 +286,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
 
                     {providerCategories.length > 1 ? (
                         <Select
+                            aria-label={t('properties.iconCategory', 'Icon category')}
                             value={category}
                             onChange={setCategory}
                             options={[
@@ -319,6 +325,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                         <button
                                             type="button"
                                             aria-label={item.label}
+                                            aria-pressed={isSelected}
                                             className={`flex h-full w-full items-center justify-center rounded-[var(--radius-md)] border p-2 transition-all ${showProviderLabels ? 'min-w-0 flex-col gap-2' : ''} ${
                                                 isSelected
                                                     ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-50)]'

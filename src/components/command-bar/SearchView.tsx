@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReactFlow } from '@/lib/reactflowCompat';
 import type { FlowNode } from '@/lib/types';
 import { Search, Filter } from 'lucide-react';
@@ -34,6 +34,8 @@ export const SearchView = ({
     handleBack
 }: SearchViewProps) => {
     const { t } = useTranslation();
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => { searchInputRef.current?.focus({ preventScroll: true }); }, []);
     const navigate = useNavigate();
     const [query, setQuery] = useState<QueryState>(EMPTY_QUERY);
     const [scope, setScope] = useState<'current' | 'all'>('current');
@@ -174,9 +176,8 @@ export const SearchView = ({
                 <SearchField
                     value={query.text}
                     onChange={e => setQuery((current) => ({ ...current, text: e.target.value }))}
-                    onKeyDown={(e) => e.stopPropagation()}
                     placeholder={t('commandBar.search.placeholder')}
-                    autoFocus
+                    ref={searchInputRef}
                 />
                 <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-background)]/70 p-3">
                     <SegmentedTabs
@@ -230,7 +231,7 @@ export const SearchView = ({
                     <div className="mt-2 flex items-center gap-2">
                         <button
                             onClick={applyQuerySelection}
-                            className="h-8 rounded-[var(--brand-radius)] bg-[var(--brand-primary)] px-3 text-xs font-medium text-white"
+                            className="h-8 rounded-[var(--brand-radius)] bg-[var(--brand-action)] px-3 text-xs font-medium text-white"
                         >
                             Apply Selection
                         </button>
@@ -295,7 +296,7 @@ export const SearchView = ({
                             {getInitials(node.data?.label || node.type || '?')}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h4 className="truncate text-sm font-medium text-[var(--brand-text)] group-hover:text-[var(--brand-primary-700)]">
+                            <h4 className="truncate text-sm font-medium text-[var(--brand-text)] group-hover:text-[var(--brand-primary)]">
                                 {node.data?.label || t('commandBar.search.untitled')}
                             </h4>
                             <p className="line-clamp-1 text-xs text-[var(--brand-secondary)]">

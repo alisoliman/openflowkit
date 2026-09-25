@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/Button';
 import {
@@ -8,15 +8,46 @@ import {
 } from '@/components/add-items/addItemRegistry';
 
 interface ToolbarAddMenuPanelProps {
+  id?: string;
+  onClose?: () => void;
   currentItemId: AddItemId;
   onSelectItem: (itemId: AddItemId) => void;
 }
 
 export function ToolbarAddMenuPanel({
+  id,
+  onClose,
   currentItemId,
   onSelectItem,
 }: ToolbarAddMenuPanelProps): React.ReactElement {
   const { t } = useTranslation();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    panelRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"][data-current="true"]')?.focus();
+  }, []);
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    event.stopPropagation();
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose?.();
+      return;
+    }
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex: number | undefined;
+    if (event.key === 'ArrowDown') nextIndex = (currentIndex + 2) % buttons.length;
+    if (event.key === 'ArrowUp') nextIndex = (currentIndex - 2 + buttons.length) % buttons.length;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % buttons.length;
+    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = buttons.length - 1;
+    if (nextIndex !== undefined) {
+      event.preventDefault();
+      buttons[nextIndex]?.focus();
+    }
+  }
   const sections = getAddItemSections(t);
   const items = getAddItemsForScope('toolbar', t);
 
@@ -28,10 +59,10 @@ export function ToolbarAddMenuPanel({
   }, [items, sections]);
 
   return (
-    <div className="absolute bottom-full left-1/2 mb-3 w-64 -translate-x-1/2 rounded-[var(--radius-lg)] border border-[var(--color-brand-border)]/80 bg-[var(--brand-surface)]/95 p-2 shadow-[var(--shadow-md)] ring-1 ring-black/5 backdrop-blur-md animate-in slide-in-from-bottom-4 zoom-in-95 duration-200 origin-bottom pointer-events-auto max-h-[70vh] overflow-y-auto custom-scrollbar">
+    <div ref={panelRef} id={id} role="menu" aria-label={t('toolbar.addItem', 'Add Item')} onKeyDown={handleKeyDown} className="absolute bottom-full left-1/2 mb-3 w-72 -translate-x-1/2 rounded-[var(--radius-lg)] border border-[var(--color-brand-border)]/80 bg-[var(--brand-surface)]/95 p-2 shadow-[var(--shadow-md)] ring-1 ring-black/5 backdrop-blur-md animate-in slide-in-from-bottom-4 zoom-in-95 duration-200 origin-bottom pointer-events-auto max-h-[min(65vh,520px)] motion-reduce:animate-none overflow-y-auto custom-scrollbar">
       {itemsBySection.map((section) => (
         <div key={section.id} className="mb-2 last:mb-0">
-          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--brand-secondary)]">
+          <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-secondary)]">
             {section.title}
           </div>
           <div className="grid grid-cols-2 gap-0.5">
@@ -41,9 +72,12 @@ export function ToolbarAddMenuPanel({
               return (
                 <Button
                   key={item.id}
+                  role="menuitem"
+                  tabIndex={-1}
+                  data-current={isActive}
                   onClick={() => onSelectItem(item.id)}
                   variant="ghost"
-                  className={`h-8 justify-start rounded-[var(--radius-sm)] px-2 text-xs transition-colors ${
+                  className={`h-10 justify-start rounded-[var(--radius-sm)] px-2 text-xs transition-colors ${
                     isActive
                       ? 'bg-[var(--brand-primary-50)] text-[var(--brand-primary)]'
                       : 'hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]'
