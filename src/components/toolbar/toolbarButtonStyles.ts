@@ -18,13 +18,13 @@ export function getToolbarIconButtonClass(options?: {
     size?: 'default' | 'compact';
 }): string {
     const { active = false, tone = 'neutral', size = 'default' } = options ?? {};
-    const sizeClass = size === 'compact' ? 'h-8 w-8' : 'h-9 w-9';
+    const sizeClass = size === 'compact' ? 'h-9 w-9' : 'h-10 w-10';
 
     if (active) {
-        return `group inline-flex items-center justify-center ${sizeClass} ${TOOLBAR_BUTTON_RADIUS_CLASS} border border-[var(--brand-primary-200)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)] transition-all`;
+        return `group inline-flex items-center justify-center ${sizeClass} ${TOOLBAR_BUTTON_RADIUS_CLASS} border border-[var(--brand-primary-200)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)] transition-colors duration-150 disabled:opacity-40 motion-reduce:transition-none`;
     }
 
-    return `group inline-flex items-center justify-center ${sizeClass} ${TOOLBAR_BUTTON_RADIUS_CLASS} transition-all ${getToolbarToneClass(tone)}`;
+    return `group inline-flex items-center justify-center ${sizeClass} ${TOOLBAR_BUTTON_RADIUS_CLASS} transition-colors duration-150 disabled:opacity-40 motion-reduce:transition-none ${getToolbarToneClass(tone)}`;
 }
 
 export const TOOLBAR_DIVIDER_CLASS = 'h-6 w-px bg-[var(--color-brand-border)]/80';

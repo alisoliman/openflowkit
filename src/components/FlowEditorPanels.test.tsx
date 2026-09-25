@@ -1,9 +1,9 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useFlowStore } from '@/store';
 import { FlowEditorPanels } from './FlowEditorPanels';
 
-const commandBarShouldThrow = false;
+let commandBarShouldThrow = false;
 let snapshotsShouldThrow = false;
 let propertiesShouldThrow = false;
 const studioShouldThrow = false;
@@ -183,6 +183,7 @@ const selectedNode = {
 
 describe('FlowEditorPanels', () => {
   afterEach(() => {
+    commandBarShouldThrow = false;
     act(() => {
       useFlowStore.getState().setAgentTurn(null);
     });
@@ -307,4 +308,20 @@ describe('FlowEditorPanels', () => {
 
     expect((await screen.findByTestId('studio-panel')).closest('[inert]')).toBeNull();
   });
+
+  it('dismisses a failed command panel and creates a fresh boundary when reopened', async () => {
+    commandBarShouldThrow = true;
+    const onClose = vi.fn();
+    const view = render(<FlowEditorPanels {...baseProps} editorMode="canvas" commandBar={{ ...baseProps.commandBar, isOpen: true, onClose }} />);
+    expect(await screen.findByRole('heading', { name: 'Command panel unavailable' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    expect(onClose).toHaveBeenCalledOnce();
+    view.rerender(<FlowEditorPanels {...baseProps} editorMode="canvas" commandBar={{ ...baseProps.commandBar, isOpen: false, onClose }} />);
+    expect(screen.queryByText('Command panel unavailable')).toBeNull();
+    commandBarShouldThrow = false;
+    view.rerender(<FlowEditorPanels {...baseProps} editorMode="canvas" commandBar={{ ...baseProps.commandBar, isOpen: true, onClose }} />);
+    expect(await screen.findByTestId('command-bar')).toBeInTheDocument();
+    expect(screen.queryByText('Command panel unavailable')).toBeNull();
+  });
+
 });

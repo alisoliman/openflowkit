@@ -1,7 +1,8 @@
-import type { ReactElement, RefObject } from 'react';
+import { useId, useLayoutEffect, useRef, type ReactElement, type RefObject } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
+  ArrowDown,
   CheckCircle2,
   Crosshair,
   Info,
@@ -44,15 +45,15 @@ export function PendingDiffBanner({
   isGenerating,
 }: PendingDiffBannerProps): ReactElement {
   return (
-    <div className={`mx-1 mb-2 rounded-[var(--radius-md)] p-3 ${STATUS_SURFACE_CLASS.success}`}>
+    <div className={`mx-1 mb-2 shrink-0 rounded-[var(--radius-md)] border p-3 ${pendingDiff.stale ? STATUS_SURFACE_CLASS.warning : STATUS_SURFACE_CLASS.success}`}>
       <div className="flex items-center gap-2 mb-2">
         <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--color-surface-success-text)]" />
-        <p className="text-xs font-semibold text-[var(--brand-text)]">
+        <p className="text-sm font-semibold text-[var(--brand-text)]">
           {pendingDiff.previewTitle}
         </p>
       </div>
       {pendingDiff.previewDetail ? (
-        <p className="mb-3 text-[11px] leading-4 text-[var(--color-surface-success-text)]">
+        <p className="mb-3 text-xs leading-5 text-[var(--brand-secondary)]">
           {pendingDiff.previewDetail}
         </p>
       ) : null}
@@ -61,7 +62,7 @@ export function PendingDiffBanner({
           {pendingDiff.previewStats.map((stat) => (
             <span
               key={stat}
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SECTION_SURFACE_CLASS}`}
+              className={`rounded-full px-2 py-1 text-xs font-medium ${SECTION_SURFACE_CLASS}`}
             >
               {stat}
             </span>
@@ -78,15 +79,17 @@ export function PendingDiffBanner({
       )}
       <div className="flex gap-2">
         <button
+          type="button"
           onClick={onDiscardDiff}
-          className={`flex h-7 flex-1 items-center justify-center rounded text-[11px] font-medium text-[var(--brand-secondary)] hover:bg-[var(--brand-background)] ${SECTION_SURFACE_CLASS}`}
+          className={`flex min-h-9 flex-1 items-center justify-center rounded-[var(--radius-sm)] px-2 text-xs font-medium text-[var(--brand-text)] hover:bg-[var(--brand-background)] ${SECTION_SURFACE_CLASS}`}
         >
           {t('commandBar.aiStudio.discard', 'Discard')}
         </button>
         <button
+          type="button"
           onClick={onConfirmDiff}
           disabled={pendingDiff.stale || isGenerating}
-          className="flex h-8 flex-1 items-center justify-center rounded bg-emerald-600 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-9 flex-1 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--brand-action)] px-2 text-xs font-semibold text-white hover:bg-[var(--brand-action-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('commandBar.aiStudio.applyToCanvas', 'Apply to canvas')}
         </button>
@@ -111,15 +114,17 @@ interface ChatHistoryViewProps {
   onOpenAISettings: () => void;
   onClearChat: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
+  showScrollToLatest?: boolean;
+  onScrollToLatest?: () => void;
   t: TranslateFn;
 }
 
 function getThreadBubbleClassName(isUser: boolean): string {
   if (isUser) {
-    return 'rounded-br-sm bg-[var(--brand-primary)] text-white shadow-sm';
+    return 'rounded-br-sm bg-[var(--brand-action)] text-white shadow-sm';
   }
 
-  return 'rounded-bl-sm border border-[var(--color-brand-border)]/70 bg-[var(--brand-surface)] text-[var(--brand-text)] shadow-sm';
+  return 'rounded-bl-sm border border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text)]';
 }
 
 function renderThreadAssetMatches(item: AssistantThreadItem): ReactElement | null {
@@ -132,7 +137,7 @@ function renderThreadAssetMatches(item: AssistantThreadItem): ReactElement | nul
       {item.assetMatches.slice(0, 4).map((match) => (
         <span
           key={match.id}
-          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SECTION_SURFACE_CLASS}`}
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${SECTION_SURFACE_CLASS}`}
         >
           {match.label}
         </span>
@@ -148,9 +153,9 @@ function renderThreadPreview(item: AssistantThreadItem): ReactElement | null {
 
   return (
     <div className="mt-3 rounded-[var(--radius-sm)] border border-[var(--color-brand-border)]/70 bg-[var(--brand-background)] px-2.5 py-2">
-      <div className="text-[11px] font-semibold text-[var(--brand-text)]">{item.previewTitle}</div>
+      <div className="text-xs font-semibold text-[var(--brand-text)]">{item.previewTitle}</div>
       {item.previewDetail ? (
-        <div className="mt-1 text-[11px] leading-4 text-[var(--brand-secondary)]">
+        <div className="mt-1 text-xs leading-4 text-[var(--brand-secondary)]">
           {item.previewDetail}
         </div>
       ) : null}
@@ -159,7 +164,7 @@ function renderThreadPreview(item: AssistantThreadItem): ReactElement | null {
           {item.previewStats.map((stat) => (
             <span
               key={`${item.id}-${stat}`}
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SECTION_SURFACE_CLASS}`}
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${SECTION_SURFACE_CLASS}`}
             >
               {stat}
             </span>
@@ -173,20 +178,20 @@ function renderThreadPreview(item: AssistantThreadItem): ReactElement | null {
 function renderPlanContent(item: AssistantThreadItem): ReactElement {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-secondary)]">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--brand-secondary)]">
         <WandSparkles className="h-3.5 w-3.5" />
         Plan
       </div>
       <div className="leading-relaxed">{item.plan?.reasoningSummary}</div>
       <div className="flex flex-wrap gap-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SECTION_SURFACE_CLASS}`}>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SECTION_SURFACE_CLASS}`}>
           Mode: {item.plan?.mode.replaceAll('_', ' ')}
         </span>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SECTION_SURFACE_CLASS}`}>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SECTION_SURFACE_CLASS}`}>
           Confidence: {Math.round((item.plan?.confidence ?? 0) * 100)}%
         </span>
       </div>
-      <div className="space-y-1 text-[12px] leading-relaxed text-[var(--brand-secondary)]">
+      <div className="space-y-1 text-xs leading-relaxed text-[var(--brand-secondary)]">
         {item.plan?.steps.map((step, index) => (
           <div key={`${item.id}-step-${index}`}>{index + 1}. {step}</div>
         ))}
@@ -226,7 +231,7 @@ function renderThreadContent(item: AssistantThreadItem, t: TranslateFn, agent: A
         <p className="text-sm font-semibold" data-preview-status={status}>{statusLabels[status]}</p>
         {item.changes ? <FlowpilotChangeSummary changes={item.changes} /> : <p>{item.previewTitle}</p>}
         <details className="text-xs text-[var(--brand-secondary)]">
-          <summary className="cursor-pointer">{t('flowpilot.viewCode', 'View diagram code')}</summary>
+          <summary className="cursor-pointer rounded-[var(--radius-xs)] py-1.5">{t('flowpilot.viewCode', 'View diagram code')}</summary>
           <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words">{item.content}</pre>
         </details>
       </div>
@@ -253,14 +258,14 @@ function getStreamingStatusCopy(
   }
 
   if (chatMessageCount > 0) {
-    return 'Inspecting the canvas, grounding assets, and preparing the next step.';
+    return t('flowpilot.readingCanvas', 'Reading your diagram and planning the next step.');
   }
 
   if (streamingText) {
-    return 'Understanding the request and drafting the response.';
+    return t('flowpilot.writingReply', 'Writing a response to your request.');
   }
 
-  return 'Understanding the request and deciding whether to answer in chat or prepare a canvas preview.';
+  return t('flowpilot.planningReply', 'Planning a response to your request.');
 }
 
 function renderThreadItem(item: AssistantThreadItem, t: TranslateFn, agent: AgentTurnContext): ReactElement {
@@ -269,8 +274,11 @@ function renderThreadItem(item: AssistantThreadItem, t: TranslateFn, agent: Agen
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`} key={item.id} data-thread-type={item.type}>
       <div
-        className={`max-w-[88%] rounded-[var(--radius-md)] px-3.5 py-2.5 text-sm whitespace-pre-wrap ${getThreadBubbleClassName(isUser)}`}
+        className={`min-w-0 ${isUser ? 'max-w-[90%]' : 'w-full'} rounded-[var(--radius-md)] px-3.5 py-3 text-sm whitespace-pre-wrap [overflow-wrap:anywhere] ${getThreadBubbleClassName(isUser)}`}
       >
+        <p className={`mb-1.5 text-xs font-semibold ${isUser ? 'text-white/85' : 'text-[var(--brand-secondary)]'}`}>
+          {isUser ? t('flowpilot.you', 'You') : FLOWPILOT_NAME}
+        </p>
         {renderThreadContent(item, t, agent)}
         {isUser || item.type === 'assistant_canvas_preview' ? null : renderThreadAssetMatches(item)}
         {isUser || item.type === 'assistant_canvas_preview' ? null : renderThreadPreview(item)}
@@ -295,6 +303,8 @@ export function ChatHistoryView({
   onOpenAISettings,
   onClearChat,
   scrollRef,
+  showScrollToLatest,
+  onScrollToLatest,
   t,
 }: ChatHistoryViewProps): ReactElement {
   if (hasHistory) {
@@ -304,31 +314,37 @@ export function ChatHistoryView({
     const agent = { controls: agentTurnControls, latestItemId: latestItem?.id, busy: isGenerating };
     return (
       <>
-        <div className="flex items-center justify-end px-1 pb-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 px-1 pb-1">
+          <p className="text-xs font-semibold text-[var(--brand-secondary)]">{t('flowpilot.conversation', 'Conversation')}</p>
           <button
+            type="button"
             onClick={onClearChat}
-            disabled={isAgentTurnLive}
-            className="rounded-full p-2 text-[var(--brand-secondary)] transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isGenerating || isAgentTurnLive}
+            aria-label={t('commandBar.ai.clearChat')}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-sm)] px-2 text-xs text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-background)] hover:text-[var(--brand-text)] disabled:cursor-not-allowed disabled:opacity-50"
             title={t('commandBar.ai.clearChat')}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+            {t('flowpilot.clear', 'Clear')}
           </button>
         </div>
         <div
           ref={scrollRef}
           role="log"
+          aria-label={t('flowpilot.conversation', 'Conversation')}
           aria-live="polite"
-          className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-4 custom-scrollbar"
+          aria-relevant="additions text"
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-1 py-3 custom-scrollbar"
         >
           {assistantThread.map((item) => renderThreadItem(item, t, agent))}
           {isGenerating && !isAgentTurnLive ? (
             <div className="flex justify-start">
-              <div className="max-w-[88%] rounded-[var(--radius-md)] rounded-bl-sm border border-[var(--color-brand-border)]/70 bg-[var(--brand-surface)] px-3.5 py-2.5 text-sm text-[var(--brand-text)] shadow-sm">
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-secondary)]">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {streamingText ? 'Drafting response' : 'Thinking'}
+              <div className="min-w-0 w-full rounded-[var(--radius-md)] rounded-bl-sm border border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-3.5 py-3 text-sm text-[var(--brand-text)] [overflow-wrap:anywhere]">
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--brand-secondary)]">
+                  <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+                  {streamingText ? t('flowpilot.draftingResponse', 'Drafting response') : t('flowpilot.thinking', 'Thinking')}
                 </div>
-                <div className="mt-2 text-[12px] leading-relaxed text-[var(--brand-secondary)]">
+                <div className="mt-2 text-xs leading-relaxed text-[var(--brand-secondary)]">
                   {getStreamingStatusCopy(streamingText, retryCount, chatMessages.length, t)}
                 </div>
                 {streamingText && !/^\s*(?:```[^\n]*\n?)?\s*flow\s*:/i.test(streamingText) ? (
@@ -338,6 +354,14 @@ export function ChatHistoryView({
             </div>
           ) : null}
         </div>
+        {showScrollToLatest && onScrollToLatest ? (
+          <div className="flex shrink-0 justify-center py-2">
+            <button type="button" onClick={onScrollToLatest} className={`inline-flex min-h-9 items-center gap-2 px-3 text-xs font-medium text-[var(--brand-text)] hover:bg-[var(--brand-background)] ${SECTION_SURFACE_CLASS}`}>
+              <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" />
+              {t('flowpilot.latestMessage', 'Latest message')}
+            </button>
+          </div>
+        ) : null}
       </>
     );
   }
@@ -345,16 +369,16 @@ export function ChatHistoryView({
   return (
     <div
       ref={scrollRef}
-      className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-4 custom-scrollbar"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-4 custom-scrollbar"
     >
-      <div className="flex h-full flex-col items-center justify-center py-8 text-center px-4">
+      <div className="flex min-h-full flex-col items-center justify-center px-2 py-5 text-center">
         <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] text-[var(--color-surface-warning-text)] ${SECTION_CARD_CLASS} ring-1 ring-[var(--color-surface-warning-border)]`}>
-          <WandSparkles className="h-6 w-6" />
+          <WandSparkles aria-hidden="true" className="h-6 w-6" />
         </div>
         <h3 className="text-xl font-bold tracking-tight text-[var(--brand-text)]">
           {FLOWPILOT_NAME}
         </h3>
-        <p className="mt-2.5 mb-8 max-w-[280px] text-[13px] leading-relaxed text-[var(--brand-secondary)]">
+        <p className="mb-6 mt-2 max-w-[280px] text-sm leading-6 text-[var(--brand-secondary)]">
           {isCanvasEmpty
             ? t('commandBar.aiStudio.emptyDescription', {
                 appName: FLOWPILOT_NAME,
@@ -369,17 +393,19 @@ export function ChatHistoryView({
         </p>
 
         {canGenerate ? (
-          <div className="flex max-w-[360px] flex-wrap justify-center gap-2">
+          <div className="grid w-full max-w-[360px] gap-2">
             {examplePrompts.map((skill, index) => {
               const Icon = skill.icon;
               return (
                 <button
+                  type="button"
                   key={skill.label}
                   onClick={() => onSelectExample(skill.prompt)}
-                  className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--brand-surface)] bg-[var(--brand-surface)] px-3 py-2 text-left text-[12px] font-semibold leading-none text-[var(--brand-text)] shadow-sm shadow-[var(--color-brand-border)]/70 ring-1 ring-[var(--color-brand-border)]/70 transition-all duration-200 hover:-translate-y-px hover:border-[var(--brand-primary-100)] hover:text-[var(--brand-primary)] hover:shadow-md active:scale-95"
+                  disabled={isGenerating}
+                  className="inline-flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-3 py-2.5 text-left text-sm font-medium leading-5 text-[var(--brand-text)] transition-colors hover:border-[var(--brand-primary)] hover:bg-[var(--brand-background)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--brand-background)]">
-                    <Icon className={`h-3.5 w-3.5 ${getExampleIconColor(index)}`} />
+                    <Icon aria-hidden="true" className={`h-3.5 w-3.5 ${getExampleIconColor(index)}`} />
                   </span>
                   <span>{skill.label}</span>
                 </button>
@@ -389,8 +415,9 @@ export function ChatHistoryView({
         ) : (
           <div className="mt-8 flex justify-center">
             <button
+              type="button"
               onClick={onOpenAISettings}
-              className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-[var(--brand-secondary)] transition-all hover:bg-[var(--brand-background)] hover:text-[var(--brand-text)] active:scale-95 ${SECTION_SURFACE_CLASS}`}
+              className={`flex min-h-11 items-center gap-2 px-4 py-2 text-sm font-semibold text-[var(--brand-text)] transition-colors hover:bg-[var(--brand-background)] ${SECTION_SURFACE_CLASS}`}
             >
               <Settings2 className="h-3.5 w-3.5" />
               {t('copilot.setupCta', 'Set up Flowpilot')}
@@ -449,6 +476,7 @@ interface AIRecoveryBannerProps {
   aiReadiness: AIReadinessState;
   lastError: string;
   isGenerating: boolean;
+  canRetry: boolean;
   onRetry: () => void;
   onOpenAISettings: () => void;
   onClearError: () => void;
@@ -458,6 +486,7 @@ function AIRecoveryBanner({
   aiReadiness,
   lastError,
   isGenerating,
+  canRetry,
   onRetry,
   onOpenAISettings,
   onClearError,
@@ -467,20 +496,21 @@ function AIRecoveryBanner({
   const detail = setupIssue?.detail ?? lastError;
 
   return (
-    <div className={`mb-3 rounded-[var(--radius-md)] px-3 py-3 ${STATUS_SURFACE_CLASS.warning}`}>
+    <div role="alert" className={`mb-3 rounded-[var(--radius-md)] border px-3 py-3 ${STATUS_SURFACE_CLASS.warning}`}>
       <div className="flex items-start gap-2">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-surface-warning-text)]" />
+        <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-surface-warning-text)]" />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold text-[var(--color-surface-warning-text)]">
             {setupIssue?.title ?? STUDIO_AI_COPY.lastRequestFailedTitle}
           </div>
-          <div className="mt-1 text-[11px] leading-4 text-[var(--color-surface-warning-text)]/90">{detail}</div>
+          <div className="mt-1 break-words text-xs leading-5 text-[var(--color-surface-warning-text)]">{detail}</div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {!isGenerating ? (
+            {!isGenerating && !setupIssue ? (
               <button
                 type="button"
                 onClick={onRetry}
-                className="rounded-full bg-amber-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-amber-700"
+                disabled={!canRetry}
+                className="min-h-9 rounded-[var(--radius-sm)] bg-[var(--brand-action)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--brand-action-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Retry request
               </button>
@@ -489,7 +519,7 @@ function AIRecoveryBanner({
               <button
                 type="button"
                 onClick={onOpenAISettings}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors hover:bg-[var(--brand-background)] ${SECTION_SURFACE_CLASS}`}
+                className={`min-h-9 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--brand-background)] ${SECTION_SURFACE_CLASS}`}
               >
                 Review AI settings
               </button>
@@ -497,7 +527,7 @@ function AIRecoveryBanner({
             <button
               type="button"
               onClick={onClearError}
-              className="rounded-full px-2 py-1.5 text-[11px] font-medium text-[var(--color-surface-warning-text)]/80 transition-colors hover:bg-[var(--brand-background)]"
+              className="min-h-9 rounded-[var(--radius-sm)] px-2 py-1.5 text-xs font-medium text-[var(--color-surface-warning-text)] transition-colors hover:bg-[var(--brand-background)]"
               aria-label={STUDIO_AI_COPY.dismissErrorAriaLabel}
             >
               Dismiss
@@ -539,6 +569,17 @@ export function ComposerSection({
   getPrimaryComposerClassName,
   t,
 }: ComposerSectionProps): ReactElement {
+  const promptId = useId();
+  const hintId = useId();
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const input = promptRef.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(Math.max(input.scrollHeight, 76), 180)}px`;
+  }, [prompt]);
+
   return (
     <div className="shrink-0 border-t border-[var(--color-brand-border)] px-1 pt-3">
       {lastError ? (
@@ -546,16 +587,19 @@ export function ComposerSection({
           aiReadiness={aiReadiness}
           lastError={lastError}
           isGenerating={isGenerating}
+          canRetry={!isInputEmpty && aiReadiness.canGenerate}
           onRetry={onSubmit}
           onOpenAISettings={onOpenAISettings}
           onClearError={onClearError}
         />
       ) : null}
       {showModeToggle ? (
-        <div className="mb-3 flex rounded-[var(--radius-md)] border border-[var(--color-brand-border)]/80 bg-[var(--brand-background)]/80 p-1">
+        <div role="group" aria-label={t('flowpilot.generationMode', 'Generation mode')} className="mb-3 flex rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-1">
           <button
+            type="button"
+            disabled={isGenerating}
             onClick={() => onSetGenerationMode('edit')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] py-1.5 text-[13px] font-semibold transition-all ${getGenerationModeButtonClassName(effectiveGenerationMode === 'edit')}`}
+            className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${getGenerationModeButtonClassName(effectiveGenerationMode === 'edit')}`}
             aria-pressed={effectiveGenerationMode === 'edit'}
           >
             {t('commandBar.aiStudio.editCurrent', 'Edit current')}
@@ -564,12 +608,14 @@ export function ComposerSection({
               side="top"
               className="flex items-center"
             >
-              <Info className={getInfoIconClassName(effectiveGenerationMode === 'edit')} />
+              <Info aria-hidden="true" className={getInfoIconClassName(effectiveGenerationMode === 'edit')} />
             </Tooltip>
           </button>
           <button
+            type="button"
+            disabled={isGenerating}
             onClick={() => onSetGenerationMode('create')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] py-1.5 text-[13px] font-semibold transition-all ${getGenerationModeButtonClassName(effectiveGenerationMode === 'create')}`}
+            className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${getGenerationModeButtonClassName(effectiveGenerationMode === 'create')}`}
             aria-pressed={effectiveGenerationMode === 'create'}
           >
             {t('commandBar.aiStudio.createNew', 'Create new')}
@@ -578,7 +624,7 @@ export function ComposerSection({
               side="top"
               className="flex items-center"
             >
-              <Info className={getInfoIconClassName(effectiveGenerationMode === 'create')} />
+              <Info aria-hidden="true" className={getInfoIconClassName(effectiveGenerationMode === 'create')} />
             </Tooltip>
           </button>
         </div>
@@ -586,8 +632,8 @@ export function ComposerSection({
 
       {selectedNodeCount > 0 && effectiveGenerationMode === 'edit' ? (
         <div className="mb-3 flex items-center gap-1.5 rounded-[var(--radius-xs)] border border-[var(--brand-primary-100)] bg-[var(--brand-primary-50)] px-2.5 py-1.5">
-          <Crosshair className="h-3 w-3 shrink-0 text-[var(--brand-primary)]" />
-          <span className="text-[11px] font-medium text-[var(--brand-primary)]">
+          <Crosshair aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" />
+          <span className="text-xs font-medium text-[var(--brand-primary)]">
             {t('commandBar.aiStudio.editingSelectedNodes', {
               count: selectedNodeCount,
               defaultValue: 'Editing {{count}} selected node',
@@ -597,79 +643,91 @@ export function ComposerSection({
       ) : null}
 
       {selectedImage ? (
-        <div className="group relative mb-3 h-16 w-16 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] shadow-sm">
+        <div className="mb-3 flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-2">
           <img
             src={selectedImage}
             alt={t('commandBar.aiStudio.uploadPreviewAlt', 'Upload preview')}
-            className="h-full w-full object-cover"
+            className="h-12 w-12 shrink-0 rounded-[var(--radius-sm)] object-cover"
           />
+          <span className="min-w-0 flex-1 text-xs text-[var(--brand-secondary)]">{t('flowpilot.referenceImage', 'Reference image attached')}</span>
           <button
+            type="button"
             onClick={onRemoveImage}
-            className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black"
+            aria-label={t('flowpilot.removeImage', 'Remove attached image')}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-surface)] hover:text-[var(--brand-text)]"
           >
-            <X className="h-3 w-3" />
+            <X aria-hidden="true" className="h-4 w-4" />
           </button>
         </div>
       ) : null}
 
-      <div className="relative flex w-full flex-col rounded-[var(--brand-radius)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-sm transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:shadow-[0_0_0_1px_var(--brand-primary),0_0_0_4px_color-mix(in_srgb,var(--brand-primary)_16%,transparent)]">
+      <label htmlFor={promptId} className="mb-2 block text-xs font-medium text-[var(--brand-secondary)]">{t('flowpilot.messageLabel', 'Message Flowpilot')}</label>
+      <div className="flex w-full flex-col rounded-[var(--brand-radius)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-sm transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:shadow-[0_0_0_1px_var(--brand-primary),0_0_0_4px_color-mix(in_srgb,var(--brand-primary)_16%,transparent)]">
         <textarea
+          id={promptId}
+          data-flowpilot-composer
+          ref={promptRef}
+          aria-describedby={hintId}
           value={prompt}
-          onChange={(event) => {
-            if (lastError) {
-              // Preserve the existing error-clearing behavior in the parent callback chain.
-            }
-            onPromptChange(event.target.value);
-          }}
+          onChange={(event) => onPromptChange(event.target.value)}
           onKeyDown={onPromptKeyDown}
           placeholder={placeholder}
-          className="w-full resize-none rounded-[var(--brand-radius)] bg-transparent px-4 pb-12 pt-4 text-sm text-[var(--brand-text)] placeholder-[var(--brand-secondary)] outline-none custom-scrollbar"
-          style={{ minHeight: '100px', maxHeight: '180px' }}
+          className="w-full resize-none rounded-[var(--brand-radius)] bg-transparent px-3 pb-2 pt-3 text-sm leading-6 text-[var(--brand-text)] placeholder-[var(--brand-secondary)] outline-none custom-scrollbar"
+          style={{ minHeight: '76px', maxHeight: '180px' }}
           rows={3}
         />
-        <div className="absolute bottom-2 left-2 flex items-center gap-1">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={onImageSelect}
-          />
-          <button
-            onClick={onAttachImage}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-background)] hover:text-[var(--brand-secondary)]"
-            title={t('commandBar.aiStudio.attachImage', 'Attach image')}
-            type="button"
-          >
-            <Paperclip className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
-          {isGenerating ? (
+        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+          <div className="flex items-center gap-1">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={onImageSelect}
+            />
             <button
-              onClick={onCancelGeneration}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-all hover:bg-red-600 active:scale-95"
-              aria-label={t('commandBar.aiStudio.cancelGeneration', 'Cancel generation')}
+              onClick={onAttachImage}
+              className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-background)] hover:text-[var(--brand-text)]"
+              aria-label={t('commandBar.aiStudio.attachImage', 'Attach image')}
+              title={t('commandBar.aiStudio.attachImage', 'Attach image')}
               type="button"
             >
-              <Square className="h-3.5 w-3.5 fill-current" />
+              <Paperclip aria-hidden="true" className="h-4 w-4" />
             </button>
-          ) : (
-            <button
-              onClick={onSubmit}
-              disabled={isInputEmpty}
-              className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all flex-shrink-0 ${getPrimaryComposerClassName(isInputEmpty, isBeveled)} ${!isInputEmpty ? 'active:scale-95' : ''}`}
-              aria-label={t('ai.generateWithFlowpilot', {
-                defaultValue: 'Generate with Flowpilot',
-              })}
-              title={sendButtonLabel}
-              type="button"
-            >
-              {sendButtonIcon}
-            </button>
-          )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {isGenerating ? (
+              <button
+                onClick={onCancelGeneration}
+                className="flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] px-3 text-xs font-semibold text-[var(--brand-text)] transition-colors hover:bg-[var(--brand-surface)]"
+                aria-label={t('flowpilot.stopGeneration', 'Stop generation')}
+                type="button"
+              >
+                <Square aria-hidden="true" className="h-3 w-3 fill-current" />
+                {t('flowpilot.stop', 'Stop')}
+              </button>
+            ) : (
+              <button
+                onClick={onSubmit}
+                disabled={isInputEmpty}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border transition-colors ${getPrimaryComposerClassName(isInputEmpty, isBeveled)}`}
+                aria-label={t('ai.generateWithFlowpilot', {
+                  defaultValue: 'Generate with Flowpilot',
+                })}
+                title={sendButtonLabel}
+                type="button"
+              >
+                {sendButtonIcon}
+              </button>
+            )}
+          </div>
         </div>
       </div>
+      <p id={hintId} className="mt-2 text-xs leading-5 text-[var(--brand-secondary)]">
+        {isGenerating
+          ? t('flowpilot.draftWhileWorking', 'You can draft your next message while Flowpilot works.')
+          : t('flowpilot.keyboardHint', 'Enter to send · Shift + Enter for a new line')}
+      </p>
     </div>
   );
 }

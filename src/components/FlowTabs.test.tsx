@@ -48,4 +48,55 @@ describe('FlowTabs', () => {
 
     expect(props.onReorderPage).not.toHaveBeenCalled();
   });
+
+  it('moves focus and selection with arrow keys and Home/End', () => {
+    const props = createProps();
+    render(<FlowTabs {...props} />);
+    const first = screen.getByRole('tab', { name: 'Page One' });
+    first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowRight' });
+    expect(props.onSwitchPage).toHaveBeenLastCalledWith('page-2');
+    expect(screen.getByRole('tab', { name: 'Page Two' })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    expect(props.onSwitchPage).toHaveBeenLastCalledWith('page-3');
+    expect(screen.getByRole('tab', { name: 'Page Three' })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' });
+    expect(first).toHaveFocus();
+  });
+
+  it('renames through the keyboard once, then returns focus to the page', () => {
+    const props = createProps();
+    render(<FlowTabs {...props} />);
+    const tab = screen.getByRole('tab', { name: 'Page One' });
+    fireEvent.keyDown(tab, { key: 'F2' });
+    const input = screen.getByRole('textbox', { name: 'Page name' });
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: '  Service architecture  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(props.onRenamePage).toHaveBeenCalledExactlyOnceWith('page-1', 'Service architecture');
+    expect(props.onSwitchPage).not.toHaveBeenCalled();
+    expect(tab).toHaveFocus();
+  });
+
+  it('cancels a rename with Escape without saving the draft on blur', () => {
+    const props = createProps();
+    render(<FlowTabs {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Rename page: Page One' }));
+    const input = screen.getByRole('textbox', { name: 'Page name' });
+    fireEvent.change(input, { target: { value: 'Discard me' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(props.onRenamePage).not.toHaveBeenCalled();
+    expect(screen.getByRole('tab', { name: 'Page One' })).toHaveFocus();
+  });
+
+  it('offers a keyboard alternative to dragging without leaking keys to the canvas', () => {
+    const props = createProps();
+    const onCanvasKey = vi.fn();
+    render(<div onKeyDown={onCanvasKey}><FlowTabs {...props} /></div>);
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Page One' }), { key: 'ArrowRight', altKey: true, shiftKey: true });
+    expect(props.onReorderPage).toHaveBeenCalledWith('page-1', 'page-2');
+    expect(props.onSwitchPage).not.toHaveBeenCalled();
+    expect(onCanvasKey).not.toHaveBeenCalled();
+  });
+
 });

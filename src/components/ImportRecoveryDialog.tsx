@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import { useModalDialog } from '@/hooks/useModalDialog';
+import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, FileWarning, RefreshCcw, X } from 'lucide-react';
 import {
@@ -68,27 +69,17 @@ export function ImportRecoveryDialog({
   const layoutLabel = formatLayoutLabel(report);
   const recoveryGuidance = getImportRecoveryGuidance(report);
 
-  useEffect(() => {
-    closeButtonRef.current?.focus();
-
-    function handleEscape(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+  const dialogRef = useModalDialog({ onClose, initialFocusRef: closeButtonRef });
 
   return createPortal(
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <div
-        role="dialog"
+        ref={dialogRef}
+                role="dialog"
         aria-modal="true"
         aria-labelledby="import-recovery-title"
         aria-describedby="import-recovery-description"
-        className={`w-full max-w-lg ${MODAL_PANEL_CLASS}`}
+        className={`w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto ${MODAL_PANEL_CLASS}`}
       >
         <div className="flex items-start justify-between border-b border-[var(--color-brand-border)] px-6 py-5">
           <div className="flex items-center gap-3">

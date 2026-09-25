@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import type { ExportResult } from '@/services/export/exportResult';
 import { toPng } from 'html-to-image';
 import {
   useCinematicExportActions,
@@ -100,7 +101,7 @@ export function useCinematicExport({
   addToast,
   exportBaseName,
 }: UseCinematicExportParams): {
-  handleCinematicExport: (request: CinematicExportRequest) => Promise<void>;
+  handleCinematicExport: (request: CinematicExportRequest) => Promise<ExportResult>;
 } {
   const { resolvedTheme } = useTheme();
   const jobState = useCinematicExportJobState();
@@ -113,15 +114,15 @@ export function useCinematicExport({
   } = useCinematicExportActions();
 
   const handleCinematicExport = useCallback(
-    async (incomingRequest: CinematicExportRequest): Promise<void> => {
+    async (incomingRequest: CinematicExportRequest): Promise<ExportResult> => {
       if (jobState.status !== 'idle') {
         addToast('A cinematic export is already running.', 'info');
-        return;
+        return { status: 'error', message: 'A cinematic export is already running.' };
       }
 
       if (!reactFlowWrapper.current) {
         addToast('Canvas viewport not found.', 'error');
-        return;
+        return { status: 'error', message: 'Canvas viewport not found.' };
       }
 
       const request = buildExportRequest(incomingRequest, resolvedTheme);
@@ -130,19 +131,20 @@ export function useCinematicExport({
         reactFlowWrapper.current
       );
       if (!flowViewport) {
-        addToast(message ?? 'The canvas viewport could not be found.', 'error');
-        return;
+        const failureMessage = message ?? 'The canvas viewport could not be found.';
+        addToast(failureMessage, 'error');
+        return { status: 'error', message: failureMessage };
       }
 
       if (nodes.length === 0) {
         addToast('Add nodes before exporting a cinematic build animation.', 'error');
-        return;
+        return { status: 'error', message: 'Add nodes before exporting a cinematic build animation.' };
       }
 
       const plan = buildCinematicBuildPlan(nodes, edges);
       if (plan.segments.length === 0) {
         addToast('Could not build a cinematic export sequence.', 'error');
-        return;
+        return { status: 'error', message: 'Could not build a cinematic export sequence.' };
       }
 
       const preset = getCinematicExportPreset(request);
@@ -307,6 +309,7 @@ export function useCinematicExport({
           stageLabel: 'Export complete',
         }));
         addToast(`Cinematic build ${extension.toUpperCase()} exported.`, 'success');
+        return { status: 'success' };
       } catch (error) {
         if (isAbortError(error)) {
           setJobState((current) => ({
@@ -316,7 +319,7 @@ export function useCinematicExport({
             stageLabel: 'Export cancelled',
           }));
           addToast('Cinematic export cancelled.', 'info');
-          return;
+          return { status: 'cancelled' };
         }
 
         const exportMessage = error instanceof Error ? error.message : 'Cinematic export failed.';
@@ -328,6 +331,7 @@ export function useCinematicExport({
           stageLabel: exportMessage,
         }));
         addToast(exportMessage, 'error');
+        return { status: 'error', message: exportMessage };
       } finally {
         resetRenderState();
         registerCancelHandler(null);

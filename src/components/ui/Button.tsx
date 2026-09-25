@@ -21,6 +21,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       icon,
       children,
       disabled,
+      type = 'button',
       ...props
     },
     ref
@@ -28,13 +29,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const isBeveled = IS_BEVELED;
 
     const baseStyles =
-      'inline-flex items-center justify-center font-medium transition-all focus:outline-none disabled:pointer-events-none disabled:shadow-none active:scale-[0.98] disabled:active:scale-100';
+      'inline-flex shrink-0 items-center justify-center font-medium transition-[background-color,color,border-color,box-shadow,transform] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-primary)] disabled:pointer-events-none disabled:shadow-none active:scale-[0.98] disabled:active:scale-100 motion-reduce:transform-none';
 
     const variants = {
       primary: `
-            bg-[var(--brand-primary)] text-white 
+            bg-[var(--brand-action)] text-white
             ${isBeveled ? 'btn-beveled-primary' : 'shadow-sm hover:shadow-md'}
-            hover:brightness-110 disabled:border-[color-mix(in_srgb,var(--brand-primary),var(--color-brand-border)_55%)] disabled:bg-[color-mix(in_srgb,var(--brand-primary),var(--brand-surface)_62%)] disabled:text-[color-mix(in_srgb,white,transparent_12%)] disabled:opacity-75
+            hover:bg-[var(--brand-action-hover)] disabled:border-[color-mix(in_srgb,var(--brand-primary),var(--color-brand-border)_55%)] disabled:bg-[color-mix(in_srgb,var(--brand-primary),var(--brand-surface)_62%)] disabled:text-[color-mix(in_srgb,white,transparent_12%)] disabled:opacity-75
         `
         .replace(/\s+/g, ' ')
         .trim(),
@@ -71,6 +72,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
+        type={type}
+        aria-busy={isLoading || undefined}
         className={`
                 ${baseStyles}
                 ${variants[variant]}
@@ -81,8 +84,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || isLoading}
         {...props}
       >
-        {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-        {!isLoading && icon && <span className={`${children ? '' : ''}`}>{icon}</span>}
+        {isLoading && <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" />}
+        {!isLoading && icon && <span aria-hidden="true" className="inline-flex shrink-0">{icon}</span>}
         {children}
       </button>
     );

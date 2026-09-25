@@ -144,7 +144,7 @@ export function StudioPlaybackPanel({
                                         className="flex h-4 w-4 items-center justify-center rounded-full border border-[var(--color-brand-border)] bg-[var(--brand-surface)]"
                                         aria-label={`Select ${scene.name}`}
                                     >
-                                        {isSelected ? <span className="block h-2 w-2 rounded-full bg-[var(--brand-primary)]" /> : null}
+                                        {isSelected ? <span className="block h-2 w-2 rounded-full bg-[var(--brand-action)]" /> : null}
                                     </button>
                                     <input
                                         value={scene.name}
@@ -205,7 +205,7 @@ export function StudioPlaybackPanel({
                                     <button
                                         type="button"
                                         onClick={currentStepIndex >= 0 ? onPlayPause : onStartPlayback}
-                                        className="inline-flex items-center gap-2 rounded-full bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--brand-primary-600)]"
+                                        className="inline-flex items-center gap-2 rounded-full bg-[var(--brand-action)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--brand-action-hover)]"
                                     >
                                         <Eye className="h-3.5 w-3.5" />
                                         {currentStepIndex >= 0 ? (isPlaying ? 'Pause' : 'Play') : 'Preview'}
@@ -274,7 +274,7 @@ export function StudioPlaybackPanel({
                                                 <button
                                                     type="button"
                                                     onClick={() => commitPlayback(togglePlaybackStepInScene(playback, selectedScene.id, step.id))}
-                                                    className={`flex h-5 w-5 items-center justify-center rounded border ${includedInSelectedScene ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white' : 'border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-transparent'}`}
+                                                    className={`flex h-5 w-5 items-center justify-center rounded border ${includedInSelectedScene ? 'border-[var(--brand-primary)] bg-[var(--brand-action)] text-white' : 'border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-transparent'}`}
                                                     aria-label={`Toggle ${node?.data.label ?? step.nodeId} in scene`}
                                                 >
                                                     <CheckCircle2 className="h-3.5 w-3.5" />
@@ -330,7 +330,7 @@ export function StudioPlaybackPanel({
                         <button
                             type="button"
                             onClick={() => applyPreset('smart')}
-                            className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--brand-primary-600)]"
+                            className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--brand-action)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--brand-action-hover)]"
                         >
                             <RefreshCw className="h-3.5 w-3.5" />
                             Generate smart timeline

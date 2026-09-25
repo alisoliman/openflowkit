@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useEffect } from 'react';
+import { MotionConfig } from 'framer-motion';
 import {
   HashRouter as Router,
   Routes,
@@ -179,11 +180,13 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       // Don't trigger if user is typing in an input
       const activeElement = document.activeElement as HTMLElement | null;
       const isInput =
         activeElement instanceof HTMLInputElement ||
         activeElement instanceof HTMLTextAreaElement ||
+        activeElement instanceof HTMLSelectElement ||
         activeElement?.isContentEditable;
 
       if (isInput) return;
@@ -192,7 +195,7 @@ function App(): React.JSX.Element {
       const isCmdSlash = (e.metaKey || e.ctrlKey) && e.key === '/';
 
       if (isQuestionMark || isCmdSlash) {
-        if (isCmdSlash) e.preventDefault();
+        e.preventDefault();
         const { isShortcutsHelpOpen } = useFlowStore.getState().viewSettings;
         setShortcutsHelpOpen(!isShortcutsHelpOpen);
       }
@@ -203,9 +206,13 @@ function App(): React.JSX.Element {
   }, [setShortcutsHelpOpen]);
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <a
         href="#main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main-content')?.focus({ preventScroll: true });
+        }}
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-slate-900 focus:text-white focus:rounded-lg focus:text-sm focus:font-medium"
       >
         Skip to content
@@ -252,7 +259,7 @@ function App(): React.JSX.Element {
           </Suspense>
         ) : null}
       </Router>
-    </>
+    </MotionConfig>
   );
 }
 

@@ -12,11 +12,13 @@ const flow = vi.hoisted(() => ({ edges: [] as FlowEdge[] }));
 vi.mock('@/lib/reactflowCompat', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/reactflowCompat')>()),
   useReactFlow: () => ({
+    getEdges: () => flow.edges,
     setEdges: (update: (edges: FlowEdge[]) => FlowEdge[]) => {
       flow.edges = update(flow.edges);
     },
     screenToFlowPosition: (position: { x: number; y: number }) => position,
   }),
+  useViewport: () => ({ zoom: 1 }),
   EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => createPortal(children, document.body),
 }));
 
@@ -69,6 +71,23 @@ describe('CustomEdgeWrapper', () => {
         cinematicExportState: { active: true, builtEdgeIds: new Set(['e1']) } as never,
       }).container.querySelector('.flow-edge-selection-halo')
     ).toBeNull();
+  });
+
+  it('shows route handles only for editable selected connections, and hides them during AI editing or export', () => {
+    const { unmount } = renderEdge({ selected: true, routeEditable: true });
+    expect(screen.getByRole('button', { name: 'Add bend 1' })).toBeTruthy();
+    unmount();
+    const hidden = renderEdge({ routeEditable: true });
+    expect(screen.queryByRole('button', { name: 'Add bend 1' })).toBeNull();
+    hidden.unmount();
+    const cinematic = renderEdge({ selected: true, routeEditable: true, cinematicExportState: { active: true, builtEdgeIds: new Set(['e1']) } as never });
+    expect(screen.queryByRole('button', { name: 'Add bend 1' })).toBeNull();
+    cinematic.unmount();
+    useFlowStore.setState({ agentTurn: { id: 'busy' } as never });
+    const locked = renderEdge({ selected: true, routeEditable: true });
+    expect(screen.queryByRole('button', { name: 'Add bend 1' })).toBeNull();
+    locked.unmount();
+    useFlowStore.setState({ agentTurn: null });
   });
 
   it('records one undo step for a changed inline label and none for an unchanged one', () => {

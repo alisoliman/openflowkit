@@ -24,7 +24,7 @@ export function PlaybackControls({
 }: PlaybackControlsProps) {
     const { t } = useTranslation();
     return (
-        <div className="absolute bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-[var(--radius-lg)] border border-[var(--color-brand-border)]/70 bg-[var(--brand-surface)]/90 p-1.5 shadow-[var(--shadow-md)] ring-1 ring-black/5 backdrop-blur-xl transition-all duration-300">
+        <div role="group" aria-label={t('playback.title')} className="absolute bottom-8 left-1/2 z-40 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-1 rounded-[var(--radius-lg)] border border-[var(--color-brand-border)]/70 bg-[var(--brand-surface)]/95 p-1.5 shadow-[var(--shadow-md)] ring-1 ring-black/5 backdrop-blur-xl transition-colors duration-150">
 
             {/* Group 1: Step Counter */}
             <div className="flex min-w-[80px] items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-brand-border)]/60 bg-[var(--brand-background)]/70 px-3 py-1.5">
@@ -41,6 +41,7 @@ export function PlaybackControls({
                     variant="ghost"
                     size="icon"
                     onClick={onPrev}
+                    aria-label={t('playbackControls.previous', 'Previous step')}
                     disabled={currentStepIndex <= 0}
                     className="rounded-[var(--radius-sm)] text-[var(--brand-secondary)] hover:text-[var(--brand-text)]"
                 >
@@ -51,7 +52,8 @@ export function PlaybackControls({
                     variant="primary"
                     size="icon"
                     onClick={onPlayPause}
-                    className="rounded-[var(--radius-sm)] bg-[var(--brand-primary)] shadow-[var(--shadow-sm)] hover:brightness-110"
+                    aria-label={isPlaying ? t('playback.pause') : t('playback.play')}
+                    className="rounded-[var(--radius-sm)] bg-[var(--brand-action)] shadow-[var(--shadow-sm)] hover:bg-[var(--brand-action-hover)]"
                 >
                     {isPlaying ? (
                         <Pause className="w-5 h-5 text-white" />
@@ -64,6 +66,7 @@ export function PlaybackControls({
                     variant="ghost"
                     size="icon"
                     onClick={onNext}
+                    aria-label={t('playbackControls.next', 'Next step')}
                     disabled={currentStepIndex >= totalSteps - 1}
                     className="rounded-[var(--radius-sm)] text-[var(--brand-secondary)] hover:text-[var(--brand-text)]"
                 >

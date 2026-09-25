@@ -23,25 +23,31 @@ export function ToolbarModeControls({
     const panIconClass = `w-4 h-4 ${!isSelectMode ? 'text-[var(--brand-primary)]' : 'text-[var(--brand-secondary)] group-hover:text-[var(--brand-text)]'}`;
 
     return (
-        <div className={`flex gap-0.5 border border-[var(--color-brand-border)]/80 bg-[var(--brand-background)]/72 p-1 ${TOOLBAR_GROUP_RADIUS_CLASS}`}>
+        <div role="group" aria-label={t('toolbar.interactionMode', 'Interaction mode')} className={`flex gap-0.5 border border-[var(--color-brand-border)]/80 bg-[var(--brand-background)]/72 p-1 ${TOOLBAR_GROUP_RADIUS_CLASS}`}>
             <Tooltip text={t('toolbar.selectMode')}>
                 <Button
                     onClick={onToggleSelectMode}
+                    aria-label={t('toolbar.selectMode', 'Select Mode (V)')}
+                    aria-pressed={isSelectMode}
+                    aria-keyshortcuts="V"
                     disabled={!isInteractive}
                     variant="ghost"
                     size="icon"
-                    className={`h-8 w-8 transition-all ${TOOLBAR_BUTTON_RADIUS_CLASS} ${isSelectMode ? 'border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-none' : 'text-[var(--brand-secondary)] hover:bg-[var(--brand-surface)]/80 hover:text-[var(--brand-text)]'}`}
-                    icon={<MousePointer2 className={selectIconClass} />}
+                    className={`group h-9 w-9 transition-colors disabled:opacity-40 ${TOOLBAR_BUTTON_RADIUS_CLASS} ${isSelectMode ? 'border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-none' : 'text-[var(--brand-secondary)] hover:bg-[var(--brand-surface)]/80 hover:text-[var(--brand-text)]'}`}
+                    icon={<MousePointer2 aria-hidden="true" className={selectIconClass} />}
                 />
             </Tooltip>
             <Tooltip text={t('toolbar.panMode')}>
                 <Button
                     onClick={onTogglePanMode}
+                    aria-label={t('toolbar.panMode', 'Pan Mode (H)')}
+                    aria-pressed={!isSelectMode}
+                    aria-keyshortcuts="H"
                     disabled={!isInteractive}
                     variant="ghost"
                     size="icon"
-                    className={`h-8 w-8 transition-all ${TOOLBAR_BUTTON_RADIUS_CLASS} ${!isSelectMode ? 'border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-none' : 'text-[var(--brand-secondary)] hover:bg-[var(--brand-surface)]/80 hover:text-[var(--brand-text)]'}`}
-                    icon={<Hand className={panIconClass} />}
+                    className={`group h-9 w-9 transition-colors disabled:opacity-40 ${TOOLBAR_BUTTON_RADIUS_CLASS} ${!isSelectMode ? 'border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-none' : 'text-[var(--brand-secondary)] hover:bg-[var(--brand-surface)]/80 hover:text-[var(--brand-text)]'}`}
+                    icon={<Hand aria-hidden="true" className={panIconClass} />}
                 />
             </Tooltip>
         </div>

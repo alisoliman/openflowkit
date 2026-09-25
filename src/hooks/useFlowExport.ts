@@ -18,6 +18,7 @@ import {
 } from './flow-export/diagramDocumentTransfer';
 import { useStaticExport } from './useStaticExport';
 import { useCinematicExport } from './useCinematicExport';
+import type { ExportResult } from '@/services/export/exportResult';
 import type { ImportFidelityReport } from '@/services/importFidelity';
 
 interface ImportRecoveryState {
@@ -64,81 +65,62 @@ export const useFlowExport = (
     exportBaseName,
   });
 
-  const handlePdfExport = useCallback(() => {
+  const handlePdfExport = useCallback(async (): Promise<ExportResult> => {
     const { viewport: flowViewport, message } = resolveFlowExportViewport(reactFlowWrapper.current);
     if (!flowViewport) {
-      addToast(message ?? 'The canvas viewport could not be found.', 'error');
-      return;
+      const failureMessage = message ?? 'The canvas viewport could not be found.';
+      addToast(failureMessage, 'error');
+      return { status: 'error', message: failureMessage };
     }
-
-    reactFlowWrapper.current.classList.add('exporting');
+    const wrapper = reactFlowWrapper.current;
+    wrapper.classList.add('exporting');
     addToast('Preparing PDF download…', 'info');
-
-    setTimeout(() => {
+    try {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
       const { width, height, options } = createExportOptions(nodes, 'jpeg');
-
-      toJpeg(flowViewport, options)
-        .then((jpegDataUrl) => {
-          const pdfBlob = createPdfFromJpeg({
-            jpegDataUrl,
-            width,
-            height,
-            title: 'OpenFlowKit Diagram',
-          });
-          createDownload(pdfBlob, buildExportFileName(exportBaseName, 'pdf'));
-          addToast('Diagram exported as PDF!', 'success');
-        })
-        .catch((err) => {
-          logger.error('PDF export failed.', { error: err });
-          addToast('Failed to export PDF. Please try again.', 'error');
-        })
-        .finally(() => {
-          reactFlowWrapper.current?.classList.remove('exporting');
-        });
-    }, 300);
+      const jpegDataUrl = await toJpeg(flowViewport, options);
+      const pdfBlob = createPdfFromJpeg({ jpegDataUrl, width, height, title: exportBaseName ?? 'OpenFlowKit Diagram' });
+      createDownload(pdfBlob, buildExportFileName(exportBaseName, 'pdf'));
+      addToast('Diagram exported as PDF!', 'success');
+      return { status: 'success' };
+    } catch (error) {
+      const failureMessage = 'Failed to export PDF. Please try again.';
+      logger.error('PDF export failed.', { error });
+      addToast(failureMessage, 'error');
+      return { status: 'error', message: failureMessage };
+    } finally {
+      wrapper.classList.remove('exporting');
+    }
   }, [nodes, reactFlowWrapper, addToast, exportBaseName]);
 
   // --- JSON Export ---
-  const handleExportJSON = useCallback(async () => {
+  const handleExportJSON = useCallback(async (): Promise<ExportResult> => {
     addToast('Preparing JSON download…', 'info');
-    let documentJson: string;
     try {
-      documentJson = await buildDiagramDocumentJson({
-        nodes,
-        edges,
-        exportSerializationMode: viewSettings.exportSerializationMode,
-        activeTab,
-      });
+      const documentJson = await buildDiagramDocumentJson({ nodes, edges, exportSerializationMode: viewSettings.exportSerializationMode, activeTab });
+      createDownload(new Blob([documentJson], { type: 'application/json' }), buildExportFileName(exportBaseName, 'json'));
+      addToast('Diagram JSON downloaded!', 'success');
+      return { status: 'success' };
     } catch (error) {
+      const failureMessage = 'Failed to export JSON. Please try again.';
       logger.error('JSON export failed.', { error });
-      addToast('Failed to export JSON. Please try again.', 'error');
-      return;
+      addToast(failureMessage, 'error');
+      return { status: 'error', message: failureMessage };
     }
-    const blob = new Blob([documentJson], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = buildExportFileName(exportBaseName, 'json');
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
-    addToast('Diagram JSON downloaded!', 'success');
   }, [nodes, edges, viewSettings.exportSerializationMode, activeTab, addToast, exportBaseName]);
 
-  const handleCopyJSON = useCallback(async () => {
+  const handleCopyJSON = useCallback(async (): Promise<ExportResult> => {
     addToast('Preparing JSON copy…', 'info');
-    const documentJson = await buildDiagramDocumentJson({
-      nodes,
-      edges,
-      exportSerializationMode: viewSettings.exportSerializationMode,
-      activeTab,
-    });
-
     try {
+      const documentJson = await buildDiagramDocumentJson({ nodes, edges, exportSerializationMode: viewSettings.exportSerializationMode, activeTab });
       await navigator.clipboard.writeText(documentJson);
       addToast('Diagram JSON copied to clipboard!', 'success');
+      return { status: 'success' };
     } catch (error) {
+      const failureMessage = 'Failed to copy JSON. Please try again.';
       logger.error('JSON clipboard export failed.', { error });
-      addToast('Failed to copy JSON. Please try again.', 'error');
+      addToast(failureMessage, 'error');
+      return { status: 'error', message: failureMessage };
     }
   }, [nodes, edges, viewSettings.exportSerializationMode, activeTab, addToast]);
 

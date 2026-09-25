@@ -22,10 +22,7 @@ interface HomeSidebarProps {
   onTabChange: (tab: HomeSidebarTab) => void;
 }
 
-export function HomeSidebar({
-  activeTab,
-  onTabChange,
-}: HomeSidebarProps): React.ReactElement {
+export function HomeSidebar({ activeTab, onTabChange }: HomeSidebarProps): React.ReactElement {
   const { t } = useTranslation();
   const localizedAppName = t('home.appName', APP_NAME);
   const navigationItems: NavigationItem[] = [
@@ -69,15 +66,12 @@ export function HomeSidebar({
         <span className="truncate text-base font-semibold tracking-tight text-[var(--brand-text)]">
           {localizedAppName}
         </span>
-
-        <div className="flex items-center justify-center rounded-[5px] border border-[color-mix(in_srgb,var(--color-brand-border),transparent_20%)] bg-[color-mix(in_srgb,var(--brand-surface),transparent_50%)] px-[5px] py-[3px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)]">
-          <span className="text-[9.5px] font-mono font-bold uppercase leading-none tracking-[0.02em] text-[color-mix(in_srgb,var(--brand-secondary),var(--brand-text))]">
-            v1.0
-          </span>
-        </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto p-3 md:block md:flex-1 md:space-y-5 md:overflow-y-auto">
+      <nav
+        aria-label={t('home.workspaceNavigation', 'Workspace navigation')}
+        className="flex gap-2 overflow-x-auto p-3 md:block md:flex-1 md:space-y-5 md:overflow-y-auto"
+      >
         <div className="flex gap-2 md:block md:space-y-1">
           {navigationItems.map((item) => (
             <SidebarItem
@@ -93,7 +87,7 @@ export function HomeSidebar({
             </SidebarItem>
           ))}
         </div>
-      </div>
+      </nav>
 
       <div className="hidden md:mt-auto md:block">
         <GithubCard />

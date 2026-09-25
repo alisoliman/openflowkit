@@ -1,4 +1,5 @@
 import { startTransition, useCallback, useState } from 'react';
+import type { ExportResult } from '@/services/export/exportResult';
 import type { TFunction } from 'i18next';
 import { createLogger } from '@/lib/logger';
 import { getAppUrl } from '@/lib/appUrl';
@@ -51,14 +52,14 @@ interface UseFlowEditorActionsResult {
         diagramType?: string
     ) => Promise<void>;
     handleInsertTemplate: (template: FlowTemplate) => void;
-    handleExportMermaid: () => Promise<void>;
-    handleDownloadMermaid: () => void;
-    handleExportPlantUML: () => Promise<void>;
-    handleDownloadPlantUML: () => void;
-    handleExportOpenFlowDSL: () => Promise<void>;
-    handleDownloadOpenFlowDSL: () => void;
-    handleExportFigma: () => Promise<void>;
-    handleDownloadFigma: () => Promise<void>;
+    handleExportMermaid: () => Promise<ExportResult>;
+    handleDownloadMermaid: () => ExportResult;
+    handleExportPlantUML: () => Promise<ExportResult>;
+    handleDownloadPlantUML: () => ExportResult;
+    handleExportOpenFlowDSL: () => Promise<ExportResult>;
+    handleDownloadOpenFlowDSL: () => ExportResult;
+    handleExportFigma: () => Promise<ExportResult>;
+    handleDownloadFigma: () => Promise<ExportResult>;
     handleShare: () => void;
     shareViewerUrl: string | null;
     clearShareViewerUrl: () => void;
@@ -135,24 +136,24 @@ export function useFlowEditorActions({
         scheduleFitView(fitView, 800, 100);
     }, [nodes, recordHistory, setNodes, setEdges, fitView]);
 
-    const handleExportMermaid = useCallback(async (): Promise<void> => {
-        await exportMermaidToClipboard({ nodes, edges, t, addToast });
+    const handleExportMermaid = useCallback(async (): Promise<ExportResult> => {
+        return exportMermaidToClipboard({ nodes, edges, t, addToast });
     }, [nodes, edges, t, addToast]);
 
-    const handleDownloadMermaid = useCallback((): void => {
-        downloadMermaidToFile({ nodes, edges, addToast, baseFileName: activePageName });
+    const handleDownloadMermaid = useCallback((): ExportResult => {
+        return downloadMermaidToFile({ nodes, edges, addToast, baseFileName: activePageName });
     }, [nodes, edges, addToast, activePageName]);
 
-    const handleExportPlantUML = useCallback(async (): Promise<void> => {
-        await exportPlantUMLToClipboard({ nodes, edges, t, addToast });
+    const handleExportPlantUML = useCallback(async (): Promise<ExportResult> => {
+        return exportPlantUMLToClipboard({ nodes, edges, t, addToast });
     }, [nodes, edges, t, addToast]);
 
-    const handleDownloadPlantUML = useCallback((): void => {
-        downloadPlantUMLToFile({ nodes, edges, addToast, baseFileName: activePageName });
+    const handleDownloadPlantUML = useCallback((): ExportResult => {
+        return downloadPlantUMLToFile({ nodes, edges, addToast, baseFileName: activePageName });
     }, [nodes, edges, addToast, activePageName]);
 
-    const handleExportOpenFlowDSL = useCallback(async (): Promise<void> => {
-        await exportOpenFlowDSLToClipboard({
+    const handleExportOpenFlowDSL = useCallback(async (): Promise<ExportResult> => {
+        return exportOpenFlowDSLToClipboard({
             nodes,
             edges,
             addToast,
@@ -161,8 +162,8 @@ export function useFlowEditorActions({
         });
     }, [nodes, edges, addToast, t, exportSerializationMode]);
 
-    const handleDownloadOpenFlowDSL = useCallback((): void => {
-        downloadOpenFlowDSLToFile({
+    const handleDownloadOpenFlowDSL = useCallback((): ExportResult => {
+        return downloadOpenFlowDSLToFile({
             nodes,
             edges,
             exportSerializationMode,
@@ -171,12 +172,12 @@ export function useFlowEditorActions({
         });
     }, [nodes, edges, exportSerializationMode, addToast, activePageName]);
 
-    const handleExportFigma = useCallback(async (): Promise<void> => {
-        await exportFigmaToClipboard({ nodes, edges, addToast, t });
+    const handleExportFigma = useCallback(async (): Promise<ExportResult> => {
+        return exportFigmaToClipboard({ nodes, edges, addToast, t });
     }, [nodes, edges, addToast, t]);
 
-    const handleDownloadFigma = useCallback(async (): Promise<void> => {
-        await downloadFigmaToFile({ nodes, edges, addToast, t, baseFileName: activePageName });
+    const handleDownloadFigma = useCallback(async (): Promise<ExportResult> => {
+        return downloadFigmaToFile({ nodes, edges, addToast, t, baseFileName: activePageName });
     }, [nodes, edges, addToast, t, activePageName]);
 
     const [shareViewerUrl, setShareViewerUrl] = useState<string | null>(null);

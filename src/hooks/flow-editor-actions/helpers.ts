@@ -3,6 +3,7 @@ import { createId } from '@/lib/id';
 import type { FlowEdge, FlowNode } from '@/lib/types';
 import type { FlowTemplate } from '@/services/templates';
 import { assignSmartHandles } from '@/services/smartEdgeRouting';
+import { translateEdgeRouteData } from '@/lib/translateEdgeRouteData';
 
 interface TemplateInsertionResult {
     newNodes: FlowNode[];
@@ -37,6 +38,7 @@ export function buildInsertedTemplateData(
             id: createId(edge.id),
             source: idMap.get(edge.source) || edge.source,
             target: idMap.get(edge.target) || edge.target,
+            data: translateEdgeRouteData(edge.data, { x: startX, y: startY }),
         };
     });
 

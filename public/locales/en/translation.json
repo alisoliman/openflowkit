@@ -61,8 +61,30 @@
       "undo": "Undo Copilot's changes",
       "undone": "Copilot's changes were undone.",
       "locked": "Copilot is editing this page. Canvas editing is paused until it finishes.",
-      "stop": "Stop"
-    }
+      "stop": "Stop",
+      "yourReply": "Your reply",
+      "runningStep": "Running",
+      "failedStep": "Failed",
+      "waitingForYou": "Waiting for your answer"
+    },
+    "you": "You",
+    "conversation": "Conversation",
+    "clear": "Clear",
+    "latestMessage": "Latest message",
+    "generationMode": "Generation mode",
+    "referenceImage": "Reference image attached",
+    "removeImage": "Remove attached image",
+    "messageLabel": "Message Flowpilot",
+    "stop": "Stop",
+    "stopGeneration": "Stop generation",
+    "draftWhileWorking": "You can draft your next message while Flowpilot works.",
+    "keyboardHint": "Enter to send · Shift + Enter for a new line",
+    "aiSettings": "AI settings",
+    "readingCanvas": "Reading your diagram and planning the next step.",
+    "writingReply": "Writing a response to your request.",
+    "planningReply": "Planning a response to your request.",
+    "draftingResponse": "Drafting response",
+    "thinking": "Thinking"
   },
   "copilot": {
     "hostedHelp": "Connect your GitHub account in the browser. You need your own Copilot access; no CLI installation is required.",
@@ -189,7 +211,14 @@
     "playbackMode": "Playback Mode",
     "templates": "Templates",
     "privacyMessage": "Your diagrams stay with you and do not reach our servers.",
-    "mcp": "MCP"
+    "mcp": "MCP",
+    "openMenu": "Open main menu",
+    "closeMenu": "Close menu",
+    "switchToLight": "Light mode",
+    "switchToDark": "Dark mode",
+    "localStorage": "Local storage",
+    "localStorageHelp": "Diagrams are stored in this browser. Export a copy to keep a backup. Content you share or send to AI is handled by the service you choose.",
+    "localStorageBackup": "Diagrams are stored in this browser. Export a copy to keep a backup."
   },
   "menu": {
     "file": "File",
@@ -262,7 +291,20 @@
     "chooseFormat": "Choose format",
     "speed": "Speed",
     "resolution": "Resolution",
-    "transparentBackground": "Transparent background"
+    "transparentBackground": "Transparent background",
+    "category": "Export category",
+    "close": "Close export",
+    "format": "Format",
+    "hintJpg": "High-resolution image with a white background",
+    "hintJsonBackup": "Editable diagram backup for this app",
+    "hintMermaid": "Text source for Markdown and documentation",
+    "hintOpenflow": "Native diagram source with layout and styling",
+    "hintPdf": "Document for printing and sharing",
+    "hintPlantuml": "Text source for PlantUML tools",
+    "hintPng": "High-resolution image with optional transparency",
+    "openflowLabel": "OpenFlow DSL",
+    "preparing": "Preparing…",
+    "preparingHelp": "Preparing your export. You can close this panel while it finishes."
   },
   "import": {
     "title": "Import",
@@ -400,7 +442,36 @@
     "suggestionImportDesc": "Bring in existing work",
     "suggestionTemplates": "Templates",
     "suggestionTemplatesDesc": "Start from a proven pattern",
-    "continueTitle": "Continue with a recent action"
+    "continueTitle": "Continue with a recent action",
+    "clearSearch": "Clear search",
+    "workspaceNavigation": "Workspace navigation",
+    "workspaceTitle": "Your workspace",
+    "workspaceDescription": "A place for your ideas, systems, and the connections between them.",
+    "aiActionDescription": "Describe an idea. Build it together.",
+    "templateActionDescription": "Start with a ready-to-edit diagram.",
+    "importFile": "Import a file",
+    "importActionDescription": "Bring an existing diagram with you.",
+    "yourDiagrams": "Your diagrams",
+    "localSaveHint": "Diagrams are saved in this browser. Export a backup to keep a separate copy.",
+    "localSaveLabel": "About local saving",
+    "searchDiagrams": "Search diagrams…",
+    "sortDiagrams": "Sort diagrams",
+    "sortRecent": "Last edited",
+    "sortName": "Name, A–Z",
+    "firstDiagramDescription": "Start from a blank canvas, turn an idea into a diagram with AI, or make a template your own.",
+    "noMatchingDiagrams": "No matching diagrams",
+    "searchHint": "Try a different name, or clear your search to see all diagrams.",
+    "diagramCount": "{{count}} diagrams",
+    "openDiagram": "Open {{name}}",
+    "nodeCount": "{{count}} nodes",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode",
+    "changeLanguage": "Change language",
+    "languageError": "Could not change language. Please try again.",
+    "diagramCount_one": "{{count}} diagram",
+    "diagramCount_other": "{{count}} diagrams",
+    "nodeCount_one": "{{count}} node",
+    "nodeCount_other": "{{count}} nodes"
   },
   "settings": {
     "title": "Settings",
@@ -455,7 +526,27 @@
     "applyToSelectedNodes": "Apply to selected nodes",
     "selectFieldToApply": "Select a field to apply",
     "previewSummary": "Preview summary",
-    "selectionSummary": "Selection summary"
+    "selectionSummary": "Selection summary",
+    "nodeLabel": "Label",
+    "nodeDescription": "Description",
+    "labelFont": "Label font",
+    "labelFontSize": "Label font size",
+    "descriptionFont": "Description font",
+    "descriptionFontSize": "Description font size",
+    "bold": "Bold",
+    "italic": "Italic",
+    "iconProvider": "Icon provider",
+    "iconCategory": "Icon category",
+    "shapes": {
+      "rectangle": "Rectangle",
+      "rounded": "Rounded rectangle",
+      "capsule": "Capsule",
+      "diamond": "Diamond",
+      "hexagon": "Hexagon",
+      "cylinder": "Cylinder",
+      "parallelogram": "Parallelogram",
+      "circle": "Circle"
+    }
   },
   "saveStatus": {
     "saved": "Saved"
@@ -516,8 +607,8 @@
     "feature2Desc": "Generate complete architectures with a single intelligent prompt.",
     "feature3Title": "Code to diagram",
     "feature3Desc": "Instantly construct stunning visual infrastructure from text.",
-    "feature4Title": "Export in many formats",
-    "feature4Desc": "Export into beautiful, fully animated presentation diagrams.",
+    "feature4Title": "Start from a template",
+    "feature4Desc": "Explore ready-made diagrams and make one your own.",
     "analyticsTitle": "Anonymous Analytics",
     "analyticsDesc": "We collect diagnostic data. We never read your diagrams or prompts.",
     "shortcutsTitle": "Start fast with shortcuts",
@@ -632,7 +723,9 @@
         "title": "No local room cache",
         "body": "This collaboration session is not using browser IndexedDB room persistence right now."
       }
-    }
+    },
+    "copying": "Copying…",
+    "copyError": "Could not copy. Select the link above and copy it manually, or try again."
   },
   "problem": {
     "badge": "The Problem",
@@ -1415,7 +1508,10 @@
     "clearCanvas": "Clear Canvas",
     "undo": "Undo (Ctrl+Z)",
     "redo": "Redo (Ctrl+Y)",
-    "commandCenter": "Open Command Center"
+    "commandCenter": "Open Command Center",
+    "diagramTools": "Diagram tools",
+    "interactionMode": "Interaction mode",
+    "history": "Edit history"
   },
   "flowEditor": {
     "cannotCloseLastTab": "Cannot close the last tab.",
@@ -1428,11 +1524,11 @@
     "figmaExportFailed": "Figma Export Failed: {{message}}",
     "applyingLayout": "Applying layout…",
     "emptyState": {
-      "title": "Start Building",
-      "description": "Your canvas is empty. Get started and create a flow. Saved locally on this device. Save named versions regularly for backup.",
+      "title": "Start your diagram",
+      "description": "Describe an idea, choose a template, or add your first shape.",
       "generateWithFlowpilot": "Generate with Flowpilot",
-      "browseTemplates": "Browse Templates",
-      "addBlankNode": "Add Blank Shape"
+      "browseTemplates": "Templates",
+      "addBlankNode": "Add a shape"
     }
   },
   "annotationNode": {
@@ -1460,7 +1556,9 @@
   "errorBoundary": {
     "title": "Something went wrong",
     "description": "We encountered an unexpected error. Please try refreshing the page.",
-    "reloadPage": "Reload Page"
+    "reloadPage": "Reload Page",
+    "recoveryHint": "Reload to reopen the editor. Reloading does not clear diagrams saved in this browser.",
+    "technicalDetails": "Technical details"
   },
   "navigationControls": {
     "zoomIn": "Zoom In",
@@ -1469,7 +1567,9 @@
     "keyboardShortcuts": "Keyboard Shortcuts"
   },
   "playbackControls": {
-    "stop": "Stop"
+    "stop": "Stop",
+    "previous": "Previous step",
+    "next": "Next step"
   },
   "snapshotsPanel": {
     "title": "Version History",
@@ -1508,7 +1608,16 @@
     "bestFirstEdits": "Smart First Edits",
     "perfectFor": "Perfect For",
     "useTemplate": "Use Template",
-    "closePreview": "Close template preview"
+    "closePreview": "Close template preview",
+    "all": "All templates",
+    "libraryDescription": "Find a starting point for your next idea. Every template is fully editable.",
+    "search": "Search templates, use cases, or technologies…",
+    "noResults": "No matching templates",
+    "searchHint": "Try a broader search or another category to find your starting point.",
+    "resetFilters": "Reset filters",
+    "featuredFilter": "Featured",
+    "browse": "Browse templates",
+    "library": "Template library"
   },
   "propertiesPanel": {
     "stickyNote": "Sticky Note",
@@ -1533,7 +1642,12 @@
   },
   "flowTabs": {
     "closeTab": "Close Page",
-    "newFlowTab": "New Page"
+    "newFlowTab": "New Page",
+    "keyboardHelp": "Use arrow keys to switch pages, F2 to rename, and Alt+Shift+arrow keys to reorder.",
+    "pages": "Diagram pages",
+    "pageName": "Page name",
+    "renamePage": "Rename page",
+    "renamePageHint": "Rename page (F2)"
   },
   "sidebar": {
     "close": "Close sidebar"
@@ -1606,5 +1720,24 @@
     "visualResult": "Editable diagrams",
     "visualResultHint": "Validate, preview, share",
     "visualCaption": "Tools run locally over stdio. Your AI client handles model requests. No OpenFlowKit API key required."
+  },
+  "shareEmbed": {
+    "copyLabel": "Copy {{label}}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyError": "Could not copy. Select the text above and copy it manually, or try again.",
+    "title": "Share and embed diagram",
+    "description": "Anyone with the link can view this snapshot. Later edits will not update it.",
+    "viewerLink": "Viewer link",
+    "markdownLink": "Markdown link",
+    "readmeLink": "README link",
+    "iframe": "Embed iframe",
+    "openViewer": "Open card viewer",
+    "newTab": "(opens in a new tab)",
+    "invalidLink": "This viewer link is unavailable. Close this dialog and create a new share link.",
+    "help": "Use a Markdown link in GitHub READMEs, or the iframe in websites that support embedded content.",
+    "markdownText": "Open interactive diagram on OpenFlowKit",
+    "readmeText": "View architecture diagram",
+    "frameTitle": "OpenFlowKit diagram"
   }
 }

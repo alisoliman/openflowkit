@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from '../Tooltip';
 import { Button } from '../ui/Button';
@@ -37,20 +37,39 @@ export function ToolbarAddMenu({
   ...actions
 }: ToolbarAddMenuProps): React.ReactElement {
   const { t } = useTranslation();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+
+  function closeAndRestoreFocus(): void {
+    onCloseMenu();
+    triggerRef.current?.focus();
+  }
   const resolvedCurrentItemId = currentItemId || getDefaultToolbarAddItemId();
   const currentItem = getAddItemDefinitionById(resolvedCurrentItemId, t);
 
   function handleSelectItem(itemId: AddItemId): void {
     onCurrentItemChange(itemId);
     executeAddItem(itemId, actions, getCenter());
-    onCloseMenu();
+    closeAndRestoreFocus();
   }
 
   return (
-    <div className="relative">
+    <div className="relative" onBlur={(event) => {
+      if (showAddMenu && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) {
+        onCloseMenu();
+      }
+    }}>
       <Tooltip text={t('toolbar.addItem', 'Add Item')}>
         <Button
+          ref={triggerRef}
           onClick={onToggleMenu}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              event.stopPropagation();
+              if (!showAddMenu) onToggleMenu();
+            }
+          }}
           disabled={!isInteractive}
           data-testid="toolbar-add-toggle"
           variant="ghost"
@@ -58,6 +77,7 @@ export function ToolbarAddMenu({
           className={getToolbarIconButtonClass({ active: showAddMenu })}
           aria-label={t('toolbar.addItem', 'Add Item')}
           aria-expanded={showAddMenu}
+          aria-controls={showAddMenu ? menuId : undefined}
           aria-haspopup="menu"
           icon={currentItem.renderIcon(`block h-4 w-4 transition-transform ${showAddMenu ? 'text-[var(--brand-primary)]' : 'group-hover:scale-105'}`)}
         />
@@ -66,6 +86,8 @@ export function ToolbarAddMenu({
       {showAddMenu && isInteractive ? (
         <Suspense fallback={null}>
           <LazyToolbarAddMenuPanel
+            id={menuId}
+            onClose={closeAndRestoreFocus}
             currentItemId={resolvedCurrentItemId}
             onSelectItem={handleSelectItem}
           />

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { createContext, useContext, useId } from 'react';
+import { handleTabNavigation } from './ui/SegmentedTabs';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -7,6 +8,7 @@ interface SidebarTabItem {
   label: string;
   icon?: React.ReactNode;
   badge?: string;
+  disabled?: boolean;
 }
 
 interface SidebarShellProps {
@@ -31,7 +33,10 @@ interface SidebarSegmentedTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   getTabTestId?: (tab: SidebarTabItem) => string | undefined;
+  ariaLabel?: string;
 }
+
+const SidebarHeadingContext = createContext<string | undefined>(undefined);
 
 function getSidebarTabButtonClass(isActive: boolean): string {
   if (isActive) {
@@ -42,14 +47,17 @@ function getSidebarTabButtonClass(isActive: boolean): string {
 }
 
 export function SidebarShell({ children }: SidebarShellProps): React.ReactElement {
+  const headingId = useId();
   return (
-    <div
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--brand-surface)]/95 animate-in fade-in duration-150"
-      onMouseDown={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      {children}
-    </div>
+    <SidebarHeadingContext.Provider value={headingId}>
+      <div
+        className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--brand-surface)]/95 animate-in fade-in duration-150"
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {children}
+      </div>
+    </SidebarHeadingContext.Provider>
   );
 }
 
@@ -60,22 +68,26 @@ export function SidebarHeader({
   onClose,
 }: SidebarHeaderProps): React.ReactElement {
   const { t } = useTranslation();
+  const headingId = useContext(SidebarHeadingContext);
   return (
     <div className="border-b border-[var(--color-brand-border)] bg-[var(--brand-surface)] px-4 py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold text-[var(--brand-text)]">{title}</h3>
+          <h3 id={headingId} className="font-semibold text-[var(--brand-text)]">
+            {title}
+          </h3>
           {description ? (
             <p className="mt-1 text-xs text-[var(--brand-secondary)]">{description}</p>
           ) : null}
         </div>
         {onClose ? (
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-full p-1 text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-background)]"
+            className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--brand-secondary)] transition-colors hover:bg-[var(--brand-background)]"
           >
             <span className="sr-only">{t('sidebar.close', 'Close sidebar')}</span>
-            <X className="h-4 w-4" />
+            <X aria-hidden="true" className="h-4 w-4" />
           </button>
         ) : null}
       </div>
@@ -105,26 +117,53 @@ export function SidebarSegmentedTabs({
   activeTab,
   onTabChange,
   getTabTestId,
+  ariaLabel,
 }: SidebarSegmentedTabsProps): React.ReactElement {
+  const headingId = useContext(SidebarHeadingContext);
+  const tabbableId =
+    tabs.find((tab) => tab.id === activeTab && !tab.disabled)?.id ??
+    tabs.find((tab) => !tab.disabled)?.id;
   return (
-    <div className="flex rounded-[var(--brand-radius)] border border-[var(--color-brand-border)]/60 bg-[var(--brand-background)]/70 p-1">
-      {tabs.map(({ id, label, icon, badge }) => (
-        <button
-          type="button"
-          key={id}
-          onClick={() => onTabChange(id)}
-          data-testid={getTabTestId?.({ id, label, icon })}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-xs)] px-3 py-1.5 text-xs font-semibold transition-colors ${getSidebarTabButtonClass(activeTab === id)}`}
-        >
-          {icon}
-          {label}
-          {badge && (
-            <span className="rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider bg-[var(--brand-primary-100)] text-[var(--brand-primary)]">
-              {badge}
-            </span>
-          )}
-        </button>
-      ))}
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabel ? undefined : headingId}
+      aria-orientation="horizontal"
+      className="flex gap-1 overflow-x-auto rounded-[var(--brand-radius)] border border-[var(--color-brand-border)]/60 bg-[var(--brand-background)]/70 p-1"
+    >
+      {tabs.map((tab) => {
+        const { id, label, icon, badge, disabled } = tab;
+        return (
+          <button
+            type="button"
+            key={id}
+            role="tab"
+            aria-selected={activeTab === id}
+            disabled={disabled}
+            data-tab-id={id}
+            tabIndex={tabbableId === id ? 0 : -1}
+            onKeyDown={(event) => handleTabNavigation(event, onTabChange)}
+            onClick={() => onTabChange(id)}
+            data-testid={getTabTestId?.(tab)}
+            className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[var(--radius-xs)] px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11 ${getSidebarTabButtonClass(activeTab === id)}`}
+          >
+            {icon && (
+              <span className="shrink-0" aria-hidden="true">
+                {icon}
+              </span>
+            )}
+            <span>{label}</span>
+            {badge && (
+              <>
+                {' '}
+                <span className="rounded bg-[var(--brand-primary-100)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--brand-primary)]">
+                  {badge}
+                </span>
+              </>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

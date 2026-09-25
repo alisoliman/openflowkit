@@ -29,7 +29,7 @@ const FORMAT_HINTS: Record<InfraFormat, string> = {
 
 function getFormatTabClassName(selected: boolean): string {
     return selected
-        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white shadow-sm shadow-[var(--brand-primary-200)]'
+        ? 'border-[var(--brand-primary)] bg-[var(--brand-action)] text-white shadow-sm shadow-[var(--brand-primary-200)]'
         : 'border-[var(--color-brand-border)] bg-[var(--brand-surface)] text-[var(--brand-secondary)] hover:border-[var(--brand-primary-200)] hover:bg-[var(--brand-primary-50)] hover:text-[var(--brand-primary)]';
 }
 
@@ -141,7 +141,7 @@ export function InfraSyncPanel({ onApplyDsl, onTerraformAnalysis }: InfraSyncPan
             <button
                 onClick={handleGenerate}
                 disabled={!input.trim() || isParsing}
-                className={`flex h-10 w-full items-center justify-center gap-2 rounded-[var(--brand-radius)] bg-[var(--brand-primary)] text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:bg-[var(--brand-primary-600)] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 active:scale-[0.98] ${isBeveled ? 'btn-beveled' : ''}`}
+                className={`flex h-10 w-full items-center justify-center gap-2 rounded-[var(--brand-radius)] bg-[var(--brand-action)] text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:bg-[var(--brand-action-hover)] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 active:scale-[0.98] ${isBeveled ? 'btn-beveled' : ''}`}
             >
                 {isParsing ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Parsing infrastructure...</>
@@ -178,7 +178,7 @@ export function InfraSyncPanel({ onApplyDsl, onTerraformAnalysis }: InfraSyncPan
                         className={`flex h-10 flex-1 items-center justify-center gap-2 rounded-[var(--brand-radius)] text-sm font-semibold text-white shadow-sm transition-all duration-200 active:scale-[0.98] ${
                             applyFeedback
                                 ? 'bg-emerald-500'
-                                : `bg-[var(--brand-primary)] hover:-translate-y-px hover:bg-[var(--brand-primary-600)] hover:shadow-md ${isBeveled ? 'btn-beveled' : ''}`
+                                : `bg-[var(--brand-action)] hover:-translate-y-px hover:bg-[var(--brand-action-hover)] hover:shadow-md ${isBeveled ? 'btn-beveled' : ''}`
                         }`}
                     >
                         {applyFeedback ? (

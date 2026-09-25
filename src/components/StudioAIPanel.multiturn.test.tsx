@@ -24,6 +24,44 @@ function props(): ComponentProps<typeof StudioAIPanel> {
 }
 
 describe('Flowpilot multi-turn composer', () => {
+  it('focuses a new ready conversation once without stealing focus after later updates', () => {
+    const input = props();
+    const { rerender } = render(<StudioAIPanel {...input} />);
+    const composer = screen.getByRole('textbox', { name: 'Message Flowpilot' });
+    expect(composer).toHaveFocus();
+    screen.getByRole('button', { name: 'Attach image' }).focus();
+    rerender(<StudioAIPanel {...input} selectedNodeCount={1} />);
+    expect(screen.getByRole('button', { name: 'Attach image' })).toHaveFocus();
+  });
+
+  it.each(['history', 'running'])('preserves focus while restoring %s and after it completes', (reason) => {
+    const input = props();
+    const { rerender } = render(<><button autoFocus>Open assistant</button><StudioAIPanel {...input} isGenerating={reason === 'running'} aiReadiness={{ ...input.aiReadiness, canGenerate: false }} /></>);
+    const opener = screen.getByRole('button', { name: 'Open assistant' });
+    expect(opener).toHaveFocus();
+    const thread = reason === 'history' ? [{ id: 'restored', role: 'user' as const, type: 'user_message' as const, content: 'Earlier conversation', createdAt: '2026-09-24T10:00:00Z' }] : [];
+    rerender(<><button>Open assistant</button><StudioAIPanel {...input} assistantThread={thread} /></>);
+    expect(opener).toHaveFocus();
+  });
+
+  it('labels the composer, explains Enter, and protects a running non-agent conversation from clearing', () => {
+    const input = props();
+    const { rerender } = render(<StudioAIPanel {...input} />);
+    expect(screen.getByRole('textbox', { name: 'Message Flowpilot' })).toHaveAccessibleDescription('Enter to send · Shift + Enter for a new line');
+    rerender(<StudioAIPanel {...input} isGenerating assistantThread={[{
+      id: 'user-1', role: 'user', type: 'user_message', content: 'Build a diagram', createdAt: '2026-09-24T10:00:00Z',
+    }]} />);
+    expect(screen.getByRole('button', { name: 'Clear Chat History' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Stop generation' })).toHaveTextContent('Stop');
+    expect(screen.getByRole('textbox', { name: 'Message Flowpilot' })).not.toBeDisabled();
+  });
+
+  it('keeps retry disabled when there is no draft to retry', () => {
+    render(<StudioAIPanel {...props()} lastError="The request failed." />);
+    expect(screen.getByRole('alert')).toHaveTextContent('The request failed.');
+    expect(screen.getByRole('button', { name: 'Retry request' })).toBeDisabled();
+  });
+
   it.each(['button', 'enter'])('clears immediately via %s and keeps the next draft after completion', async (submit) => {
     let finish!: (value: boolean) => void;
     const input = props();

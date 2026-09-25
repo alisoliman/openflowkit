@@ -1,32 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import type { ExportCallbackResult } from '@/services/export/exportResult';
 import type { CinematicExportRequest } from '@/services/export/cinematicExport';
 import { captureAnalyticsEvent } from '@/services/analytics/analytics';
 import { recordOnboardingEvent } from '@/services/onboarding/events';
 import { useToast } from './ui/ToastContext';
 
 interface UseExportMenuParams {
-  onExportPNG: (format: 'png' | 'jpeg', options?: ExportImageActionOptions) => void;
-  onCopyImage: (format: 'png' | 'jpeg', options?: ExportImageActionOptions) => void;
-  onExportSVG: () => void;
-  onCopySVG: () => void;
-  onExportPDF: () => void;
-  onExportCinematic: (request: CinematicExportRequest) => void;
+  onExportPNG: (format: 'png' | 'jpeg', options?: ExportImageActionOptions) => ExportCallbackResult;
+  onCopyImage: (format: 'png' | 'jpeg', options?: ExportImageActionOptions) => ExportCallbackResult;
+  onExportSVG: () => ExportCallbackResult;
+  onCopySVG: () => ExportCallbackResult;
+  onExportPDF: () => ExportCallbackResult;
+  onExportCinematic: (request: CinematicExportRequest) => ExportCallbackResult;
   getCinematicExportRequest: () => CinematicExportRequest;
-  onExportJSON: () => void;
-  onCopyJSON: () => void;
-  onExportMermaid: () => void;
-  onDownloadMermaid: () => void;
-  onDownloadPlantUML: () => void;
-  onExportOpenFlowDSL: () => void;
-  onDownloadOpenFlowDSL: () => void;
-  onExportFigma: () => void;
-  onDownloadFigma: () => void;
+  onExportJSON: () => ExportCallbackResult;
+  onCopyJSON: () => ExportCallbackResult;
+  onExportMermaid: () => ExportCallbackResult;
+  onDownloadMermaid: () => ExportCallbackResult;
+  onDownloadPlantUML: () => ExportCallbackResult;
+  onExportOpenFlowDSL: () => ExportCallbackResult;
+  onDownloadOpenFlowDSL: () => ExportCallbackResult;
+  onExportFigma: () => ExportCallbackResult;
+  onDownloadFigma: () => ExportCallbackResult;
 }
 
 type ExportActionKey = 'download' | 'copy';
-type ExportActionHandler = () => void | Promise<void>;
-type ExportActionHandlers = Record<ExportActionKey, ExportActionHandler>;
+type ExportActionHandler = () => ExportCallbackResult;
+type ExportActionHandlers = Partial<Record<ExportActionKey, ExportActionHandler>>;
 
 interface ExportImageActionOptions {
   transparentBackground?: boolean;
@@ -35,9 +36,13 @@ type ExportSelectionOptions = ExportImageActionOptions;
 
 interface UseExportMenuResult {
   isOpen: boolean;
+  pendingAction: { key: string; action: ExportActionKey } | null;
+  errorMessage: string | null;
+  triggerRef: RefObject<HTMLButtonElement>;
   menuRef: RefObject<HTMLDivElement>;
   toggleMenu: () => void;
-  closeMenu: () => void;
+  closeMenu: (restoreFocus?: boolean) => void;
+  clearError: () => void;
   handleSelect: (
     key: string,
     action: ExportActionKey,
@@ -72,12 +77,19 @@ export function useExportMenu({
   onDownloadFigma,
 }: UseExportMenuParams): UseExportMenuResult {
   const [isOpen, setIsOpen] = useState(false);
+  const isOpenRef = useRef(false);
+  const [pendingAction, setPendingAction] = useState<UseExportMenuResult['pendingAction']>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const actionInFlightRef = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { addToast } = useToast();
 
-  function closeMenu(): void {
+  const closeMenu = useCallback((restoreFocus = false): void => {
+    isOpenRef.current = false;
     setIsOpen(false);
-  }
+    if (restoreFocus) triggerRef.current?.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -94,7 +106,7 @@ export function useExportMenu({
       }
     }
 
-    function handlePointerDownOutside(event: MouseEvent): void {
+    function handlePointerDownOutside(event: PointerEvent): void {
       handleOutsideInteraction(event.target);
     }
 
@@ -103,21 +115,22 @@ export function useExportMenu({
     }
 
     function handleEscape(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        closeMenu();
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        event.preventDefault();
+        closeMenu(true);
       }
     }
 
-    document.addEventListener('mousedown', handlePointerDownOutside);
+    document.addEventListener('pointerdown', handlePointerDownOutside, true);
     document.addEventListener('focusin', handleFocusOutside);
     window.addEventListener('keydown', handleEscape);
 
     return () => {
-      document.removeEventListener('mousedown', handlePointerDownOutside);
+      document.removeEventListener('pointerdown', handlePointerDownOutside, true);
       document.removeEventListener('focusin', handleFocusOutside);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen]);
+  }, [isOpen, closeMenu]);
 
   function getHandlers(options?: ExportSelectionOptions): Record<string, ExportActionHandlers> {
     return {
@@ -130,21 +143,22 @@ export function useExportMenu({
         copy: () => onCopyImage('jpeg', options),
       },
       svg: { download: onExportSVG, copy: onCopySVG },
-      pdf: { download: onExportPDF, copy: onExportPDF },
+      pdf: { download: onExportPDF },
       'cinematic-video': {
         download: () => onExportCinematic(getCinematicExportRequest()),
-        copy: () => onExportCinematic(getCinematicExportRequest()),
       },
       json: { download: onExportJSON, copy: onCopyJSON },
       openflow: { download: onDownloadOpenFlowDSL, copy: onExportOpenFlowDSL },
       mermaid: { download: onDownloadMermaid, copy: onExportMermaid },
-      plantuml: { download: onDownloadPlantUML, copy: onDownloadPlantUML },
+      plantuml: { download: onDownloadPlantUML },
       figma: { download: onDownloadFigma, copy: onExportFigma },
     };
   }
 
   function toggleMenu(): void {
-    setIsOpen((value) => !value);
+    setErrorMessage(null);
+    isOpenRef.current = !isOpenRef.current;
+    setIsOpen(isOpenRef.current);
   }
 
   function recordSelection(key: string, action: ExportActionKey): void {
@@ -160,27 +174,45 @@ export function useExportMenu({
     action: ExportActionKey,
     options?: ExportSelectionOptions
   ): Promise<void> {
+    if (actionInFlightRef.current) return;
     const actionHandler = getHandlers(options)[key]?.[action];
     if (!actionHandler) {
       return;
     }
 
-    closeMenu();
+    actionInFlightRef.current = true;
+    setPendingAction({ key, action });
+    setErrorMessage(null);
 
     try {
-      await Promise.resolve(actionHandler());
+      const result = await actionHandler();
+      if (result && result.status === 'error') {
+        setErrorMessage(result.message);
+        return;
+      }
+      if (result && result.status === 'cancelled') return;
       recordSelection(key, action);
+      closeMenu(isOpenRef.current);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Please try again.';
-      addToast(`Failed to complete ${key} ${action}: ${message}`, 'error', 5000);
+      const failureMessage = `Failed to complete ${key} ${action}: ${message}`;
+      setErrorMessage(failureMessage);
+      addToast(failureMessage, 'error', 5000);
+    } finally {
+      actionInFlightRef.current = false;
+      setPendingAction(null);
     }
   }
 
   return {
     isOpen,
+    pendingAction,
+    errorMessage,
+    triggerRef,
     menuRef,
     toggleMenu,
     closeMenu,
+    clearError: () => setErrorMessage(null),
     handleSelect,
   };
 }

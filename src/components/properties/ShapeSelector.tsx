@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { NodeData } from '@/lib/types';
 
 interface ShapeSelectorProps {
@@ -19,20 +20,34 @@ const SHAPES: { value: NodeData['shape'], label: string, svg: React.ReactNode }[
 ];
 
 export const ShapeSelector: React.FC<ShapeSelectorProps> = ({ selectedShape, onChange }) => {
+    const { t } = useTranslation();
+    const shapeLabels: Record<string, string> = {
+        rectangle: t('properties.shapes.rectangle', 'Rectangle'),
+        rounded: t('properties.shapes.rounded', 'Rounded rectangle'),
+        capsule: t('properties.shapes.capsule', 'Capsule'),
+        diamond: t('properties.shapes.diamond', 'Diamond'),
+        hexagon: t('properties.shapes.hexagon', 'Hexagon'),
+        cylinder: t('properties.shapes.cylinder', 'Cylinder'),
+        parallelogram: t('properties.shapes.parallelogram', 'Parallelogram'),
+        circle: t('properties.shapes.circle', 'Circle'),
+    };
     return (
-        <div className="grid grid-cols-4 gap-2 mb-3">
+        <div role="group" aria-label={t('properties.shape', 'Shape')} className="grid grid-cols-4 gap-2 mb-3">
             {SHAPES.map(({ value, label, svg }) => (
                 <button
                     key={value}
+                    type="button"
+                    aria-label={shapeLabels[value || 'rounded'] || label}
+                    aria-pressed={(selectedShape || 'rounded') === value}
                     onClick={() => onChange(value)}
                     className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-[var(--brand-radius)] text-[10px] font-semibold transition-all
                         ${(selectedShape || 'rounded') === value
-                            ? 'bg-[var(--brand-primary-50)] text-[var(--brand-primary-600)] ring-1 ring-[var(--brand-primary-200)]'
+                            ? 'bg-[var(--brand-primary-50)] text-[var(--brand-primary)] ring-1 ring-[var(--brand-primary-200)]'
                             : 'bg-[var(--brand-background)] text-[var(--brand-secondary)] hover:bg-[var(--brand-surface)] hover:text-[var(--brand-text)] hover:shadow-sm'
                         }`}
-                    title={label}
+                    title={shapeLabels[value || 'rounded'] || label}
                 >
-                    <svg viewBox="0 0 20 20" className="w-5 h-5 opacity-80">{svg}</svg>
+                    <svg aria-hidden="true" viewBox="0 0 20 20" className="w-5 h-5 opacity-80">{svg}</svg>
                 </button>
             ))}
         </div>

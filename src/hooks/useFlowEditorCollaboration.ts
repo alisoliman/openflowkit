@@ -40,7 +40,7 @@ export interface FlowEditorCollaborationTopNavState {
         color: string;
         isLocal: boolean;
     }>;
-    onCopyShareLink: () => void;
+    onCopyShareLink: () => Promise<boolean>;
 }
 
 export type CollaborationRemotePresence = ReturnType<typeof buildCollaborationPresenceViewModel>['remotePresence'][number];
@@ -337,13 +337,13 @@ export function useFlowEditorCollaboration({
         }
     }, [addToast, collaborationEnabled, collaborationTransportStatus, t]);
 
-    const handleCopyInvite = useCallback(async (): Promise<void> => {
+    const handleCopyInvite = useCallback(async (): Promise<boolean> => {
         if (!collaborationRoomSecret) {
             notifyOperationOutcome(addToast, {
                 status: 'error',
                 summary: t('share.toast.copyFailed', 'Unable to copy share link.'),
             });
-            return;
+            return false;
         }
         const inviteUrl = buildCollaborationInviteUrl(window.location.href, collaborationRoomId, collaborationRoomSecret);
         try {
@@ -352,12 +352,14 @@ export function useFlowEditorCollaboration({
                 status: 'success',
                 summary: t('share.toast.linkCopied', 'Collaboration link copied.'),
             });
+            return true;
         } catch {
             notifyOperationOutcome(addToast, {
                 status: 'warning',
                 summary: t('share.toast.copyManual', 'Clipboard access is blocked. Copy the link manually from the share dialog.'),
                 duration: 4500,
             });
+            return false;
         }
     }, [addToast, collaborationRoomId, collaborationRoomSecret, t]);
 
@@ -373,9 +375,7 @@ export function useFlowEditorCollaboration({
             inviteUrl: buildCollaborationInviteUrl(window.location.href, collaborationRoomId, collaborationRoomSecret ?? collaborationRoomId),
             viewerCount: presenceViewModel.viewerCount,
             participants: buildTopNavParticipants(collaborationPresence, localCollaborationClientId),
-            onCopyShareLink: () => {
-                void handleCopyInvite();
-            },
+            onCopyShareLink: handleCopyInvite,
         };
     }, [
         collaborationEnabled,

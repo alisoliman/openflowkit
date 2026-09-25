@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import React from 'react';
+import { HardDrive } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from '../Tooltip';
 
@@ -7,66 +7,26 @@ interface SaveStatusIndicatorProps {
   showPrivacyMessage?: boolean;
 }
 
-function getTooltipText(
-  t: ReturnType<typeof useTranslation>['t'],
-  time: string,
-  showPrivacyMessage: boolean
-): string {
-  const messages = [
-    t('nav.autoSaved', {
-      defaultValue: 'Saved locally at {{time}}.',
-      time,
-    }),
-  ];
-
-  if (showPrivacyMessage) {
-    messages.push(
-      t('nav.privacyShort', {
-        defaultValue: 'Your diagrams stay on this device and do not reach our servers.',
-      })
-    );
-  }
-
-  return messages.join('\n');
-}
-
 export function SaveStatusIndicator({
   showPrivacyMessage = true,
 }: SaveStatusIndicatorProps): React.ReactElement {
   const { t } = useTranslation();
-  const [time, setTime] = useState<string>('');
-
-  useEffect(() => {
-    function updateTime(): void {
-      setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }
-
-    updateTime();
-
-    const interval = setInterval(updateTime, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const tooltipText = getTooltipText(t, time, showPrivacyMessage);
-  const ariaLabel = t('nav.saveStatus', {
-    defaultValue: 'Local save status',
-  });
+  const label = t('nav.localStorage', 'Local storage');
+  const tooltipText = showPrivacyMessage
+    ? t('nav.localStorageHelp', 'Diagrams are stored in this browser. Export a copy to keep a backup. Content you share or send to AI is handled by the service you choose.')
+    : t('nav.localStorageBackup', 'Diagrams are stored in this browser. Export a copy to keep a backup.');
 
   return (
-    <Tooltip
-      text={tooltipText}
-      side="bottom"
-      contentClassName="max-w-[260px] whitespace-pre-line text-center leading-snug sm:max-w-[320px]"
-    >
-      <div
-        aria-label={ariaLabel}
-        className="flex cursor-default items-center justify-center rounded-md p-1.5 text-[var(--brand-primary)] transition-colors duration-300 animate-in fade-in zoom-in-50 hover:bg-[var(--brand-surface)]"
+    <Tooltip text={tooltipText} side="bottom" contentClassName="max-w-[280px] whitespace-normal text-left leading-relaxed">
+      <span
+        tabIndex={0}
+        role="note"
+        aria-label={`${label}. ${tooltipText}`}
+        className="flex h-8 cursor-default items-center justify-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 text-[var(--brand-secondary)]"
       >
-        <ShieldCheck
-          className="h-[18px] w-[18px] drop-shadow-sm text-white"
-          fill="var(--brand-primary)"
-        />
-      </div>
+        <HardDrive aria-hidden="true" className="h-3.5 w-3.5" />
+        <span className="hidden text-[11px] font-medium xl:inline">{label}</span>
+      </span>
     </Tooltip>
   );
 }

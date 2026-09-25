@@ -21,6 +21,9 @@ describe('ColorPicker', () => {
     );
 
     expect(screen.getByText('White')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'White', pressed: true })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Subtle', pressed: true })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Filled', pressed: false })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Filled' }));
     expect(onColorModeChange).toHaveBeenCalledWith('filled');

@@ -30,16 +30,16 @@ describe('ExportMenuPanel', () => {
     it('switches categories and updates the format selector content', () => {
         render(<ExportMenuPanel onSelect={vi.fn()} />);
 
-        expect(screen.getByRole('button', { name: /PNG/i })).toBeTruthy();
+        expect(screen.getByRole('combobox', { name: 'Format' })).toBeTruthy();
 
         fireEvent.click(screen.getByRole('tab', { name: /Code/i }));
 
-        expect(screen.getByRole('button', { name: /JSON File/i })).toBeTruthy();
+        expect(screen.getByRole('combobox', { name: 'Format' })).toBeTruthy();
 
-        fireEvent.click(within(screen.getByTestId('export-format-select')).getByRole('button', { name: /JSON File/i }));
-        fireEvent.click(within(screen.getByRole('listbox')).getByRole('button', { name: /Mermaid/i }));
+        fireEvent.click(within(screen.getByTestId('export-format-select')).getByRole('combobox', { name: 'Format' }));
+        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Mermaid/i }));
 
-        expect(screen.getByRole('button', { name: /Mermaid/i })).toBeTruthy();
+        expect(screen.getByRole('combobox', { name: 'Format' })).toHaveTextContent('Mermaid');
         expect(screen.getByTestId('export-action-mermaid-download')).toBeTruthy();
         expect(screen.getByTestId('export-action-mermaid-copy')).toBeTruthy();
     });
@@ -70,8 +70,8 @@ describe('ExportMenuPanel', () => {
         render(<ExportMenuPanel onSelect={onSelect} />);
 
         fireEvent.click(screen.getByRole('tab', { name: /Code/i }));
-        fireEvent.click(within(screen.getByTestId('export-format-select')).getByRole('button', { name: /JSON File/i }));
-        fireEvent.click(within(screen.getByRole('listbox')).getByRole('button', { name: /Figma Editable/i }));
+        fireEvent.click(within(screen.getByTestId('export-format-select')).getByRole('combobox', { name: 'Format' }));
+        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Figma Editable/i }));
         fireEvent.click(screen.getByTestId('export-action-figma-copy'));
 
         expect(onSelect).toHaveBeenCalledWith('figma', 'copy', {
@@ -83,8 +83,8 @@ describe('ExportMenuPanel', () => {
         render(<ExportMenuPanel onSelect={vi.fn()} />);
 
         fireEvent.click(screen.getByRole('tab', { name: /Code/i }));
-        fireEvent.click(within(screen.getByTestId('export-format-select')).getByRole('button', { name: /JSON File/i }));
-        fireEvent.click(within(screen.getByRole('listbox')).getByRole('button', { name: /PlantUML/i }));
+        fireEvent.click(within(screen.getByTestId('export-format-select')).getByRole('combobox', { name: 'Format' }));
+        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /PlantUML/i }));
 
         expect(screen.getByTestId('export-action-plantuml-download')).toBeTruthy();
         expect(screen.queryByTestId('export-action-plantuml-copy')).toBeNull();
@@ -125,4 +125,35 @@ describe('ExportMenuPanel', () => {
         expect(onCinematicSpeedChange).toHaveBeenCalledWith('fast');
         expect(onCinematicResolutionChange).toHaveBeenCalledWith('4k');
     });
+
+    it('offers the wired native OpenFlow DSL format for download and copy', () => {
+        const onSelect = vi.fn();
+        render(<ExportMenuPanel onSelect={onSelect} />);
+        fireEvent.click(screen.getByRole('tab', { name: 'Code' }));
+        fireEvent.click(screen.getByRole('combobox', { name: 'Format' }));
+        fireEvent.click(screen.getByRole('option', { name: /OpenFlow DSL/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'Download OpenFlow DSL' }));
+        expect(onSelect).toHaveBeenCalledWith('openflow', 'download', { transparentBackground: undefined });
+        expect(screen.getByRole('button', { name: 'Copy OpenFlow DSL' })).toBeEnabled();
+    });
+
+    it('supports category keyboard navigation and keeps pending actions disabled', () => {
+        const props = { onSelect: vi.fn(), onClose: vi.fn() };
+        const view = render(<ExportMenuPanel {...props} />);
+        fireEvent.keyDown(screen.getByRole('tab', { name: 'Image' }), { key: 'ArrowRight' });
+        expect(screen.getByRole('tab', { name: 'Video' })).toHaveFocus();
+        expect(screen.getByRole('tab', { name: 'Video' })).toHaveAttribute('aria-selected', 'true');
+        view.rerender(<ExportMenuPanel {...props} pendingAction={{ key: 'cinematic-video', action: 'download' }} />);
+        expect(screen.getByRole('button', { name: 'Download Cinematic Build Video' })).toBeDisabled();
+        expect(screen.getByRole('tab', { name: 'Image' })).toBeDisabled();
+        expect(screen.getByRole('status')).toHaveTextContent('Preparing your export');
+        expect(screen.getByRole('button', { name: 'Close export' })).toBeEnabled();
+    });
+
+    it('shows a handled failure in context so its settings can be retried', () => {
+        render(<ExportMenuPanel onSelect={vi.fn()} errorMessage="Clipboard permission denied." />);
+        expect(screen.getByRole('alert')).toHaveTextContent('Clipboard permission denied.');
+        expect(screen.getByRole('button', { name: 'Copy PNG' })).toBeEnabled();
+    });
+
 });

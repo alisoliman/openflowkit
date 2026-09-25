@@ -34,7 +34,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 
   const content = (
     <>
-      {icon && <span className="shrink-0 flex items-center justify-center">{icon}</span>}
+      {icon && <span aria-hidden="true" className="shrink-0 flex items-center justify-center">{icon}</span>}
       <span className="flex-1 flex items-center justify-between truncate min-w-0">{children}</span>
     </>
   );
@@ -79,6 +79,8 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 
   return (
     <button
+      type="button"
+      aria-current={manualIsActive ? 'page' : undefined}
       onClick={onClick}
       data-testid={testId}
       className={`

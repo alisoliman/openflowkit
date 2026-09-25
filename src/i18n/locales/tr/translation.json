@@ -61,8 +61,30 @@
       "undo": "Copilot'un değişikliklerini geri al",
       "undone": "Copilot'un değişiklikleri geri alındı.",
       "locked": "Copilot bu sayfayı düzenliyor. Tamamlanana kadar tuval düzenleme duraklatıldı.",
-      "stop": "Durdur"
-    }
+      "stop": "Durdur",
+      "yourReply": "Yanıtın",
+      "runningStep": "Çalışıyor",
+      "failedStep": "Başarısız",
+      "waitingForYou": "Yanıtın bekleniyor"
+    },
+    "you": "Sen",
+    "conversation": "Sohbet",
+    "clear": "Temizle",
+    "latestMessage": "Son mesaj",
+    "generationMode": "Oluşturma modu",
+    "referenceImage": "Referans görsel eklendi",
+    "removeImage": "Ekli görseli kaldır",
+    "messageLabel": "Flowpilot’a mesaj",
+    "stop": "Durdur",
+    "stopGeneration": "Oluşturmayı durdur",
+    "draftWhileWorking": "Flowpilot çalışırken sonraki mesajını hazırlayabilirsin.",
+    "keyboardHint": "Göndermek için Enter · Yeni satır için Shift + Enter",
+    "aiSettings": "Yapay zekâ ayarları",
+    "readingCanvas": "Diyagramın inceleniyor ve sonraki adım planlanıyor.",
+    "writingReply": "İsteğine yanıt yazılıyor.",
+    "planningReply": "İsteğine verilecek yanıt planlanıyor.",
+    "draftingResponse": "Yanıt hazırlanıyor",
+    "thinking": "Düşünüyor"
   },
   "copilot": {
     "hostedHelp": "GitHub hesabınızı tarayıcıda bağlayın. Kendi Copilot erişiminiz gereklidir; CLI kurulumu gerekmez.",
@@ -189,7 +211,14 @@
     "playbackMode": "Oynatma Modu",
     "privacyMessage": "Diyagramlarınız sizinle kalır ve sunucularımıza ulaşmaz.",
     "templates": "Şablonlar",
-    "mcp": "MCP"
+    "mcp": "MCP",
+    "openMenu": "Ana menüyü aç",
+    "closeMenu": "Menüyü kapat",
+    "switchToLight": "Açık mod",
+    "switchToDark": "Koyu mod",
+    "localStorage": "Yerel depolama",
+    "localStorageHelp": "Diyagramlar bu tarayıcıda saklanır. Yedek için bir kopya dışa aktar. Paylaştığın veya yapay zekâya gönderdiğin içerik, seçtiğin hizmet tarafından işlenir.",
+    "localStorageBackup": "Diyagramlar bu tarayıcıda saklanır. Yedek için bir kopya dışa aktar."
   },
   "menu": {
     "file": "Dosya",
@@ -262,7 +291,20 @@
     "speed": "Hız",
     "resolution": "Çözünürlük",
     "transparentBackground": "Şeffaf arka plan",
-    "headingFormat": "Dışa Aktarma Biçimi"
+    "headingFormat": "Dışa Aktarma Biçimi",
+    "category": "Dışa aktarma kategorisi",
+    "close": "Dışa aktarmayı kapat",
+    "format": "Biçim",
+    "hintJpg": "Beyaz arka planlı yüksek çözünürlüklü görsel",
+    "hintJsonBackup": "Bu uygulamada düzenlenebilen diyagram yedeği",
+    "hintMermaid": "Markdown ve belgeler için metin tabanlı kaynak",
+    "hintOpenflow": "Yerleşim ve stilleri içeren özgün diyagram kaynağı",
+    "hintPdf": "Yazdırmak ve paylaşmak için belge",
+    "hintPlantuml": "PlantUML araçları için metin tabanlı kaynak",
+    "hintPng": "İsteğe bağlı saydamlıkla yüksek çözünürlüklü görsel",
+    "openflowLabel": "OpenFlow betik dili",
+    "preparing": "Hazırlanıyor…",
+    "preparingHelp": "Dışa aktarma hazırlanıyor. İşlem tamamlanırken bu paneli kapatabilirsin."
   },
   "import": {
     "title": "İçe Aktar",
@@ -400,7 +442,36 @@
     "suggestionImportDesc": "Mevcut çalışmanı getir",
     "suggestionTemplates": "Şablonlar",
     "suggestionTemplatesDesc": "Kanıtlanmış bir kalıptan başla",
-    "continueTitle": "Son eylemle devam et"
+    "continueTitle": "Son eylemle devam et",
+    "clearSearch": "Aramayı temizle",
+    "workspaceNavigation": "Çalışma alanı gezintisi",
+    "workspaceTitle": "Çalışma alanın",
+    "workspaceDescription": "Fikirlerin, sistemlerin ve aralarındaki bağlantılar için bir alan.",
+    "aiActionDescription": "Bir fikir anlat. Birlikte hayata geçirin.",
+    "templateActionDescription": "Düzenlemeye hazır bir diyagramla başla.",
+    "importFile": "Dosya içe aktar",
+    "importActionDescription": "Mevcut bir diyagramını getir.",
+    "yourDiagrams": "Diyagramların",
+    "localSaveHint": "Diyagramlar bu tarayıcıda kaydedilir. Ayrı bir kopya saklamak için yedek dışa aktar.",
+    "localSaveLabel": "Yerel kayıt hakkında",
+    "searchDiagrams": "Diyagram ara…",
+    "sortDiagrams": "Diyagramları sırala",
+    "sortRecent": "Son düzenlenen",
+    "sortName": "Ad, A–Z",
+    "firstDiagramDescription": "Boş bir tuvalle başla, yapay zekâyla bir fikri diyagrama dönüştür veya bir şablonu kendine göre düzenle.",
+    "noMatchingDiagrams": "Eşleşen diyagram yok",
+    "searchHint": "Başka bir ad dene veya tüm diyagramları görmek için aramayı temizle.",
+    "diagramCount": "{{count}} diyagram",
+    "openDiagram": "{{name}} aç",
+    "nodeCount": "{{count}} düğüm",
+    "switchToLight": "Açık moda geç",
+    "switchToDark": "Koyu moda geç",
+    "changeLanguage": "Dili değiştir",
+    "languageError": "Dil değiştirilemedi. Lütfen tekrar dene.",
+    "diagramCount_one": "{{count}} diyagram",
+    "diagramCount_other": "{{count}} diyagram",
+    "nodeCount_one": "{{count}} düğüm",
+    "nodeCount_other": "{{count}} düğüm"
   },
   "settings": {
     "title": "Ayarlar",
@@ -455,7 +526,27 @@
     "applyToSelectedNodes": "Seçili öğelere uygula",
     "selectFieldToApply": "Uygulamak için bir alan seçin",
     "previewSummary": "Önizleme özeti",
-    "selectionSummary": "Seçim özeti"
+    "selectionSummary": "Seçim özeti",
+    "nodeLabel": "Etiket",
+    "nodeDescription": "Açıklama",
+    "labelFont": "Etiket yazı tipi",
+    "labelFontSize": "Etiket yazı boyutu",
+    "descriptionFont": "Açıklama yazı tipi",
+    "descriptionFontSize": "Açıklama yazı boyutu",
+    "bold": "Kalın",
+    "italic": "İtalik",
+    "iconProvider": "Simge sağlayıcısı",
+    "iconCategory": "Simge kategorisi",
+    "shapes": {
+      "rectangle": "Dikdörtgen",
+      "rounded": "Yuvarlatılmış dikdörtgen",
+      "capsule": "Kapsül",
+      "diamond": "Eşkenar dörtgen",
+      "hexagon": "Altıgen",
+      "cylinder": "Silindir",
+      "parallelogram": "Paralelkenar",
+      "circle": "Daire"
+    }
   },
   "saveStatus": {
     "saved": "Kaydedildi"
@@ -517,8 +608,8 @@
     "feature2Desc": "Tek bir akıllı komutla tam mimariler oluşturun.",
     "feature3Title": "Koddan diyagrama",
     "feature3Desc": "Metinden anında muhteşem görsel altyapı oluşturun.",
-    "feature4Title": "Birçok formatta dışa aktarın",
-    "feature4Desc": "Tamamen animasyonlu sunum diyagramlarına dışa aktarın.",
+    "feature4Title": "Bir şablonla başla",
+    "feature4Desc": "Hazır diyagramları keşfet ve birini kendine göre düzenle.",
     "analyticsTitle": "Anonim Analitik",
     "analyticsDesc": "Tanı verileri topluyoruz. Diyagramlarınızı veya komutlarınızı asla okumuyoruz.",
     "shortcutCommandBar": "Komut merkezini aç",
@@ -1346,7 +1437,10 @@
     "clearCanvas": "Tuvali Temizle",
     "undo": "Geri Al (Ctrl+Z)",
     "redo": "Yinele (Ctrl+Y)",
-    "commandCenter": "Komut Merkezini Aç"
+    "commandCenter": "Komut Merkezini Aç",
+    "diagramTools": "Diyagram araçları",
+    "interactionMode": "Etkileşim modu",
+    "history": "Düzenleme geçmişi"
   },
   "flowEditor": {
     "cannotCloseLastTab": "Son sekmeyi kapatamazsınız.",
@@ -1358,11 +1452,11 @@
     "figmaExportFailed": "Figma Dışa Aktarma Başarısız: {{message}}",
     "applyingLayout": "Düzen uygulanıyor…",
     "emptyState": {
-      "title": "İnşaya Başlayın",
-      "description": "Tuvaliniz boş. Flowpilot ile bir akış oluşturun, bir şablon kullanın veya sıfırdan başlayın.",
+      "title": "Diyagramına başla",
+      "description": "Bir fikir anlat, şablon seç veya ilk şeklini ekle.",
       "generateWithFlowpilot": "Flowpilot ile Oluştur",
-      "browseTemplates": "Şablonlara Gözat",
-      "addBlankNode": "Boş Şekil Ekle"
+      "browseTemplates": "Şablonlar",
+      "addBlankNode": "Şekil ekle"
     },
     "dslExportSkippedEdges": "DSL dışa aktarmada {{count}} geçersiz kenar atlandı."
   },
@@ -1388,7 +1482,9 @@
   "errorBoundary": {
     "title": "Bir şeyler yanlış gitti",
     "description": "Beklenmeyen bir hatayla karşılaştık. Lütfen sayfayı yenilemeyi deneyin.",
-    "reloadPage": "Sayfayı Yenile"
+    "reloadPage": "Sayfayı Yenile",
+    "recoveryHint": "Düzenleyiciyi yeniden açmak için sayfayı yenile. Yenilemek bu tarayıcıda kayıtlı diyagramları silmez.",
+    "technicalDetails": "Teknik ayrıntılar"
   },
   "navigationControls": {
     "zoomIn": "Yakınlaştır",
@@ -1397,7 +1493,9 @@
     "keyboardShortcuts": "Klavye Kısayolları"
   },
   "playbackControls": {
-    "stop": "Durdur"
+    "stop": "Durdur",
+    "previous": "Önceki adım",
+    "next": "Sonraki adım"
   },
   "snapshotsPanel": {
     "title": "Sürüm Geçmişi",
@@ -1436,7 +1534,16 @@
     "bestFirstEdits": "En iyi ilk düzenlemeler",
     "perfectFor": "Şunun için ideal",
     "useTemplate": "Şablonu Kullan",
-    "closePreview": "Şablon önizlemesini kapat"
+    "closePreview": "Şablon önizlemesini kapat",
+    "all": "Tüm şablonlar",
+    "libraryDescription": "Bir sonraki fikrin için bir başlangıç noktası bul. Her şablon tamamen düzenlenebilir.",
+    "search": "Şablon, kullanım alanı veya teknoloji ara…",
+    "noResults": "Eşleşen şablon yok",
+    "searchHint": "Bir başlangıç noktası bulmak için daha genel bir arama yap veya başka bir kategori seç.",
+    "resetFilters": "Filtreleri sıfırla",
+    "featuredFilter": "Öne çıkanlar",
+    "browse": "Şablonlara göz at",
+    "library": "Şablon kitaplığı"
   },
   "propertiesPanel": {
     "stickyNote": "Yapışkan Not",
@@ -1450,7 +1557,12 @@
   },
   "flowTabs": {
     "closeTab": "Sayfayi Kapat",
-    "newFlowTab": "Yeni Sayfa"
+    "newFlowTab": "Yeni Sayfa",
+    "keyboardHelp": "Sayfa değiştirmek için ok tuşlarını, yeniden adlandırmak için F2’yi, sıralamak için Alt+Shift+ok tuşlarını kullan.",
+    "pages": "Diyagram sayfaları",
+    "pageName": "Sayfa adı",
+    "renamePage": "Sayfayı yeniden adlandır",
+    "renamePageHint": "Sayfayı yeniden adlandır (F2)"
   },
   "share": {
     "close": "Kapat",
@@ -1519,7 +1631,9 @@
         "title": "Yerel oda önbelleği yok",
         "body": "Bu işbirliği oturumu şu anda tarayıcı IndexedDB oda kalıcılığını kullanmıyor."
       }
-    }
+    },
+    "copying": "Kopyalanıyor…",
+    "copyError": "Kopyalanamadı. Yukarıdaki bağlantıyı seçip elle kopyala veya tekrar dene."
   },
   "connectionPanel": {
     "architecture": "Mimari",
@@ -1611,5 +1725,24 @@
     "visualResult": "Düzenlenebilir diyagramlar",
     "visualResultHint": "Doğrula, önizle, paylaş",
     "visualCaption": "Araçlar stdio üzerinden yerel çalışır. Model isteklerini AI istemcin yönetir. OpenFlowKit API anahtarı gerekmez."
+  },
+  "shareEmbed": {
+    "copyLabel": "{{label}} kopyala",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
+    "copyError": "Kopyalanamadı. Yukarıdaki metni seçip elle kopyala veya tekrar dene.",
+    "title": "Diyagramı paylaş ve göm",
+    "description": "Bağlantıya sahip herkes bu sürümü görüntüleyebilir. Sonraki düzenlemeler bu sürümü güncellemez.",
+    "viewerLink": "Görüntüleme bağlantısı",
+    "markdownLink": "Markdown bağlantısı",
+    "readmeLink": "README bağlantısı",
+    "iframe": "Gömme iframe kodu",
+    "openViewer": "Kart görünümünü aç",
+    "newTab": "(yeni sekmede açılır)",
+    "invalidLink": "Bu görüntüleme bağlantısı kullanılamıyor. Bu pencereyi kapatıp yeni bir paylaşım bağlantısı oluştur.",
+    "help": "GitHub README dosyalarında Markdown bağlantısını, gömülü içeriği destekleyen sitelerde iframe kodunu kullan.",
+    "markdownText": "OpenFlowKit’te etkileşimli diyagramı aç",
+    "readmeText": "Mimari diyagramı görüntüle",
+    "frameTitle": "OpenFlowKit diyagramı"
   }
 }

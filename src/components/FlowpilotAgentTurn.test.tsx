@@ -73,7 +73,9 @@ describe('Flowpilot agent turn', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Azure' }));
     expect(turnControls.answer).toHaveBeenCalledWith('q-1', 'Azure', false);
 
-    const input = screen.getByRole('textbox', { name: 'Type your answer' });
+    const input = screen.getByRole('textbox', { name: 'Your reply' });
+    expect(input).toHaveAccessibleDescription('Which cloud?');
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for your answer');
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
     fireEvent.change(input, { target: { value: 'Both' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));

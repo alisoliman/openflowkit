@@ -61,8 +61,30 @@
       "undo": "Copilot の変更を元に戻す",
       "undone": "Copilot の変更を元に戻しました。",
       "locked": "Copilot がこのページを編集中です。完了するまでキャンバスの編集は一時停止されます。",
-      "stop": "停止"
-    }
+      "stop": "停止",
+      "yourReply": "あなたの回答",
+      "runningStep": "実行中",
+      "failedStep": "失敗",
+      "waitingForYou": "あなたの回答を待っています"
+    },
+    "you": "あなた",
+    "conversation": "会話",
+    "clear": "クリア",
+    "latestMessage": "最新のメッセージ",
+    "generationMode": "生成モード",
+    "referenceImage": "参考画像を添付済み",
+    "removeImage": "添付画像を削除",
+    "messageLabel": "Flowpilotへのメッセージ",
+    "stop": "停止",
+    "stopGeneration": "生成を停止",
+    "draftWhileWorking": "Flowpilotが作業中でも、次のメッセージを下書きできます。",
+    "keyboardHint": "Enterで送信 · Shift + Enterで改行",
+    "aiSettings": "AI設定",
+    "readingCanvas": "図を読み取り、次の手順を考えています。",
+    "writingReply": "リクエストへの回答を作成しています。",
+    "planningReply": "リクエストへの回答を検討しています。",
+    "draftingResponse": "回答を作成中",
+    "thinking": "考え中"
   },
   "copilot": {
     "hostedHelp": "ブラウザーで GitHub アカウントを接続します。ご自身の Copilot 利用権限が必要です。CLI のインストールは不要です。",
@@ -189,7 +211,14 @@
     "playbackMode": "再生モード",
     "privacyMessage": "図はあなたの手元に残り、当社のサーバーには届きません。",
     "templates": "テンプレート",
-    "mcp": "MCP"
+    "mcp": "MCP",
+    "openMenu": "メインメニューを開く",
+    "closeMenu": "メニューを閉じる",
+    "switchToLight": "ライトモード",
+    "switchToDark": "ダークモード",
+    "localStorage": "ローカルストレージ",
+    "localStorageHelp": "図はこのブラウザーに保存されます。バックアップ用にコピーをエクスポートしてください。共有した内容やAIに送信した内容は、選択したサービスで処理されます。",
+    "localStorageBackup": "図はこのブラウザーに保存されます。バックアップ用にコピーをエクスポートしてください。"
   },
   "menu": {
     "file": "ファイル",
@@ -262,7 +291,20 @@
     "speed": "速度",
     "resolution": "解像度",
     "transparentBackground": "透明な背景",
-    "headingFormat": "エクスポート形式"
+    "headingFormat": "エクスポート形式",
+    "category": "エクスポートのカテゴリー",
+    "close": "エクスポートを閉じる",
+    "format": "形式",
+    "hintJpg": "白い背景の高解像度画像",
+    "hintJsonBackup": "このアプリで編集できる図のバックアップ",
+    "hintMermaid": "Markdownやドキュメント用のテキスト形式ソース",
+    "hintOpenflow": "レイアウトとスタイルを含む標準の図ソース",
+    "hintPdf": "印刷や共有用のドキュメント",
+    "hintPlantuml": "PlantUMLツール用のテキスト形式ソース",
+    "hintPng": "背景を透明にできる高解像度画像",
+    "openflowLabel": "OpenFlow DSL形式",
+    "preparing": "準備中…",
+    "preparingHelp": "エクスポートを準備しています。完了を待たずにこのパネルを閉じても大丈夫です。"
   },
   "import": {
     "title": "インポート",
@@ -380,7 +422,36 @@
     "suggestionImportDesc": "既存の作品を持ち込む",
     "suggestionTemplates": "テンプレート",
     "suggestionTemplatesDesc": "実証済みのパターンから始める",
-    "continueTitle": "最近の操作を続ける"
+    "continueTitle": "最近の操作を続ける",
+    "clearSearch": "検索をクリア",
+    "workspaceNavigation": "ワークスペースのナビゲーション",
+    "workspaceTitle": "あなたのワークスペース",
+    "workspaceDescription": "アイデアやシステム、そしてそれらのつながりを描く場所です。",
+    "aiActionDescription": "アイデアを伝えて、一緒に形にしましょう。",
+    "templateActionDescription": "すぐに編集できる図から始めましょう。",
+    "importFile": "ファイルをインポート",
+    "importActionDescription": "既存の図を取り込めます。",
+    "yourDiagrams": "あなたの図",
+    "localSaveHint": "図はこのブラウザーに保存されます。別途コピーを保管するには、バックアップをエクスポートしてください。",
+    "localSaveLabel": "ローカル保存について",
+    "searchDiagrams": "図を検索…",
+    "sortDiagrams": "図を並べ替え",
+    "sortRecent": "最終編集日",
+    "sortName": "名前順（A–Z）",
+    "firstDiagramDescription": "空のキャンバスから始める、AIでアイデアを図にする、テンプレートを自分用に編集する。好きな方法で始めましょう。",
+    "noMatchingDiagrams": "一致する図がありません",
+    "searchHint": "別の名前で検索するか、検索をクリアしてすべての図を表示してください。",
+    "diagramCount": "{{count}} 件の図",
+    "openDiagram": "{{name}} を開く",
+    "nodeCount": "{{count}} 個のノード",
+    "switchToLight": "ライトモードに切り替え",
+    "switchToDark": "ダークモードに切り替え",
+    "changeLanguage": "言語を変更",
+    "languageError": "言語を変更できませんでした。もう一度お試しください。",
+    "diagramCount_one": "{{count}} 件の図",
+    "diagramCount_other": "{{count}} 件の図",
+    "nodeCount_one": "{{count}} 個のノード",
+    "nodeCount_other": "{{count}} 個のノード"
   },
   "settings": {
     "title": "設定",
@@ -435,7 +506,27 @@
     "applyToSelectedNodes": "選択したノードに適用",
     "selectFieldToApply": "適用するフィールドを選択",
     "previewSummary": "プレビュー概要",
-    "selectionSummary": "選択の概要"
+    "selectionSummary": "選択の概要",
+    "nodeLabel": "ラベル",
+    "nodeDescription": "説明",
+    "labelFont": "ラベルのフォント",
+    "labelFontSize": "ラベルの文字サイズ",
+    "descriptionFont": "説明のフォント",
+    "descriptionFontSize": "説明の文字サイズ",
+    "bold": "太字",
+    "italic": "斜体",
+    "iconProvider": "アイコンの提供元",
+    "iconCategory": "アイコンのカテゴリ",
+    "shapes": {
+      "rectangle": "長方形",
+      "rounded": "角丸長方形",
+      "capsule": "カプセル",
+      "diamond": "ひし形",
+      "hexagon": "六角形",
+      "cylinder": "円柱",
+      "parallelogram": "平行四辺形",
+      "circle": "円"
+    }
   },
   "saveStatus": {
     "saved": "保存済み"
@@ -496,8 +587,8 @@
     "feature2Desc": "Generate complete architectures with a single intelligent prompt.",
     "feature3Title": "Code to diagram",
     "feature3Desc": "Instantly construct stunning visual infrastructure from text.",
-    "feature4Title": "Export in many formats",
-    "feature4Desc": "Export into beautiful, fully animated presentation diagrams.",
+    "feature4Title": "テンプレートから始める",
+    "feature4Desc": "用意された図を探して、自分用に編集しましょう。",
     "analyticsTitle": "Anonymous Analytics",
     "analyticsDesc": "We collect diagnostic data. We never read your diagrams or prompts.",
     "getStarted": "Get Started",
@@ -1326,7 +1417,10 @@
     "clearCanvas": "キャンバスをクリア",
     "undo": "元に戻す (Ctrl+Z)",
     "redo": "やり直す (Ctrl+Y)",
-    "commandCenter": "コマンドセンターを開く"
+    "commandCenter": "コマンドセンターを開く",
+    "diagramTools": "図のツール",
+    "interactionMode": "操作モード",
+    "history": "編集履歴"
   },
   "flowEditor": {
     "cannotCloseLastTab": "最後のタブは閉じられません。",
@@ -1338,11 +1432,11 @@
     "figmaExportFailed": "Figmaエクスポート失敗：{{message}}",
     "applyingLayout": "レイアウトを適用中…",
     "emptyState": {
-      "title": "構築を開始",
-      "description": "キャンバスが空です。Flowpilotでフローを生成するか、一から始めてください。",
+      "title": "図を作り始めましょう",
+      "description": "アイデアを伝える、テンプレートを選ぶ、最初の図形を追加する。好きな方法で始められます。",
       "generateWithFlowpilot": "Flowpilotで生成",
-      "browseTemplates": "テンプレートを閲覧",
-      "addBlankNode": "空の図形を追加"
+      "browseTemplates": "テンプレート",
+      "addBlankNode": "図形を追加"
     },
     "dslExportSkippedEdges": "DSL エクスポートで {{count}} 件の無効なエッジをスキップしました。"
   },
@@ -1368,7 +1462,9 @@
   "errorBoundary": {
     "title": "問題が発生しました",
     "description": "予期しないエラーが発生しました。ページを更新してください。",
-    "reloadPage": "ページを再読み込み"
+    "reloadPage": "ページを再読み込み",
+    "recoveryHint": "再読み込みするとエディターを開き直せます。このブラウザーに保存された図は削除されません。",
+    "technicalDetails": "技術的な詳細"
   },
   "navigationControls": {
     "zoomIn": "ズームイン",
@@ -1377,7 +1473,9 @@
     "keyboardShortcuts": "キーボードショートカット"
   },
   "playbackControls": {
-    "stop": "停止"
+    "stop": "停止",
+    "previous": "前のステップ",
+    "next": "次のステップ"
   },
   "snapshotsPanel": {
     "title": "バージョン履歴",
@@ -1416,7 +1514,16 @@
     "bestFirstEdits": "最初に編集するとよい項目",
     "perfectFor": "こんな用途に最適",
     "useTemplate": "テンプレートを使う",
-    "closePreview": "テンプレートプレビューを閉じる"
+    "closePreview": "テンプレートプレビューを閉じる",
+    "all": "すべてのテンプレート",
+    "libraryDescription": "次のアイデアの出発点を見つけましょう。すべてのテンプレートを自由に編集できます。",
+    "search": "テンプレート、用途、技術を検索…",
+    "noResults": "一致するテンプレートがありません",
+    "searchHint": "検索条件を広げるか、別のカテゴリーをお試しください。",
+    "resetFilters": "フィルターをリセット",
+    "featuredFilter": "おすすめ",
+    "browse": "テンプレートを見る",
+    "library": "テンプレートライブラリ"
   },
   "propertiesPanel": {
     "stickyNote": "付箋",
@@ -1430,7 +1537,12 @@
   },
   "flowTabs": {
     "closeTab": "タブを閉じる",
-    "newFlowTab": "新しいフロータブ"
+    "newFlowTab": "新しいフロータブ",
+    "keyboardHelp": "矢印キーでページを切り替え、F2で名前を変更、Alt+Shift+矢印キーで並べ替えます。",
+    "pages": "図のページ",
+    "pageName": "ページ名",
+    "renamePage": "ページ名を変更",
+    "renamePageHint": "ページ名を変更（F2）"
   },
   "nodes": {
     "note": "メモ",
@@ -1519,7 +1631,9 @@
         "title": "ローカルルームキャッシュなし",
         "body": "このコラボレーションセッションは現在、ブラウザIndexedDBルーム永続化を使用していません。"
       }
-    }
+    },
+    "copying": "コピー中…",
+    "copyError": "コピーできませんでした。上のリンクを選択して手動でコピーするか、もう一度お試しください。"
   },
   "connectionPanel": {
     "architecture": "アーキテクチャ",
@@ -1611,5 +1725,24 @@
     "visualResult": "編集可能な図",
     "visualResultHint": "検証・プレビュー・共有",
     "visualCaption": "ツールは stdio 経由でローカル実行されます。モデルへのリクエストは AI クライアントが処理します。OpenFlowKit の API キーは不要です。"
+  },
+  "shareEmbed": {
+    "copyLabel": "{{label}}をコピー",
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "copyError": "コピーできませんでした。上のテキストを選択して手動でコピーするか、もう一度お試しください。",
+    "title": "図を共有・埋め込み",
+    "description": "リンクを知っている人は誰でもこの時点の図を閲覧できます。その後の編集内容は反映されません。",
+    "viewerLink": "閲覧用リンク",
+    "markdownLink": "Markdownリンク",
+    "readmeLink": "README用リンク",
+    "iframe": "埋め込み用iframe",
+    "openViewer": "カード表示を開く",
+    "newTab": "（新しいタブで開きます）",
+    "invalidLink": "この閲覧用リンクは利用できません。このダイアログを閉じて、新しい共有リンクを作成してください。",
+    "help": "GitHubのREADMEにはMarkdownリンクを、埋め込みに対応したウェブサイトにはiframeを使用してください。",
+    "markdownText": "OpenFlowKitでインタラクティブな図を開く",
+    "readmeText": "アーキテクチャ図を見る",
+    "frameTitle": "OpenFlowKitの図"
   }
 }

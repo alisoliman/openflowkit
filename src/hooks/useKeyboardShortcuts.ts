@@ -86,6 +86,8 @@ export function useKeyboardShortcuts({
     }
 
     function handleKeyDown(e: KeyboardEvent): void {
+      // Local widgets own their keystrokes; a background canvas must never react to a dialog.
+      if (e.defaultPrevented || e.isComposing || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
       const isShift = e.shiftKey;
       const key = e.key.toLowerCase();
@@ -116,7 +118,13 @@ export function useKeyboardShortcuts({
           e.preventDefault();
           onShortcutsHelp();
         }
+        return;
       }
+
+      const controlSelector = 'button, a[href], [role="tab"], [role="menuitem"], [role="option"], [role="combobox"], [role="switch"], [role="slider"], [role="checkbox"]';
+      const isControl = [e.target, document.activeElement].some((target) =>
+        target instanceof Element && target.closest(controlSelector));
+      if (isControl) return;
 
       // Select mode (V) / Pan mode (H) — Figma/draw.io standard
       if (!isCmdOrCtrl && !isShift && !isEditable && !isAgentEditing) {
@@ -159,6 +167,7 @@ export function useKeyboardShortcuts({
       // this is the one path and one undo step.
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (isEditable) return;
+        e.preventDefault();
         deleteSelection();
       }
 

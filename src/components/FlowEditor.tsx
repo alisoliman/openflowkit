@@ -169,6 +169,7 @@ export function FlowEditor({ onGoHome }: FlowEditorProps) {
       <ArchitectureLintProvider nodes={nodes} edges={edges} rulesJson={viewSettings.lintRules}>
         <div
           id="main-content"
+          tabIndex={-1}
           className="w-full h-screen flex flex-col relative transition-colors duration-150"
           ref={reactFlowWrapper}
           style={{

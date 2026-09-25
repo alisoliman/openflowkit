@@ -1,4 +1,5 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from './ErrorBoundary';
 import { RightRail } from './RightRail';
 import { InertWhileAgentEdits } from './flow-editor/InertWhileAgentEdits';
@@ -30,8 +31,9 @@ interface PanelErrorFallbackProps {
 }
 
 function CommandBarSkeleton(): React.ReactElement {
+  const { t } = useTranslation();
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 animate-pulse">
+    <div role="status" aria-label={t('common.loading', 'Loading…')} className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 animate-pulse motion-reduce:animate-none">
       <div className="h-9 w-full max-w-sm rounded-lg bg-[var(--brand-background)]" />
       <div className="h-4 w-3/4 max-w-xs rounded bg-[var(--brand-background)]" />
       <div className="mt-2 flex w-full max-w-sm flex-col gap-2">
@@ -48,9 +50,10 @@ function RailPanelSkeleton(props: {
   lines?: number;
 }): React.ReactElement {
   const { title, lines = 5 } = props;
+  const { t } = useTranslation();
 
   return (
-    <div className="flex h-full w-full flex-col gap-4 p-4 animate-pulse">
+    <div role="status" aria-label={`${t('common.loading', 'Loading…')} ${title}`} className="flex h-full w-full flex-col gap-4 p-4 animate-pulse motion-reduce:animate-none">
       <div className="space-y-2">
         <div className="h-4 w-24 rounded bg-[var(--brand-background)]" />
         <div className="h-3 w-40 rounded bg-[var(--brand-background)]" />
@@ -74,12 +77,14 @@ function PanelErrorFallback({
   description,
   onClose,
 }: PanelErrorFallbackProps): React.ReactElement {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { headingRef.current?.focus({ preventScroll: true }); }, []);
   return (
     <div className="flex h-full w-full flex-col items-start justify-center gap-4 rounded-[var(--radius-xl)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] p-5 shadow-[var(--shadow-sm)]">
-      <div className="space-y-1">
-        <p className="text-sm font-semibold text-[var(--brand-text)]">
+      <div role="alert" className="space-y-1">
+        <h2 ref={headingRef} tabIndex={-1} className="text-sm font-semibold text-[var(--brand-text)] outline-none">
           {title}
-        </p>
+        </h2>
         <p className="text-sm text-[var(--brand-secondary)]">
           {description}
         </p>
@@ -298,6 +303,7 @@ export function FlowEditorPanels({
     <>
       {/* The studio stays usable so the user can stop a Flowpilot turn; these panels edit the page. */}
       <InertWhileAgentEdits>
+        {commandBar.isOpen ? (
         <ErrorBoundary
           className="h-auto"
           fallback={
@@ -308,7 +314,6 @@ export function FlowEditorPanels({
             />
           }
         >
-          {commandBar.isOpen ? (
             <Suspense fallback={<CommandBarSkeleton />}>
               <LazyCommandBar
                 isOpen={commandBar.isOpen}
@@ -352,8 +357,8 @@ export function FlowEditorPanels({
                 }}
               />
             </Suspense>
-          ) : null}
         </ErrorBoundary>
+        ) : null}
 
         {isHistoryOpen ? (
           <ErrorBoundary

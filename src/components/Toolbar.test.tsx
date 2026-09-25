@@ -67,4 +67,15 @@ describe('Toolbar', () => {
       expect(button).toBeEnabled();
     }
   });
+
+  it('names every tool and exposes the current editing mode', () => {
+    renderToolbar();
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).toHaveAccessibleName();
+    }
+    expect(screen.getByRole('button', { name: /select mode/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /pan mode/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('toolbar-flowpilot-toggle')).toHaveAttribute('aria-expanded', 'false');
+  });
+
 });

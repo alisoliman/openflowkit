@@ -23,6 +23,28 @@ function renderShortcuts(overrides: Partial<Parameters<typeof useKeyboardShortcu
 }
 
 describe('useKeyboardShortcuts', () => {
+  it('does not edit the canvas from controls, dialogs, or consumed keyboard events', () => {
+    const onNudge = vi.fn();
+    const deleteSelection = vi.fn();
+    renderShortcuts({ onNudge, deleteSelection });
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    button.focus();
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    button.remove();
+    const consumed = new KeyboardEvent('keydown', { key: 'Delete', cancelable: true });
+    consumed.preventDefault();
+    window.dispatchEvent(consumed);
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    document.body.appendChild(dialog);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+    expect(onNudge).not.toHaveBeenCalled();
+    expect(deleteSelection).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     document.body.innerHTML = '';
     useFlowStore.getState().setAgentTurn(null);

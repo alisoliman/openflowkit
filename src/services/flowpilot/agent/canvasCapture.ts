@@ -12,6 +12,7 @@ const SHRINK_STEP = 0.7;
 const MAX_ATTEMPTS = 4;
 // Controls and editing chrome the user sees only while pointing at things.
 const HIDDEN_CLASS_NAMES = [
+  'flow-edge-route-controls',
   'react-flow__handle',
   'react-flow__edgeupdater',
   'react-flow__resize-control',

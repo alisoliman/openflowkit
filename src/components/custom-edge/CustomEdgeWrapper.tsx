@@ -19,6 +19,7 @@ import {
 import type { CinematicRenderState } from '@/services/export/cinematicRenderState';
 import { EdgeMarkerDefs } from './EdgeMarkerDefs';
 import { resolveEdgeVisualStyle } from '@/theme';
+import { EdgeRouteControls } from './EdgeRouteControls';
 
 interface CustomEdgeWrapperProps {
   id: string;
@@ -37,6 +38,8 @@ interface CustomEdgeWrapperProps {
   markerStart?: string;
   markerStartConfig?: FlowEdge['markerStart'];
   selected?: boolean;
+  routeEditable?: boolean;
+  routeOrthogonal?: boolean;
   edgeAnimated?: boolean;
   cinematicExportState?: CinematicRenderState;
 }
@@ -48,10 +51,10 @@ function toLabelTransform(x: number, y: number): string {
 export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
   id,
   path,
-  sourceX: _sourceX,
-  sourceY: _sourceY,
-  targetX: _targetX,
-  targetY: _targetY,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
   labelX,
   labelY,
   markerEnd,
@@ -62,6 +65,8 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
   markerStart,
   markerStartConfig,
   selected = false,
+  routeEditable = false,
+  routeOrthogonal = false,
   edgeAnimated = false,
   cinematicExportState,
 }: CustomEdgeWrapperProps): React.ReactElement {
@@ -73,6 +78,8 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
   const [labelDraft, setLabelDraft] = useState('');
   const designSystem = useDesignSystem();
   const recordHistory = useFlowStore((state) => state.recordHistoryV2);
+  const isAgentEditing = useFlowStore((state) => Boolean(state.agentTurn));
+  const showRouteControls = selected && routeEditable && !cinematicExportState?.active && !isAgentEditing;
   const relationSemanticsV1Enabled = ROLLOUT_FLAGS.relationSemanticsV1;
   const edgeLabel = getEditableEdgeLabel({
     id,
@@ -433,7 +440,7 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
       />
 
       {((renderedLabel && (!cinematicActive || showCinematicLabel)) ||
-        (!cinematicActive && (isEditingLabel || (!hasArchitectureMeta && (selected || isHovered))))) && (
+        (!cinematicActive && (isEditingLabel || (!hasArchitectureMeta && selected)))) && (
         <EdgeLabelRenderer>
           <div
             ref={labelRef}
@@ -451,6 +458,7 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
             }}
             className={`flow-edge-label nodrag nopan ${selected || isHovered ? 'flow-lod-preserve' : ''}`}
           >
+            <div className={showRouteControls ? 'flow-edge-route-label-offset' : undefined}>
             {isEditingLabel ? (
               <input
                 autoFocus
@@ -519,8 +527,12 @@ export const CustomEdgeWrapper = memo(function CustomEdgeWrapper({
                 Add label
               </button>
             )}
+            </div>
           </div>
         </EdgeLabelRenderer>
+      )}
+      {showRouteControls && (
+        <EdgeRouteControls id={id} data={data} path={displayPath} pathRef={pathRef} sourceX={sourceX} sourceY={sourceY} targetX={targetX} targetY={targetY} orthogonal={routeOrthogonal} />
       )}
     </>
   );

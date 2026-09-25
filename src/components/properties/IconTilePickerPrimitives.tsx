@@ -23,6 +23,7 @@ export function IconSearchField({
       onKeyDown={onKeyDown}
       disabled={disabled}
       placeholder={placeholder}
+      aria-label={placeholder}
       surface="subtle"
       className="h-10 bg-[var(--brand-background)]"
     />

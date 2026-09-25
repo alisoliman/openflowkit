@@ -59,7 +59,7 @@ describe('ToolbarAddMenu', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Circle' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Circle' }));
     expect(onSelectItem).toHaveBeenCalledWith('circle');
   });
 
@@ -78,9 +78,27 @@ describe('ToolbarAddMenu', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Circle' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Circle' }));
     expect(props.onCurrentItemChange).toHaveBeenCalledWith('circle');
     expect(props.onAddShape).toHaveBeenCalledWith('circle', { x: 240, y: 120 });
     expect(props.onCloseMenu).toHaveBeenCalled();
   });
+
+  it('focuses a tool on opening and supports arrow navigation and Escape', async () => {
+    const props = createProps();
+    render(<ToolbarAddMenu {...props} showAddMenu />);
+    const circle = await screen.findByRole('menuitem', { name: 'Circle' });
+    const menu = screen.getByRole('menu', { name: 'Add Item' });
+    expect(menu).toContainElement(document.activeElement as HTMLElement);
+    circle.focus();
+    fireEvent.keyDown(circle, { key: 'Home' });
+    expect(screen.getAllByRole('menuitem')[0]).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    const items = screen.getAllByRole('menuitem');
+    expect(items[items.length - 1]).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(props.onCloseMenu).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('toolbar-add-toggle')).toHaveFocus();
+  });
+
 });

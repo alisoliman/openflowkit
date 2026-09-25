@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useState, useEffect, useRef, useCallback } from 'react';
+import { useModalDialog } from '@/hooks/useModalDialog';
+import React, { Suspense, lazy, useState, useRef, useCallback } from 'react';
 import { CommandBarProps, CommandView } from './command-bar/types';
 
 import { RootView } from './command-bar/RootView';
@@ -83,36 +84,7 @@ function OpenCommandBarContent({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const previouslyFocusedElementRef = useRef<HTMLElement | null>(
-    document.activeElement instanceof HTMLElement ? document.activeElement : null
-  );
-
-  useEffect(() => {
-    const previousElement = previouslyFocusedElementRef.current;
-    inputRef.current?.focus();
-
-    return () => {
-      if (!previousElement) {
-        return;
-      }
-
-      window.setTimeout(() => previousElement.focus(), 0);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') {
-        return;
-      }
-
-      event.preventDefault();
-      onClose();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useModalDialog({ onClose, initialFocusRef: inputRef });
 
   const handleBack = useCallback(() => {
     if (view === 'root') {
@@ -139,20 +111,23 @@ function OpenCommandBarContent({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center pb-24 pointer-events-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:items-end sm:pb-24 pointer-events-none">
       <button
         type="button"
+        tabIndex={-1}
+        aria-hidden="true"
         className="absolute inset-0 bg-black/5 pointer-events-auto transition-opacity"
         onClick={onClose}
         aria-label="Close command bar"
       />
 
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command bar"
         aria-describedby="command-bar-description"
-        className="pointer-events-auto flex h-[500px] w-[640px] flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-brand-border)]/80 bg-[var(--brand-surface)]/96 shadow-[var(--shadow-overlay)] ring-1 ring-black/5 backdrop-blur-2xl animate-in slide-in-from-bottom-4 duration-200"
+        className="pointer-events-auto flex h-[560px] max-h-[calc(100dvh-8rem)] w-full max-w-[680px] flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-brand-border)]/80 bg-[var(--brand-surface)]/96 shadow-[var(--shadow-overlay)] ring-1 ring-black/5 backdrop-blur-2xl animate-in slide-in-from-bottom-4 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <p id="command-bar-description" className="sr-only">

@@ -57,7 +57,7 @@ const CommandItemRow = ({
     onClick={onClick}
     className={`
             group mx-2 flex items-center gap-3 rounded-[var(--radius-md)] border px-4 py-2.5 cursor-pointer transition-all duration-200
-            ${isSelected ? 'border-[var(--brand-primary-200)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-900)]' : 'border-transparent text-[var(--brand-secondary)] hover:border-[var(--color-brand-border)] hover:bg-[var(--brand-background)] hover:text-[var(--brand-text)]'}
+            ${isSelected ? 'border-[var(--brand-primary-200)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)]' : 'border-transparent text-[var(--brand-secondary)] hover:border-[var(--color-brand-border)] hover:bg-[var(--brand-background)] hover:text-[var(--brand-text)]'}
         `}
   >
     <div
@@ -139,6 +139,7 @@ export const RootView = ({
 }: RootViewProps) => {
   const { t } = useTranslation();
   const listboxId = useId();
+  useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, [inputRef]);
   const filteredCommands = useMemo(() => {
     if (!searchQuery) return commands.filter((c) => !c.hidden);
     return commands
@@ -151,35 +152,24 @@ export const RootView = ({
       .sort((a, b) => fuzzyScore(searchQuery, b.label) - fuzzyScore(searchQuery, a.label));
   }, [commands, searchQuery]);
 
-  // Keyboard Nav for Root
-  useEffect(() => {
-    if (filteredCommands.length === 0) {
-      return;
+  function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
+    // Navigation belongs to the combobox; Tab and Escape belong to its dialog.
+    if (event.defaultPrevented || event.nativeEvent.isComposing || useFlowStore.getState().agentTurn) return;
+    const count = filteredCommands.length;
+    if (count === 0) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedIndex((previous) => event.key === 'ArrowDown'
+        ? (previous === -1 ? 0 : (previous + 1) % count)
+        : (previous === -1 ? count - 1 : (previous - 1 + count) % count));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = filteredCommands[selectedIndex];
+      if (item) runCommandItem(item, setView, onClose);
     }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // The bar stays open but inert during a Flowpilot turn, while these keys belong to the chat.
-      if (useFlowStore.getState().agentTurn) return;
-      const len = filteredCommands.length;
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev === -1 ? 0 : (prev + 1) % len));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev === -1 ? len - 1 : (prev - 1 + len) % len));
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < len) {
-          const item = filteredCommands[selectedIndex];
-          if (item) {
-            runCommandItem(item, setView, onClose);
-          }
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [filteredCommands, selectedIndex, onClose, setView, searchQuery, setSelectedIndex]);
+  }
 
   const activeDescendantId =
     selectedIndex >= 0 && selectedIndex < filteredCommands.length
@@ -193,10 +183,7 @@ export const RootView = ({
           ref={inputRef}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => {
-            // Prevent global shortcuts interfering with typing
-            e.stopPropagation();
-          }}
+          onKeyDown={handleSearchKeyDown}
           role="combobox"
           aria-controls={listboxId}
           aria-expanded={true}
@@ -207,10 +194,10 @@ export const RootView = ({
             appName: FLOWPILOT_NAME,
             defaultValue: `Search actions, ${FLOWPILOT_NAME}, code, or canvas tools...`,
           })}
-          autoFocus
           trailingContent={
             <Button
               onClick={onClose}
+              aria-label={t('common.close', 'Close')}
               variant="ghost"
               size="icon"
               className="rounded-[var(--radius-sm)] h-8 w-8"

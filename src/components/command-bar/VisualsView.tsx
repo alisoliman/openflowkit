@@ -148,7 +148,7 @@ export function VisualsView({ onBack }: VisualsViewProps): ReactElement {
                                 onClick={() => setLargeGraphSafetyMode(option.mode)}
                                 className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-all active:scale-95
                                     ${viewSettings.largeGraphSafetyMode === option.mode
-                                        ? `border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)] ${isBeveled ? 'btn-beveled' : ''}`
+                                        ? `border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)] ${isBeveled ? 'btn-beveled' : ''}`
                                         : `border-[var(--color-brand-border)] text-[var(--brand-secondary)] hover:border-[var(--brand-primary-200)] ${isBeveled ? 'btn-beveled hover:bg-[var(--brand-background)]' : ''}`
                                     }`}
                             >
@@ -173,7 +173,7 @@ export function VisualsView({ onBack }: VisualsViewProps): ReactElement {
                                 }}
                                 className={`h-9 rounded-[var(--radius-sm)] border text-xs font-semibold transition-all active:scale-95
                                     ${viewSettings.exportSerializationMode === option.mode
-                                        ? `border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)] ${isBeveled ? 'btn-beveled' : ''}`
+                                        ? `border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)] ${isBeveled ? 'btn-beveled' : ''}`
                                         : `border-[var(--color-brand-border)] text-[var(--brand-secondary)] hover:border-[var(--brand-primary-200)] ${isBeveled ? 'btn-beveled hover:bg-[var(--brand-background)]' : ''}`
                                     }`}
                             >
@@ -193,7 +193,7 @@ export function VisualsView({ onBack }: VisualsViewProps): ReactElement {
                                 onClick={() => setGlobalEdgeOptions({ strokeWidth: w })}
                                 className={`flex-1 h-10 rounded-[var(--radius-sm)] border font-medium text-sm transition-all active:scale-95
                                     ${globalEdgeOptions.strokeWidth === w
-                                        ? `border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary-700)] shadow-inner ${isBeveled ? 'btn-beveled' : ''}`
+                                        ? `border-[var(--brand-primary)] bg-[var(--brand-primary-50)] text-[var(--brand-primary)] shadow-inner ${isBeveled ? 'btn-beveled' : ''}`
                                         : `border-[var(--color-brand-border)] text-[var(--brand-secondary)] hover:border-[var(--brand-primary-200)] ${isBeveled ? 'btn-beveled hover:bg-[var(--brand-background)]' : ''}`}
                                 `}
                             >

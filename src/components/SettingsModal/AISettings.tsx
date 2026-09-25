@@ -225,6 +225,7 @@ export function AISettings(): React.ReactElement {
                     {currentProvider === 'custom' ? (
                         <div className="space-y-2">
                             <Input
+                                aria-label={t('settingsModal.ai.model')}
                                 value={currentModel === 'custom' ? '' : currentModel}
                                 onChange={e => setAISettings({ model: e.target.value })}
                                 placeholder="e.g. llama3-70b-8192 or gpt-4o"
@@ -234,6 +235,7 @@ export function AISettings(): React.ReactElement {
                         </div>
                     ) : (
                         <Select
+                            aria-label={t('settingsModal.ai.model')}
                             value={currentModel}
                             onChange={(val) => setAISettings({ model: val })}
                             options={models.map(m => ({

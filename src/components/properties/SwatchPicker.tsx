@@ -61,6 +61,7 @@ export function SwatchPicker({
                             onClick={(event) => onSelect(item.id, event.currentTarget)}
                             title={item.label}
                             aria-label={item.label}
+                            aria-pressed={selected}
                             className={`flex ${sizeClass} items-center justify-center rounded-[var(--brand-radius)] border transition-all hover:-translate-y-0.5 ${
                                 selected
                                     ? 'border-[var(--brand-primary)] shadow-sm'

@@ -15,10 +15,11 @@ export function EdgeRelationSection({
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--brand-secondary)]">
           Crow&apos;s Foot
-        </label>
+        </span>
         <Select
+          aria-label="Crow's Foot"
           value={(selectedEdge.data?.erRelation as string) || '||--||'}
           onChange={(value) => {
             onChange(selectedEdge.id, {
@@ -34,7 +35,7 @@ export function EdgeRelationSection({
           }))}
         />
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-[var(--brand-secondary)]">
         Controls the ER cardinality markers rendered on this connection.
       </p>
     </div>

@@ -5,6 +5,7 @@ import { buildExportFileName } from '@/lib/exportFileName';
 import { copyDataUrlToClipboard, createExportOptions } from './flow-export/exportCapture';
 import { resolveFlowExportViewport } from './flowExportViewport';
 import type { FlowNode } from '@/lib/types';
+import type { ExportResult } from '@/services/export/exportResult';
 
 const logger = createLogger({ scope: 'useStaticExport' });
 
@@ -18,142 +19,60 @@ export const useStaticExport = (
   addToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void,
   exportBaseName: string | undefined
 ) => {
-  const handleExport = useCallback(
-    (format: 'png' | 'jpeg' = 'png', exportOptions?: StaticImageExportOptions) => {
-      const { viewport: flowViewport, message } = resolveFlowExportViewport(
-        reactFlowWrapper.current
-      );
-      if (!flowViewport) {
-        addToast(message ?? 'The canvas viewport could not be found.', 'error');
-        return;
-      }
-
-      reactFlowWrapper.current.classList.add('exporting');
-      addToast(`Preparing ${format.toUpperCase()} download…`, 'info');
-
-      setTimeout(() => {
-        const { options } = createExportOptions(nodes, format, {
-          transparentBackground: exportOptions?.transparentBackground,
-        });
-
-        const exportPromise =
-          format === 'png' ? toPng(flowViewport, options) : toJpeg(flowViewport, options);
-
-        exportPromise
-          .then((dataUrl) => {
-            const link = document.createElement('a');
-            link.download = buildExportFileName(exportBaseName, format === 'jpeg' ? 'jpg' : 'png');
-            link.href = dataUrl;
-            link.click();
-            addToast(`Diagram exported as ${format.toUpperCase()}!`, 'success');
-          })
-          .catch((err) => {
-            logger.error('Export failed.', { error: err, format });
-            addToast('Failed to export. Please try again.', 'error');
-          })
-          .finally(() => {
-            reactFlowWrapper.current?.classList.remove('exporting');
-          });
-      }, 300);
-    },
-    [nodes, reactFlowWrapper, addToast, exportBaseName]
-  );
-
-  const handleCopyImage = useCallback(
-    (format: 'png' | 'jpeg' = 'png', exportOptions?: StaticImageExportOptions) => {
-      const { viewport: flowViewport, message } = resolveFlowExportViewport(
-        reactFlowWrapper.current
-      );
-      if (!flowViewport) {
-        addToast(message ?? 'The canvas viewport could not be found.', 'error');
-        return;
-      }
-
-      reactFlowWrapper.current.classList.add('exporting');
-      addToast(`Preparing ${format.toUpperCase()} copy…`, 'info');
-
-      setTimeout(() => {
-        const { options } = createExportOptions(nodes, format, {
-          transparentBackground: exportOptions?.transparentBackground,
-        });
-        const exportPromise =
-          format === 'png' ? toPng(flowViewport, options) : toJpeg(flowViewport, options);
-
-        exportPromise
-          .then(async (dataUrl) => {
-            await copyDataUrlToClipboard(dataUrl);
-            addToast(`Diagram copied as ${format.toUpperCase()}!`, 'success');
-          })
-          .catch((err) => {
-            logger.error('Clipboard image export failed.', { error: err, format });
-            addToast('Failed to copy image. Please try again.', 'error');
-          })
-          .finally(() => {
-            reactFlowWrapper.current?.classList.remove('exporting');
-          });
-      }, 300);
-    },
-    [nodes, reactFlowWrapper, addToast]
-  );
-
-  const handleSvgExport = useCallback(() => {
+  const capture = useCallback(async (
+    format: 'png' | 'jpeg' | 'svg',
+    action: 'download' | 'copy',
+    exportOptions?: StaticImageExportOptions
+  ): Promise<ExportResult> => {
     const { viewport: flowViewport, message } = resolveFlowExportViewport(reactFlowWrapper.current);
     if (!flowViewport) {
-      addToast(message ?? 'The canvas viewport could not be found.', 'error');
-      return;
+      const failureMessage = message ?? 'The canvas viewport could not be found.';
+      addToast(failureMessage, 'error');
+      return { status: 'error', message: failureMessage };
     }
-
-    reactFlowWrapper.current.classList.add('exporting');
-    addToast('Preparing SVG download…', 'info');
-
-    setTimeout(() => {
-      const { options } = createExportOptions(nodes, 'png');
-
-      toSvg(flowViewport, { ...options, backgroundColor: null })
-        .then((dataUrl) => {
-          const link = document.createElement('a');
-          link.download = buildExportFileName(exportBaseName, 'svg');
-          link.href = dataUrl;
-          link.click();
-          addToast('Diagram exported as SVG!', 'success');
-        })
-        .catch((err) => {
-          logger.error('SVG export failed.', { error: err });
-          addToast('Failed to export SVG. Please try again.', 'error');
-        })
-        .finally(() => {
-          reactFlowWrapper.current?.classList.remove('exporting');
-        });
-    }, 300);
+    const wrapper = reactFlowWrapper.current;
+    wrapper.classList.add('exporting');
+    addToast(`Preparing ${format.toUpperCase()} ${action}…`, 'info');
+    try {
+      // Allow export-only canvas styles to paint before capturing the viewport.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+      const { options } = createExportOptions(nodes, format === 'jpeg' ? 'jpeg' : 'png', exportOptions);
+      const dataUrl = format === 'svg'
+        ? await toSvg(flowViewport, { ...options, backgroundColor: null })
+        : format === 'png' ? await toPng(flowViewport, options) : await toJpeg(flowViewport, options);
+      if (action === 'copy') {
+        await copyDataUrlToClipboard(dataUrl);
+        addToast(`Diagram copied as ${format.toUpperCase()}!`, 'success');
+      } else {
+        const link = document.createElement('a');
+        link.download = buildExportFileName(exportBaseName, format === 'jpeg' ? 'jpg' : format);
+        link.href = dataUrl;
+        link.click();
+        addToast(`Diagram exported as ${format.toUpperCase()}!`, 'success');
+      }
+      return { status: 'success' };
+    } catch (error) {
+      const failureMessage = action === 'copy'
+        ? `Failed to copy ${format === 'svg' ? 'SVG' : 'image'}. Please try again.`
+        : format === 'svg' ? 'Failed to export SVG. Please try again.' : 'Failed to export. Please try again.';
+      logger.error('Image export failed.', { error, format, action });
+      addToast(failureMessage, 'error');
+      return { status: 'error', message: failureMessage };
+    } finally {
+      wrapper.classList.remove('exporting');
+    }
   }, [nodes, reactFlowWrapper, addToast, exportBaseName]);
 
-  const handleCopySvg = useCallback(() => {
-    const { viewport: flowViewport, message } = resolveFlowExportViewport(reactFlowWrapper.current);
-    if (!flowViewport) {
-      addToast(message ?? 'The canvas viewport could not be found.', 'error');
-      return;
-    }
-
-    reactFlowWrapper.current.classList.add('exporting');
-    addToast('Preparing SVG copy…', 'info');
-
-    setTimeout(() => {
-      const { options } = createExportOptions(nodes, 'png');
-
-      toSvg(flowViewport, { ...options, backgroundColor: null })
-        .then(async (dataUrl) => {
-          await copyDataUrlToClipboard(dataUrl);
-          addToast('Diagram copied as SVG!', 'success');
-        })
-        .catch((err) => {
-          logger.error('SVG clipboard export failed.', { error: err });
-          addToast('Failed to copy SVG. Please try again.', 'error');
-        })
-        .finally(() => {
-          reactFlowWrapper.current?.classList.remove('exporting');
-        });
-    }, 300);
-  }, [nodes, reactFlowWrapper, addToast]);
+  const handleExport = useCallback(
+    (format: 'png' | 'jpeg' = 'png', options?: StaticImageExportOptions) => capture(format, 'download', options),
+    [capture]
+  );
+  const handleCopyImage = useCallback(
+    (format: 'png' | 'jpeg' = 'png', options?: StaticImageExportOptions) => capture(format, 'copy', options),
+    [capture]
+  );
+  const handleSvgExport = useCallback(() => capture('svg', 'download'), [capture]);
+  const handleCopySvg = useCallback(() => capture('svg', 'copy'), [capture]);
 
   return { handleExport, handleCopyImage, handleSvgExport, handleCopySvg };
 };

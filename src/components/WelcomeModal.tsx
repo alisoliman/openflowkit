@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useModalDialog } from '@/hooks/useModalDialog';
 import { useTranslation } from 'react-i18next';
 import { useAnalyticsPreference } from '@/hooks/useAnalyticsPreference';
 import { OpenFlowLogo } from './icons/OpenFlowLogo';
@@ -31,17 +32,7 @@ export function WelcomeModal({
     writeLocalStorageString(WELCOME_SEEN_STORAGE_KEY, 'true');
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        dismiss();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  const dialogRef = useModalDialog({ isOpen, onClose: dismiss });
 
   if (!isOpen) return null;
 
@@ -92,10 +83,10 @@ export function WelcomeModal({
     },
     {
       icon: <MonitorPlay className="h-5 w-5 text-purple-500" />,
-      title: t('welcome.feature4Title', 'Export in many formats'),
+      title: t('welcome.feature4Title', 'Start from a template'),
       description: t(
         'welcome.feature4Desc',
-        'Export into beautiful, fully animated presentation diagrams.'
+        'Explore ready-made diagrams and make one your own.'
       ),
       action: () => handleTrackedAction('welcome_template_selected', onOpenTemplates),
     },
@@ -103,10 +94,10 @@ export function WelcomeModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="w-full max-w-[440px] overflow-hidden rounded-[24px] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-2xl animate-in zoom-in-95 duration-300">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="welcome-title" className="w-full max-w-[460px] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[var(--radius-xl)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-overlay)] animate-in zoom-in-95 duration-200">
         <div className="px-8 pb-3 pt-10 text-center">
           <OpenFlowLogo className="mx-auto mb-5 h-12 w-12 text-[var(--brand-primary)]" />
-          <h2 className="text-[24px] font-bold tracking-tight text-[var(--brand-text)] mb-2">
+          <h2 id="welcome-title" className="text-[24px] font-bold tracking-tight text-[var(--brand-text)] mb-2">
             {t('welcome.title', 'Welcome to OpenFlowKit')}
           </h2>
         </div>
@@ -114,23 +105,16 @@ export function WelcomeModal({
         <div className="px-8 py-4">
           <div className="flex flex-col gap-[22px]">
             {features.map((f, i) => (
-              <div
+              <button
+                type="button"
                 key={i}
-                role="button"
-                tabIndex={0}
                 onClick={f.action}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    f.action();
-                  }
-                }}
                 className="flex flex-row items-center gap-4 cursor-pointer rounded-xl p-2 -m-2 hover:bg-[var(--brand-background)] transition-colors"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-[var(--brand-background)] border border-[var(--color-brand-border)] shadow-sm">
                   {f.icon}
                 </div>
-                <div className="flex-1 text-left line-clamp-2">
+                <div className="min-w-0 flex-1 text-left">
                   <h3 className="text-[15px] font-semibold text-[var(--brand-text)] mb-[1px]">
                     {f.title}
                   </h3>
@@ -138,7 +122,7 @@ export function WelcomeModal({
                     {f.description}
                   </p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -158,6 +142,7 @@ export function WelcomeModal({
             </div>
             <Switch
               checked={analyticsEnabled}
+              aria-label={t('welcome.analyticsTitle', 'Anonymous Analytics')}
               onCheckedChange={setAnalyticsEnabled}
               className="scale-90"
             />

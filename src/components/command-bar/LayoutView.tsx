@@ -94,7 +94,7 @@ function AlgorithmCard({ label, desc, icon, selected, onClick }: AlgorithmCardPr
         >
             <div className={`
                 w-9 h-9 rounded-[var(--radius-sm)] flex items-center justify-center mb-2.5 transition-colors
-                ${selected ? 'bg-[var(--brand-primary)] text-white shadow-sm' : 'bg-[var(--brand-background)] text-[var(--brand-secondary)] border border-[var(--color-brand-border)]'}
+                ${selected ? 'bg-[var(--brand-action)] text-white shadow-sm' : 'bg-[var(--brand-background)] text-[var(--brand-secondary)] border border-[var(--color-brand-border)]'}
             `}>
                 {icon}
             </div>

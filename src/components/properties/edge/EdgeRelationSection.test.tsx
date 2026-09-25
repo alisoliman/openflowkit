@@ -19,8 +19,8 @@ describe('EdgeRelationSection', () => {
     const onChange = vi.fn();
     render(<EdgeRelationSection selectedEdge={createEdge()} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /one to one/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'One to zero or many' }));
+    fireEvent.click(screen.getByRole('combobox', { name: "Crow's Foot" }));
+    fireEvent.click(screen.getByRole('option', { name: 'One to zero or many' }));
 
     expect(onChange).toHaveBeenCalledWith('edge-1', {
       data: {

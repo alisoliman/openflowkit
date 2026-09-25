@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
-import { Copy, Download, Figma, FileCode, FileJson, FileText, Film, GitBranch, Image } from 'lucide-react';
+import { AlertCircle, Copy, Download, Figma, FileCode, FileJson, FileText, Film, GitBranch, Image, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   type CinematicExportResolution,
@@ -9,9 +9,14 @@ import {
 import { SegmentedChoice } from './properties/SegmentedChoice';
 import { Button } from './ui/Button';
 import { Select, type SelectOption } from './ui/Select';
-import { SegmentedTabs } from './ui/SegmentedTabs';
+import { getSegmentedTabButtonClass } from './ui/SegmentedTabs';
 
 interface ExportMenuPanelProps {
+  id?: string;
+  onClose?: () => void;
+  pendingAction?: { key: string; action: ExportActionKey } | null;
+  errorMessage?: string | null;
+  onClearError?: () => void;
   onSelect: (key: string, action: ExportActionKey, options?: ExportSelectionOptions) => void;
   cinematicSpeed?: CinematicExportSpeed;
   onCinematicSpeedChange?: (speed: CinematicExportSpeed) => void;
@@ -100,6 +105,11 @@ function getActionLabel(
 }
 
 export function ExportMenuPanel({
+  id,
+  onClose,
+  pendingAction = null,
+  errorMessage,
+  onClearError,
   onSelect,
   cinematicSpeed = 'normal',
   onCinematicSpeedChange,
@@ -107,6 +117,11 @@ export function ExportMenuPanel({
   onCinematicResolutionChange,
 }: ExportMenuPanelProps): React.ReactElement {
   const { t } = useTranslation();
+  const headingId = useId();
+  const contentId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const isPending = pendingAction !== null;
+  useEffect(() => { panelRef.current?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')?.focus(); }, []);
 
   const sections = useMemo<ExportSection[]>(
     () => [
@@ -117,14 +132,14 @@ export function ExportMenuPanel({
           {
             key: 'png',
             label: 'PNG',
-            hint: t('export.hintWhiteBg4K', 'White Background (4K)'),
+            hint: t('export.hintPng', 'High-resolution image with optional transparency'),
             Icon: Image,
             actions: ['download', 'copy'],
           },
           {
             key: 'jpeg',
             label: 'JPG',
-            hint: t('export.hintWhiteBg4K', 'White Background (4K)'),
+            hint: t('export.hintJpg', 'High-resolution image with a white background'),
             Icon: Image,
             actions: ['download', 'copy'],
           },
@@ -138,7 +153,7 @@ export function ExportMenuPanel({
           {
             key: 'pdf',
             label: 'PDF',
-            hint: t('export.hintDocument', 'Document'),
+            hint: t('export.hintPdf', 'Document for printing and sharing'),
             Icon: FileText,
             actions: ['download'],
           },
@@ -164,21 +179,28 @@ export function ExportMenuPanel({
           {
             key: 'json',
             label: t('export.jsonLabel', 'JSON File'),
-            hint: t('export.hintDownload', 'Download'),
+            hint: t('export.hintJsonBackup', 'Editable diagram backup for this app'),
             Icon: FileJson,
+            actions: ['download', 'copy'],
+          },
+          {
+            key: 'openflow',
+            label: t('export.openflowLabel', 'OpenFlow DSL'),
+            hint: t('export.hintOpenflow', 'Native diagram source with layout and styling'),
+            Icon: FileCode,
             actions: ['download', 'copy'],
           },
           {
             key: 'mermaid',
             label: t('export.mermaid', 'Mermaid'),
-            hint: t('export.actionCopy', 'Copy'),
+            hint: t('export.hintMermaid', 'Text source for Markdown and documentation'),
             Icon: GitBranch,
             actions: ['download', 'copy'],
           },
           {
             key: 'plantuml',
             label: t('export.plantuml', 'PlantUML'),
-            hint: t('export.hintDownload', 'Download'),
+            hint: t('export.hintPlantuml', 'Text source for PlantUML tools'),
             Icon: FileCode,
             actions: ['download'],
           },
@@ -193,16 +215,6 @@ export function ExportMenuPanel({
       },
     ],
     [t]
-  );
-
-  const tabs = useMemo(
-    () =>
-      sections.map((section) => ({
-        id: section.key,
-        label: section.title,
-        icon: <span className="hidden sm:inline-flex">{getSectionIcon(section.key)}</span>,
-      })),
-    [sections]
   );
 
   const [activeSectionKey, setActiveSectionKey] = useState<ExportCategoryKey>('image');
@@ -225,49 +237,80 @@ export function ExportMenuPanel({
   }));
 
   function handleSectionChange(nextTab: string): void {
+    onClearError?.();
     setActiveSectionKey(nextTab as ExportCategoryKey);
   }
 
   function handleOptionChange(nextKey: string): void {
+    onClearError?.();
     setSelectedKeys((current) => ({
       ...current,
       [activeSectionKey]: nextKey,
     }));
   }
 
+  function handleCategoryKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number): void {
+    let nextIndex: number | undefined;
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % sections.length;
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + sections.length) % sections.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = sections.length - 1;
+    if (nextIndex !== undefined) {
+      event.preventDefault();
+      handleSectionChange(sections[nextIndex].key);
+      panelRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
+    }
+  }
+
   return (
-    <div className="absolute right-0 top-full z-50 mt-2 w-[24rem] origin-top-right rounded-[var(--radius-xl)] border border-[var(--color-brand-border)]/80 bg-[var(--brand-surface)]/95 p-3 shadow-[var(--shadow-overlay)] ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
-      <div className="rounded-[var(--radius-lg)] border border-[var(--color-brand-border)]/70 bg-[color-mix(in_srgb,var(--brand-surface),var(--brand-background)_22%)] p-3 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--brand-text),transparent_94%)]">
-        <h3 className="text-sm font-semibold text-[var(--brand-text)]">
-          {t('export.title', 'Export')}
-        </h3>
-        <p className="mt-1 text-xs leading-5 text-[var(--brand-secondary)]">
-          {t('export.subtitle', 'Choose a format and action.')}
-        </p>
-      </div>
-
-      <div className="mt-3">
-        <SegmentedTabs
-          items={tabs}
-          value={activeSectionKey}
-          onChange={handleSectionChange}
-          fill
-          className="pb-0"
-          listClassName="rounded-[var(--brand-radius)] border border-[var(--color-brand-border)]/60 bg-[var(--brand-background)]/70 p-1 gap-1"
-        />
-      </div>
-
-      <div className="mt-3 rounded-[var(--radius-lg)] border border-[var(--color-brand-border)]/70 bg-[color-mix(in_srgb,var(--brand-background),var(--brand-surface)_20%)] p-3">
-        <div className="mb-2 flex items-center gap-2">
-          <selectedItem.Icon className="h-4 w-4 text-[var(--brand-primary)]" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--brand-secondary)]">
-            {activeSection.title}
-          </p>
+    <div
+      id={id}
+      ref={panelRef}
+      role="dialog"
+      aria-labelledby={headingId}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onClose?.(); }
+      }}
+      className="absolute right-0 top-full z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-[min(24rem,calc(100vw-1.5rem))] origin-top-right flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-overlay)] animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none"
+    >
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--color-brand-border)] px-4 py-3">
+        <div>
+          <h3 id={headingId} className="text-sm font-semibold text-[var(--brand-text)]">{t('export.exportDiagram', 'Export diagram')}</h3>
+          <p className="mt-1 text-xs leading-5 text-[var(--brand-secondary)]">{t('export.subtitle', 'Choose a format and action.')}</p>
         </div>
-
+        {onClose && <Button variant="ghost" size="icon" onClick={onClose} aria-label={t('export.close', 'Close export')} className="h-8 w-8 shrink-0"><X aria-hidden="true" className="h-4 w-4" /></Button>}
+      </div>
+      <div className="min-h-0 overflow-y-auto overscroll-contain p-4 custom-scrollbar">
+        <div role="tablist" aria-label={t('export.category', 'Export category')} className="flex gap-1 rounded-[var(--radius-md)] border border-[var(--color-brand-border)] bg-[var(--brand-background)] p-1">
+          {sections.map((section, index) => {
+            const selected = activeSectionKey === section.key;
+            return <button
+              key={section.key}
+              type="button"
+              role="tab"
+              id={`${contentId}-${section.key}-tab`}
+              aria-selected={selected}
+              aria-controls={`${contentId}-panel`}
+              tabIndex={selected ? 0 : -1}
+              disabled={isPending}
+              onClick={() => handleSectionChange(section.key)}
+              onKeyDown={(event) => handleCategoryKeyDown(event, index)}
+              className={`${getSegmentedTabButtonClass(selected, 'md', true)} ${selected ? 'border-[var(--brand-primary-200)] bg-[var(--brand-surface)] text-[var(--brand-primary)] shadow-sm' : 'border-transparent text-[var(--brand-secondary)] hover:text-[var(--brand-text)]'}`}
+            >
+              <span aria-hidden="true">{getSectionIcon(section.key)}</span>{section.title}
+            </button>;
+          })}
+        </div>
+        <fieldset disabled={isPending} className="mt-4 min-w-0 border-0 p-0">
+          <div id={`${contentId}-panel`} role="tabpanel" aria-labelledby={`${contentId}-${activeSectionKey}-tab`}>
         {shouldShowFormatSelect ? (
           <div data-testid="export-format-select">
+            <label htmlFor={`${contentId}-format`} className="mb-2 block text-xs font-medium text-[var(--brand-text)]">{t('export.format', 'Format')}</label>
             <Select
+              id={`${contentId}-format`}
+              aria-label={t('export.format', 'Format')}
+              disabled={isPending}
               value={selectedItem.key}
               onChange={handleOptionChange}
               options={selectOptions}
@@ -285,7 +328,7 @@ export function ExportMenuPanel({
         )}
 
         {shouldShowTransparentBackgroundToggle ? (
-          <label className="mt-3 flex cursor-pointer items-center gap-3 text-sm font-medium text-[var(--brand-text)]">
+          <label className="mt-3 flex min-h-10 cursor-pointer items-center gap-3 text-sm font-medium text-[var(--brand-text)]">
             <input
               type="checkbox"
               checked={transparentBackground}
@@ -299,7 +342,7 @@ export function ExportMenuPanel({
 
         {activeSectionKey === 'video' && onCinematicSpeedChange && (
           <div className="mt-3">
-            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--brand-secondary)] mb-1.5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--brand-secondary)] mb-1.5">
               {t('export.speed', 'Speed')}
             </p>
             <SegmentedChoice
@@ -314,7 +357,7 @@ export function ExportMenuPanel({
 
         {activeSectionKey === 'video' && onCinematicResolutionChange && (
           <div className="mt-3">
-            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--brand-secondary)] mb-1.5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--brand-secondary)] mb-1.5">
               {t('export.resolution', 'Resolution')}
             </p>
             <SegmentedChoice
@@ -342,13 +385,20 @@ export function ExportMenuPanel({
                 })
               }
               data-testid={`export-action-${selectedItem.key}-${action}`}
+              aria-label={`${getActionLabel(t, action)} ${selectedItem.label}`}
+              isLoading={pendingAction?.key === selectedItem.key && pendingAction.action === action}
+              disabled={isPending}
               className="h-11 w-full"
             >
-              {getActionIcon(action)}
-              {getActionLabel(t, action)}
+              {!isPending && <span aria-hidden="true">{getActionIcon(action)}</span>}
+              {pendingAction?.key === selectedItem.key && pendingAction.action === action ? t('export.preparing', 'Preparing…') : getActionLabel(t, action)}
             </Button>
           ))}
         </div>
+          </div>
+        </fieldset>
+        {isPending && <p role="status" className="mt-3 text-xs leading-5 text-[var(--brand-secondary)]">{t('export.preparingHelp', 'Preparing your export. You can close this panel while it finishes.')}</p>}
+        {errorMessage && <div role="alert" className="mt-3 flex gap-2 rounded-[var(--radius-md)] border border-red-500/20 bg-red-500/10 p-3 text-xs leading-5 text-[var(--brand-text)]"><AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-red-500" /><p>{errorMessage}</p></div>}
       </div>
     </div>
   );

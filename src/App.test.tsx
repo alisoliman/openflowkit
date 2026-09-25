@@ -13,7 +13,7 @@ vi.mock('./components/HomePage', () => ({
     onLaunchWithTemplates: () => void;
     onImportJSON: () => void;
   }) => (
-    <div data-testid="home-page">
+    <div id="main-content" tabIndex={-1} data-testid="home-page">
       <button type="button" onClick={onLaunch}>
         Create Flow
       </button>
@@ -55,6 +55,15 @@ describe('App routing', () => {
   beforeEach(() => {
     localStorage.clear();
     resetEmptyWorkspace();
+  });
+
+  it('skips to page content without overwriting the HashRouter route', async () => {
+    window.history.pushState({}, '', '/#/home');
+    render(<App />);
+    const content = await screen.findByTestId('home-page');
+    fireEvent.click(screen.getByRole('link', { name: 'Skip to content' }));
+    expect(content).toHaveFocus();
+    expect(window.location.hash).toBe('#/home');
   });
 
   it('redirects /canvas to home when no active document exists', async () => {

@@ -95,14 +95,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const isAgentEditing = useIsAgentEditing();
   const isInteractive = !isCommandBarOpen && !isAgentEditing;
   const containerClasses = [
-    'flex items-center p-1.5 bg-[var(--brand-surface)]/90 backdrop-blur-xl shadow-[var(--shadow-md)] rounded-[var(--radius-lg)] border border-[var(--brand-surface)]/20 ring-1 ring-black/5 transition-all duration-300',
+    'flex w-max max-w-[calc(100%-1.5rem)] flex-wrap items-center justify-center gap-y-1 p-1.5 bg-[var(--brand-surface)]/95 backdrop-blur-xl shadow-[var(--shadow-md)] rounded-[var(--radius-lg)] border border-[var(--color-brand-border)] transition-colors duration-150',
     isCommandBarOpen ? 'pointer-events-none' : '',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-40 ${containerClasses}`}>
+    <div role="group" aria-label={t('toolbar.diagramTools', 'Diagram tools')} className={`absolute bottom-5 left-1/2 -translate-x-1/2 z-40 sm:bottom-8 ${containerClasses}`}>
       {/* Group 1: Tools */}
       <ToolbarModeControls
         isInteractive={isInteractive}
@@ -111,7 +111,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         onTogglePanMode={onTogglePanMode}
       />
 
-      <div className={`mx-2 ${TOOLBAR_DIVIDER_CLASS}`} />
+      <div className={`mx-1.5 ${TOOLBAR_DIVIDER_CLASS}`} />
 
       {/* Group 2: Actions */}
       <div className="flex items-center gap-1">
@@ -141,6 +141,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <Tooltip text={t('toolbar.assets', 'Assets')}>
           <Button
             onClick={onOpenAssets}
+            aria-label={t('toolbar.assets', 'Assets')}
             disabled={!isInteractive}
             variant="ghost"
             size="icon"
@@ -152,12 +153,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <Tooltip text={t('toolbar.commandCenter', 'Open Command Center')}>
           <Button
             onClick={onCommandBar}
+            aria-label={t('toolbar.commandCenter', 'Open Command Center')}
+            aria-keyshortcuts="Meta+K Control+K"
+            aria-haspopup="dialog"
+            aria-expanded={isCommandBarOpen}
             disabled={!isInteractive}
             variant="primary"
             size="icon"
-            className={`group rounded-[var(--radius-md)] shadow-[var(--shadow-sm)] transition-all hover:scale-105 active:scale-95 ${isCommandBarOpen ? 'bg-[var(--brand-text)] hover:bg-[var(--brand-text)]' : 'bg-[var(--brand-primary)] hover:brightness-110'}`}
+            className={`group h-10 w-10 rounded-[var(--radius-md)] shadow-[var(--shadow-sm)] transition-colors ${isCommandBarOpen ? 'bg-[var(--brand-text)] hover:bg-[var(--brand-text)]' : 'bg-[var(--brand-action)] hover:bg-[var(--brand-action-hover)]'}`}
             icon={
               <Plus
+                aria-hidden="true"
                 className={`w-5 h-5 text-white transition-transform duration-200 ${isCommandBarOpen ? 'rotate-45' : 'group-hover:rotate-90'}`}
               />
             }
@@ -167,30 +173,33 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <Tooltip text={t('toolbar.autoLayout')}>
           <Button
             onClick={onLayout}
+            aria-label={t('toolbar.autoLayout', 'Auto Layout')}
             disabled={!isInteractive}
             variant="ghost"
             size="icon"
             className={getToolbarIconButtonClass()}
-            icon={<Workflow className="w-4 h-4 transition-transform group-hover:scale-110" />}
+            icon={<Workflow aria-hidden="true" className="w-4 h-4 transition-transform group-hover:scale-110" />}
           />
         </Tooltip>
 
-        <Tooltip text={t('toolbar.flowpilot', 'Flowpilot (Cmd+K)')}>
+        <Tooltip text={t('toolbar.flowpilot', 'Flowpilot')}>
           <Button
             data-testid="toolbar-flowpilot-toggle"
-            aria-label={t('toolbar.flowpilot', 'Flowpilot (Cmd+K)')}
+            aria-label={t('toolbar.flowpilot', 'Flowpilot')}
             onClick={onToggleStudio}
+            aria-expanded={isStudioOpen}
+            aria-pressed={isStudioOpen}
             disabled={isCommandBarOpen}
             variant="ghost"
             size="icon"
             className={`${getToolbarIconButtonClass({ active: isStudioOpen })} group relative overflow-hidden`}
           >
-            <WandSparkles className={flowPilotIconClass} />
+            <WandSparkles aria-hidden="true" className={flowPilotIconClass} />
           </Button>
         </Tooltip>
       </div>
 
-      <div className={`mx-2 ${TOOLBAR_DIVIDER_CLASS}`} />
+      <div className={`mx-1.5 ${TOOLBAR_DIVIDER_CLASS}`} />
 
       {/* Group 3: History */}
       <ToolbarHistoryControls
